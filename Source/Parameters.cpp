@@ -43,6 +43,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                 std::make_unique<Choice> (pid (bSource), "B Source",
                                           juce::StringArray { "Sidechain", "Brain" }, 1));
 
+    // Cepstral freeze
+    layout.add (std::make_unique<Bool> (pid (freezeEnvA), "Freeze A Envelope", false),
+                std::make_unique<Bool> (pid (freezeDetailA), "Freeze A Detail", false),
+                std::make_unique<Bool> (pid (freezeEnvB), "Freeze B Envelope", false),
+                std::make_unique<Bool> (pid (freezeDetailB), "Freeze B Detail", false));
+
     // Brain search
     layout.add (unit (matchTimbre, "Match Timbre", 0.5f),
                 unit (matchPitch, "Match Pitch", 0.5f),

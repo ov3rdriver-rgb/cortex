@@ -32,6 +32,10 @@ namespace cortex::ParamIDs
     inline constexpr auto autoMute      = "autoMute";
     inline constexpr auto autoMuteMs    = "autoMuteMs";
     inline constexpr auto lowLatency    = "lowLatency";
+    inline constexpr auto freezeEnvA    = "freezeEnvA";
+    inline constexpr auto freezeDetailA = "freezeDetailA";
+    inline constexpr auto freezeEnvB    = "freezeEnvB";
+    inline constexpr auto freezeDetailB = "freezeDetailB";
 
     // Cortex Instrument only.
     inline constexpr auto oscWave       = "oscWave";

@@ -16,6 +16,8 @@ void CepstralMorph::prepare (double newSampleRate)
     fft.prepare();
     for (auto* v : { &timeBuf, &specA, &specB, &cepsA, &cepsB, &scratch })
         v->assign ((size_t) maxFftSize, {});
+    for (auto* f : { &freezeEnvA, &freezeDetailA, &freezeEnvB, &freezeDetailB })
+        f->held.assign ((size_t) maxFftSize, 0.0f);
     setOrder (11);
     snapToTargets();
 }
@@ -23,6 +25,9 @@ void CepstralMorph::prepare (double newSampleRate)
 void CepstralMorph::setOrder (int order)
 {
     fft.setOrder (order);
+    // Held cepstra belong to the old size; recapture on the next frame.
+    for (auto* f : { &freezeEnvA, &freezeDetailA, &freezeEnvB, &freezeDetailB })
+        f->captured = false;
     const double hopSeconds = (double) (fft.size() / STFT::overlap) / sampleRate;
     smoothCoeff = (float) std::exp (-hopSeconds / smoothingSeconds);
     snapToTargets();
@@ -40,6 +45,10 @@ void CepstralMorph::advanceSmoothing() noexcept
     glide (current.cornerGainTLdB, target.cornerGainTLdB);
     glide (current.cornerGainBRdB, target.cornerGainBRdB);
     current.phaseMode = target.phaseMode;
+    current.freezeEnvA = target.freezeEnvA;
+    current.freezeDetailA = target.freezeDetailA;
+    current.freezeEnvB = target.freezeEnvB;
+    current.freezeDetailB = target.freezeDetailB;
 }
 
 void CepstralMorph::processFrame (const float* frameA, const float* frameB, float* frameOut)
@@ -67,6 +76,11 @@ void CepstralMorph::processFrame (const float* frameA, const float* frameB, floa
     Cepstrum::realCepstrum (fft, specA.data(), scratch.data(), cepsA.data());
     Cepstrum::realCepstrum (fft, specB.data(), scratch.data(), cepsB.data());
 
+    freezeEnvA.update (current.freezeEnvA, cepsA, n);
+    freezeDetailA.update (current.freezeDetailA, cepsA, n);
+    freezeEnvB.update (current.freezeEnvB, cepsB, n);
+    freezeDetailB.update (current.freezeDetailB, cepsB, n);
+
     // 4-5. Lifter each input into envelope/detail and crossfade the parts separately.
     for (int k = 0; k < n; ++k)
     {
@@ -76,8 +90,13 @@ void CepstralMorph::processFrame (const float* frameA, const float* frameB, floa
         const float ca = cepsA[(size_t) k].real();
         const float cb = cepsB[(size_t) k].real();
 
-        const float env = lerp (wA * ca, wB * cb, x);
-        const float det = lerp ((1.0f - wA) * ca, (1.0f - wB) * cb, y);
+        const float envA = freezeEnvA.value (current.freezeEnvA, ca, k);
+        const float detA = freezeDetailA.value (current.freezeDetailA, ca, k);
+        const float envB = freezeEnvB.value (current.freezeEnvB, cb, k);
+        const float detB = freezeDetailB.value (current.freezeDetailB, cb, k);
+
+        const float env = lerp (wA * envA, wB * envB, x);
+        const float det = lerp ((1.0f - wA) * detA, (1.0f - wB) * detB, y);
         scratch[(size_t) k] = { env + det, 0.0f };
 
         if (k < MorphSnapshot::numCoeffs)

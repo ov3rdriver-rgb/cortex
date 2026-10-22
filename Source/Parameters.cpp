@@ -49,6 +49,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                 std::make_unique<Bool> (pid (freezeEnvB), "Freeze B Envelope", false),
                 std::make_unique<Bool> (pid (freezeDetailB), "Freeze B Detail", false));
 
+    // Formant shift
+    layout.add (std::make_unique<Float> (pid (formantA), "Formant A", juce::NormalisableRange<float> (-24.0f, 24.0f, 0.01f), 0.0f,
+                                         juce::AudioParameterFloatAttributes().withLabel ("st")),
+                std::make_unique<Float> (pid (formantB), "Formant B", juce::NormalisableRange<float> (-24.0f, 24.0f, 0.01f), 0.0f,
+                                         juce::AudioParameterFloatAttributes().withLabel ("st")));
+
     // Cutoff modulation
     layout.add (std::make_unique<Float> (pid (lfoRate), "LFO Rate", juce::NormalisableRange<float> (0.01f, 20.0f, 0.0f, 0.3f), 1.0f,
                                          juce::AudioParameterFloatAttributes().withLabel ("Hz")),

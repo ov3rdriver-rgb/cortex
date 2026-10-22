@@ -21,6 +21,10 @@ struct MorphParams
     // Cepstral freeze (BRIEF.md §4 idea 6): hold a part of an input at the
     // cepstrum it had when the freeze was switched on, while the rest moves.
     bool freezeEnvA = false, freezeDetailA = false, freezeEnvB = false, freezeDetailB = false;
+
+    // Formant shift (BRIEF.md §4 idea 5): move each input's formants by this
+    // many semitones without changing its pitch.
+    float formantA = 0.0f, formantB = 0.0f;
 };
 
 // What the UI shows of the last processed frame: the low-quefrency cepstra of
@@ -58,6 +62,12 @@ public:
 private:
     void advanceSmoothing() noexcept;
 
+    // Shifts the formants of `spectrum` (N bins, in place) by `factor` along
+    // frequency, keeping phase and harmonic structure. The envelope is a
+    // "true envelope" (iterated cepstral smoothing that rides the harmonic
+    // peaks) at lifter `cutoff`, so harmonic sounds' formants actually move.
+    void shiftFormants (std::vector<Complex>& spectrum, float cutoff, float factor) noexcept;
+
     // One frozen part: captured on the first frame after it is switched on.
     struct Freeze
     {
@@ -81,6 +91,8 @@ private:
 
     FFTBank fft;
     std::vector<Complex> timeBuf, specA, specB, cepsA, cepsB, scratch;
+    std::vector<Complex> teCeps, teSpec;
+    std::vector<float> teTarget, teEnvelope;
     MorphParams target, current;
     double sampleRate = 48000.0;
     float smoothCoeff = 0.0f;

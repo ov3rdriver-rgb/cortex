@@ -121,6 +121,8 @@ private:
         std::atomic<float>* freezeDetailA = nullptr;
         std::atomic<float>* freezeEnvB = nullptr;
         std::atomic<float>* freezeDetailB = nullptr;
+        std::atomic<float>* formantA = nullptr;
+        std::atomic<float>* formantB = nullptr;
         std::atomic<float>* lfoRate = nullptr;
         std::atomic<float>* lfoDepth = nullptr;
         std::atomic<float>* lfoShape = nullptr;

@@ -36,6 +36,8 @@ namespace cortex::ParamIDs
     inline constexpr auto freezeDetailA = "freezeDetailA";
     inline constexpr auto freezeEnvB    = "freezeEnvB";
     inline constexpr auto freezeDetailB = "freezeDetailB";
+    inline constexpr auto formantA      = "formantA";
+    inline constexpr auto formantB      = "formantB";
     inline constexpr auto lfoRate       = "lfoRate";
     inline constexpr auto lfoDepth      = "lfoDepth";
     inline constexpr auto lfoShape      = "lfoShape";

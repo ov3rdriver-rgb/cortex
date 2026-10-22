@@ -31,7 +31,7 @@ jobs:
             pluginval_bin: pluginval.app/Contents/MacOS/pluginval
           - name: Windows
             os: windows-latest
-            cmake_args: -G "Visual Studio 17 2022" -A x64
+            cmake_args: -A x64   # default generator = whichever Visual Studio the image has
             pluginval_zip: pluginval_Windows.zip
             pluginval_bin: pluginval.exe
 

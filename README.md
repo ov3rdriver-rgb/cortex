@@ -2,7 +2,7 @@
 
 Samplebrain × cepstral morph, as a VST3 / AU / Standalone plugin. See [BRIEF.md](BRIEF.md) for the design.
 
-**Status:** Phase 1 (cepstral morph): sidechain A/B morph with XY envelope/detail control, 4 phase modes, gate, auto-mute, dry/wet and limiter. The brain engine comes in Phase 2.
+**Status:** Phase 2 (brain engine): drop a folder of samples to build a brain (background thread, cached to disk as `.cortexbrain`); set **B Source** to Brain to feed the live-matched brain into the cepstral morph. Phase 3 aligns latency and adds split-cepstrum matching.
 
 ## Build
 

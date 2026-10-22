@@ -40,7 +40,12 @@ set(CORTEX_DSP_SOURCES
     ${PROJECT_SOURCE_DIR}/Source/dsp/STFT.cpp
     ${PROJECT_SOURCE_DIR}/Source/dsp/Cepstrum.cpp
     ${PROJECT_SOURCE_DIR}/Source/dsp/CepstralMorph.cpp
-    ${PROJECT_SOURCE_DIR}/Source/dsp/PhaseBlend.cpp)
+    ${PROJECT_SOURCE_DIR}/Source/dsp/PhaseBlend.cpp
+    ${PROJECT_SOURCE_DIR}/Source/brain/Block.cpp
+    ${PROJECT_SOURCE_DIR}/Source/brain/Brain.cpp
+    ${PROJECT_SOURCE_DIR}/Source/brain/BrainBuilder.cpp
+    ${PROJECT_SOURCE_DIR}/Source/brain/Renderer.cpp
+    ${PROJECT_SOURCE_DIR}/Source/state/BrainCache.cpp)
 
 target_sources(Cortex PRIVATE
     Source/PluginProcessor.cpp

@@ -7,6 +7,7 @@ target_sources(CortexTests PRIVATE
     ${PROJECT_SOURCE_DIR}/Source/PluginEditor.cpp
     ${PROJECT_SOURCE_DIR}/Source/Parameters.cpp
     MorphTests.cpp
+    BrainTests.cpp
     ${CORTEX_DSP_SOURCES})
 
 target_include_directories(CortexTests PRIVATE ${PROJECT_SOURCE_DIR}/Source)

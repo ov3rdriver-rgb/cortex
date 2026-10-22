@@ -9,7 +9,8 @@ Copyright (C) 2022 Then Try This. Licensed GPL-2.0-or-later, used here under GPL
 Original copyright headers are kept on all ported files.
 
 ## Aquila
-MFCC code from the **Aquila** DSP library (bundled in Samplebrain), Copyright (c) Zbigniew Siciarz, MIT License.
+Samplebrain computes MFCCs with the **Aquila** DSP library (Copyright (c) Zbigniew Siciarz, MIT License).
+Cortex reimplements the mel filterbank and DCT itself so analysis is realtime-safe; no Aquila code is compiled in.
 
 ## Cepstral morph concept
 The cepstral envelope/detail morph is a reimplementation of the idea behind

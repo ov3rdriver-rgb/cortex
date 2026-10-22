@@ -3,11 +3,15 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 
+#include "brain/BrainBuilder.h"
+#include "brain/RealtimeExchange.h"
+#include "brain/Renderer.h"
 #include "dsp/CepstralMorph.h"
 #include "dsp/STFT.h"
 
 class CortexAudioProcessor final : public juce::AudioProcessor,
-                                   private juce::AudioProcessorValueTreeState::Listener
+                                   private juce::AudioProcessorValueTreeState::Listener,
+                                   private juce::Timer
 {
 public:
     CortexAudioProcessor();
@@ -41,10 +45,32 @@ public:
 
     int currentFftSize() const;
 
+    // Brain management (message thread).
+    void loadBrainFrom (const juce::StringArray& filesOrFolders);
+    void clearBrain();
+    void rebuildBrain();
+
+    struct BrainStatus
+    {
+        bool building = false;
+        float progress = 0.0f;
+        juce::String message;
+        int numBlocks = 0;
+        int numSounds = 0;
+        int playingBlock = -1;
+    };
+    BrainStatus getBrainStatus() const;
+    std::shared_ptr<const cortex::brain::Brain> getBrain() const;
+    juce::Array<juce::File> getBrainFiles() const { return brainFiles; }
+
 private:
     static constexpr int maxChannels = 2;
 
     void parameterChanged (const juce::String& parameterID, float newValue) override;
+    void timerCallback() override;
+    void onBrainBuilt (std::shared_ptr<const cortex::brain::Brain>, const juce::String& message);
+    cortex::brain::BrainSettings currentBrainSettings() const;
+    cortex::brain::SearchParams readSearchParams() const;
     void updateLatency();
     cortex::dsp::MorphParams readMorphParams() const;
 
@@ -66,6 +92,14 @@ private:
         std::atomic<float>* gateThresh = nullptr;
         std::atomic<float>* autoMute = nullptr;
         std::atomic<float>* autoMuteMs = nullptr;
+        std::atomic<float>* matchTimbre = nullptr;
+        std::atomic<float>* matchPitch = nullptr;
+        std::atomic<float>* blockSize = nullptr;
+        std::atomic<float>* overlap = nullptr;
+        std::atomic<float>* novelty = nullptr;
+        std::atomic<float>* boredom = nullptr;
+        std::atomic<float>* stickyness = nullptr;
+        std::atomic<float>* searchMode = nullptr;
     } params;
 
     void switchFftOrder (int newOrder);
@@ -98,6 +132,20 @@ private:
     int activeOrder = -1;
     int silentSamples = 0;
     double currentSampleRate = 48000.0;
+
+    // Brain. Built on builderThread, handed to the audio thread through `renderer`.
+    juce::AudioFormatManager formatManager;
+    juce::Array<juce::File> brainFiles;
+    cortex::brain::BrainBuilder builder;
+    cortex::RealtimeExchange<cortex::brain::Renderer> renderer;
+    std::atomic<int> playingBlock { -1 };
+    std::atomic<bool> rebuildRequested { false };
+    juce::uint32 rebuildDueMs = 0;
+    cortex::brain::BrainSettings builtSettings;
+
+    mutable std::mutex brainLock;   // guards the two below; never taken on the audio thread
+    std::shared_ptr<const cortex::brain::Brain> currentBrain;
+    juce::String brainMessage;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CortexAudioProcessor)
 };

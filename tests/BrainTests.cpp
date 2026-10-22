@@ -163,6 +163,7 @@ public:
                 p.usageImportance = 0.3f;
                 p.stickyness = 0.4f;
                 r.setSearch (p, mode);
+                r.setBlocking (true);   // faster than real time: wait for each search
                 bool finite = true;
                 for (auto s : other)
                     finite &= std::isfinite (r.processSample (s));

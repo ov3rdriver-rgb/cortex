@@ -36,6 +36,13 @@ namespace cortex::ParamIDs
     inline constexpr auto freezeDetailA = "freezeDetailA";
     inline constexpr auto freezeEnvB    = "freezeEnvB";
     inline constexpr auto freezeDetailB = "freezeDetailB";
+    inline constexpr auto lfoRate       = "lfoRate";
+    inline constexpr auto lfoDepth      = "lfoDepth";
+    inline constexpr auto lfoShape      = "lfoShape";
+    inline constexpr auto lfoTarget     = "lfoTarget";
+    inline constexpr auto envDepth      = "envDepth";
+    inline constexpr auto envAttack     = "envAttack";
+    inline constexpr auto envRelease    = "envRelease";
 
     // Cortex Instrument only.
     inline constexpr auto oscWave       = "oscWave";

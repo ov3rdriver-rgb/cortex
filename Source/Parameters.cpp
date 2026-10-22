@@ -49,6 +49,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                 std::make_unique<Bool> (pid (freezeEnvB), "Freeze B Envelope", false),
                 std::make_unique<Bool> (pid (freezeDetailB), "Freeze B Detail", false));
 
+    // Cutoff modulation
+    layout.add (std::make_unique<Float> (pid (lfoRate), "LFO Rate", juce::NormalisableRange<float> (0.01f, 20.0f, 0.0f, 0.3f), 1.0f,
+                                         juce::AudioParameterFloatAttributes().withLabel ("Hz")),
+                std::make_unique<Float> (pid (lfoDepth), "LFO Depth", juce::NormalisableRange<float> (0.0f, 100.0f), 0.0f,
+                                         juce::AudioParameterFloatAttributes().withLabel ("bins")),
+                std::make_unique<Choice> (pid (lfoShape), "LFO Shape",
+                                          juce::StringArray { "Sine", "Triangle", "Saw", "Square", "Sample & Hold" }, 0),
+                std::make_unique<Choice> (pid (lfoTarget), "LFO Target", juce::StringArray { "Cutoff A", "Cutoff B", "Both" }, 2),
+                std::make_unique<Float> (pid (envDepth), "Env Follow Depth", juce::NormalisableRange<float> (-100.0f, 100.0f), 0.0f,
+                                         juce::AudioParameterFloatAttributes().withLabel ("bins")),
+                std::make_unique<Float> (pid (envAttack), "Env Attack", juce::NormalisableRange<float> (0.1f, 1000.0f, 0.0f, 0.4f), 10.0f,
+                                         juce::AudioParameterFloatAttributes().withLabel ("ms")),
+                std::make_unique<Float> (pid (envRelease), "Env Release", juce::NormalisableRange<float> (1.0f, 5000.0f, 0.0f, 0.4f), 200.0f,
+                                         juce::AudioParameterFloatAttributes().withLabel ("ms")));
+
     // Brain search
     layout.add (unit (matchTimbre, "Match Timbre", 0.5f),
                 unit (matchPitch, "Match Pitch", 0.5f),

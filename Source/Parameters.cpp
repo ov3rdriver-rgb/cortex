@@ -71,7 +71,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                                          juce::AudioParameterFloatAttributes().withLabel ("ms")));
 
     // Search macros
-    layout.add (unit (chaos, "Chaos", 0.0f), unit (memory, "Memory", 0.0f));
+    layout.add (unit (chaos, "Chaos", 0.0f), unit (memory, "Memory", 0.0f), unit (cepstralGlide, "Cepstral Glide", 0.0f));
 
     // Brain search
     layout.add (unit (matchTimbre, "Match Timbre", 0.5f),

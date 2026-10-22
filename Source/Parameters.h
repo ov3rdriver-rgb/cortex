@@ -36,6 +36,7 @@ namespace cortex::ParamIDs
     inline constexpr auto freezeDetailA = "freezeDetailA";
     inline constexpr auto freezeEnvB    = "freezeEnvB";
     inline constexpr auto freezeDetailB = "freezeDetailB";
+    inline constexpr auto cepstralGlide = "cepstralGlide";
     inline constexpr auto chaos         = "chaos";
     inline constexpr auto memory        = "memory";
     inline constexpr auto formantA      = "formantA";

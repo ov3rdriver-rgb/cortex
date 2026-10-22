@@ -8,6 +8,7 @@
 #include "brain/Renderer.h"
 #include "dsp/CepstralMorph.h"
 #include "dsp/STFT.h"
+#include "dsp/CutoffModulator.h"
 #include "dsp/SnapshotExchange.h"
 #include "synth/MonoSynth.h"
 
@@ -95,6 +96,7 @@ private:
 
     const bool instrument;
     cortex::synth::MonoSynth monoSynth;
+    cortex::dsp::CutoffModulator cutoffModulator;
 
     struct Params
     {
@@ -119,6 +121,13 @@ private:
         std::atomic<float>* freezeDetailA = nullptr;
         std::atomic<float>* freezeEnvB = nullptr;
         std::atomic<float>* freezeDetailB = nullptr;
+        std::atomic<float>* lfoRate = nullptr;
+        std::atomic<float>* lfoDepth = nullptr;
+        std::atomic<float>* lfoShape = nullptr;
+        std::atomic<float>* lfoTarget = nullptr;
+        std::atomic<float>* envDepth = nullptr;
+        std::atomic<float>* envAttack = nullptr;
+        std::atomic<float>* envRelease = nullptr;
         std::atomic<float>* matchTimbre = nullptr;
         std::atomic<float>* matchPitch = nullptr;
         std::atomic<float>* envTransplant = nullptr;

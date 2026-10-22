@@ -58,6 +58,13 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
     params.freezeDetailA = get (cortex::ParamIDs::freezeDetailA);
     params.freezeEnvB = get (cortex::ParamIDs::freezeEnvB);
     params.freezeDetailB = get (cortex::ParamIDs::freezeDetailB);
+    params.lfoRate = get (cortex::ParamIDs::lfoRate);
+    params.lfoDepth = get (cortex::ParamIDs::lfoDepth);
+    params.lfoShape = get (cortex::ParamIDs::lfoShape);
+    params.lfoTarget = get (cortex::ParamIDs::lfoTarget);
+    params.envDepth = get (cortex::ParamIDs::envDepth);
+    params.envAttack = get (cortex::ParamIDs::envAttack);
+    params.envRelease = get (cortex::ParamIDs::envRelease);
     params.matchTimbre = get (cortex::ParamIDs::matchTimbre);
     params.matchPitch = get (cortex::ParamIDs::matchPitch);
     params.envTransplant = get (cortex::ParamIDs::envTransplant);
@@ -131,6 +138,7 @@ void CortexAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
 {
     currentSampleRate = sampleRate;
     monoSynth.prepare (sampleRate);
+    cutoffModulator.prepare (sampleRate);
 
     for (auto& slot : engines)
         for (auto& e : slot)
@@ -232,6 +240,21 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     auto morphParams = readMorphParams();
     if (useBrain && brainRenderer == nullptr)
         morphParams.x = morphParams.y = 0.0f;
+
+    // Cutoff modulation: LFO + envelope follower on A (left channel).
+    {
+        cortex::dsp::CutoffModulator::Settings mod;
+        mod.lfoRateHz = params.lfoRate->load();
+        mod.lfoDepth = params.lfoDepth->load();
+        mod.shape = (cortex::dsp::CutoffModulator::Shape) juce::jlimit (0, 4, (int) params.lfoShape->load());
+        mod.target = (cortex::dsp::CutoffModulator::Target) juce::jlimit (0, 2, (int) params.lfoTarget->load());
+        mod.envDepth = params.envDepth->load();
+        mod.envAttackMs = params.envAttack->load();
+        mod.envReleaseMs = params.envRelease->load();
+        const auto offsets = cutoffModulator.process (mod, numChannels > 0 ? buffer.getReadPointer (0) : nullptr, numSamples);
+        morphParams.cutoffA = juce::jlimit (4.0f, 200.0f, morphParams.cutoffA + offsets.a);
+        morphParams.cutoffB = juce::jlimit (4.0f, 200.0f, morphParams.cutoffB + offsets.b);
+    }
 
     // The brain answers one block (plus search time) late, so A is delayed by the
     // same amount to line the two up. A change of FFT size or of that delay

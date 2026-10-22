@@ -92,6 +92,17 @@ void CepstrumView::paint (juce::Graphics& g)
     };
     drawCutoff (cutoffA, colours::a, "A", false);
     drawCutoff (cutoffB, colours::b, "B", true);
+
+    // Where the cutoffs actually are right now (they move under modulation).
+    if (snapshot.valid)
+        for (auto [q, colour] : { std::pair { snapshot.cutoffA, colours::a }, std::pair { snapshot.cutoffB, colours::b } })
+            if (std::abs (q - (colour == colours::a ? cutoffA : cutoffB)) > 0.5f)
+            {
+                const float px = xForQuefrency (q);
+                g.setColour (colour.withAlpha (0.55f));
+                const float dashes[] { 4.0f, 3.0f };
+                g.drawDashedLine ({ px, area.getY(), px, area.getBottom() }, dashes, 2, 1.5f);
+            }
 }
 
 juce::ParameterAttachment* CepstrumView::cutoffNear (float px)

@@ -54,6 +54,10 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
     params.autoMute = get (cortex::ParamIDs::autoMute);
     params.autoMuteMs = get (cortex::ParamIDs::autoMuteMs);
     params.lowLatency = get (cortex::ParamIDs::lowLatency);
+    params.freezeEnvA = get (cortex::ParamIDs::freezeEnvA);
+    params.freezeDetailA = get (cortex::ParamIDs::freezeDetailA);
+    params.freezeEnvB = get (cortex::ParamIDs::freezeEnvB);
+    params.freezeDetailB = get (cortex::ParamIDs::freezeDetailB);
     params.matchTimbre = get (cortex::ParamIDs::matchTimbre);
     params.matchPitch = get (cortex::ParamIDs::matchPitch);
     params.envTransplant = get (cortex::ParamIDs::envTransplant);
@@ -116,6 +120,10 @@ cortex::dsp::MorphParams CortexAudioProcessor::readMorphParams() const
     p.phaseMode = (cortex::dsp::PhaseMode) juce::jlimit (0, 3, (int) params.phaseMode->load());
     p.cornerGainTLdB = params.cornerGainTL->load();
     p.cornerGainBRdB = params.cornerGainBR->load();
+    p.freezeEnvA = params.freezeEnvA->load() > 0.5f;
+    p.freezeDetailA = params.freezeDetailA->load() > 0.5f;
+    p.freezeEnvB = params.freezeEnvB->load() > 0.5f;
+    p.freezeDetailB = params.freezeDetailB->load() > 0.5f;
     return p;
 }
 

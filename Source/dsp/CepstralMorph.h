@@ -17,6 +17,10 @@ struct MorphParams
     PhaseMode phaseMode = PhaseMode::fromA;
     float cornerGainTLdB = 0.0f;  // A envelope + B detail
     float cornerGainBRdB = 0.0f;  // B envelope + A detail
+
+    // Cepstral freeze (BRIEF.md §4 idea 6): hold a part of an input at the
+    // cepstrum it had when the freeze was switched on, while the rest moves.
+    bool freezeEnvA = false, freezeDetailA = false, freezeEnvB = false, freezeDetailB = false;
 };
 
 // What the UI shows of the last processed frame: the low-quefrency cepstra of
@@ -53,6 +57,27 @@ public:
 
 private:
     void advanceSmoothing() noexcept;
+
+    // One frozen part: captured on the first frame after it is switched on.
+    struct Freeze
+    {
+        std::vector<float> held;
+        bool captured = false;
+
+        void update (bool on, const std::vector<Complex>& live, int n) noexcept
+        {
+            if (! on)
+                captured = false;
+            else if (! captured)
+            {
+                for (int k = 0; k < n; ++k)
+                    held[(size_t) k] = live[(size_t) k].real();
+                captured = true;
+            }
+        }
+        float value (bool on, float live, int k) const noexcept { return on ? held[(size_t) k] : live; }
+    };
+    Freeze freezeEnvA, freezeDetailA, freezeEnvB, freezeDetailB;
 
     FFTBank fft;
     std::vector<Complex> timeBuf, specA, specB, cepsA, cepsB, scratch;

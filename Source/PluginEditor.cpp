@@ -57,6 +57,7 @@ CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
     if (! p.isInstrument())
         morphIds.insert (0, bSource);
     tabs.addTab ("Morph", tabColour, new cortex::ui::ParamPanel (p.apvts, morphIds), true);
+    tabs.addTab ("Freeze", tabColour, new cortex::ui::ParamPanel (p.apvts, { freezeEnvA, freezeDetailA, freezeEnvB, freezeDetailB }), true);
     tabs.addTab ("Brain", tabColour, new cortex::ui::ParamPanel (p.apvts, { matchTimbre, matchPitch, envTransplant, searchMode,
                                                                             novelty, boredom, stickyness, blockSize, overlap }), true);
     if (p.isInstrument())

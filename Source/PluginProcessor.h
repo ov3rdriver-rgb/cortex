@@ -115,6 +115,10 @@ private:
         std::atomic<float>* autoMute = nullptr;
         std::atomic<float>* autoMuteMs = nullptr;
         std::atomic<float>* lowLatency = nullptr;
+        std::atomic<float>* freezeEnvA = nullptr;
+        std::atomic<float>* freezeDetailA = nullptr;
+        std::atomic<float>* freezeEnvB = nullptr;
+        std::atomic<float>* freezeDetailB = nullptr;
         std::atomic<float>* matchTimbre = nullptr;
         std::atomic<float>* matchPitch = nullptr;
         std::atomic<float>* envTransplant = nullptr;

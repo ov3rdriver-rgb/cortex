@@ -212,6 +212,14 @@ double BrainSearch::compare (const Brain& brain, std::uint32_t index, const Matc
     return blend (brain.distanceTo (index, q, p), usage[index], p.usageImportance);
 }
 
+std::uint32_t BrainSearch::maybeJump (const Brain& brain, std::uint32_t chosen, const SearchParams& p) noexcept
+{
+    if (p.randomJump <= 0.0f || random.nextFloat() >= p.randomJump || brain.blocks.empty())
+        return chosen;
+    const auto jump = (std::uint32_t) random.nextInt ((int) brain.blocks.size());
+    return brain.isBlockActive (jump) ? jump : chosen;
+}
+
 void BrainSearch::depleteUsage (float falloff) noexcept
 {
     for (auto& u : usage)
@@ -251,6 +259,7 @@ std::uint32_t BrainSearch::search (const Brain& brain, const MatchQuery& q, cons
         }
     }
 
+    closestIndex = maybeJump (brain, closestIndex, p);
     depleteUsage (p.usageFalloff);
     usage[closestIndex] += usageFactor;
     currentError = closest;
@@ -312,6 +321,7 @@ std::uint32_t BrainSearch::searchSynapses (const Brain& brain, const MatchQuery&
     if (closest == DBL_MAX)   // every neighbour disabled: jump via a full search
         return search (brain, q, p);
 
+    closestIndex = maybeJump (brain, closestIndex, p);
     currentError = closest;
     return stickify (brain, closestIndex, closest, q, p);
 }

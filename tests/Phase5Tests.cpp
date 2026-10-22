@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <complex>
+#include <set>
 #include <vector>
 
 using namespace cortex::dsp;
@@ -370,3 +371,96 @@ public:
 };
 
 static FormantShiftTests formantShiftTests;
+
+#include "brain/BrainBuilder.h"
+#include "brain/Renderer.h"
+
+class SearchMacroTests final : public juce::UnitTest
+{
+public:
+    SearchMacroTests() : juce::UnitTest ("Chaos / Memory macros", "Cortex") {}
+
+    struct Walk
+    {
+        int distinct = 0;
+        float sequential = 0.0f;   // fraction of choices that are the previous block + 1
+    };
+
+    // Feeds a static tone through a renderer and records which blocks it plays.
+    static Walk walk (std::shared_ptr<const cortex::brain::Brain> brain, float chaos, float memory)
+    {
+        using namespace cortex::brain;
+        Renderer r (brain);
+        r.setBlocking (true);
+        r.setSearch (applySearchKnobs ({}, {}, chaos, memory), SearchMode::basic);
+
+        std::set<int> seen;
+        int sequential = 0, choices = 0, last = -1;
+        for (int i = 0; i < 48000 * 6; ++i)
+        {
+            r.processSample (0.3f * (float) std::sin (i * 0.0294));   // steady ~225 Hz
+            const int b = r.getLastChosenBlock();
+            if (b != last && b >= 0)
+            {
+                if (last >= 0)
+                {
+                    ++choices;
+                    sequential += b == last + 1 ? 1 : 0;
+                }
+                seen.insert (b);
+                last = b;
+            }
+        }
+        return { (int) seen.size(), choices > 0 ? (float) sequential / (float) choices : 0.0f };
+    }
+
+    void runTest() override
+    {
+        using namespace cortex::brain;
+
+        beginTest ("At 0 / 0 the macros leave the knobs exactly as set");
+        {
+            const auto p = applySearchKnobs ({}, { 0.25f, 0.6f, 0.4f }, 0.0f, 0.0f);
+            expectEquals (p.usageImportance, 0.25f);
+            expectEquals (p.usageFalloff, 0.5f + 0.49f * 0.6f);
+            expectEquals (p.stickyness, 0.4f);
+            expectEquals (p.randomJump, 0.0f);
+        }
+
+        // A varied brain: a gliding saw with noise, 8 seconds.
+        std::vector<float> audio ((size_t) 48000 * 8);
+        {
+            juce::Random rng (5);
+            double phase = 0.0;
+            for (size_t i = 0; i < audio.size(); ++i)
+            {
+                phase += (120.0 + 300.0 * (0.5 + 0.5 * std::sin (i * 0.00004))) / 48000.0;
+                audio[i] = (float) (0.3 * (2.0 * (phase - std::floor (phase)) - 1.0)) + 0.05f * (rng.nextFloat() - 0.5f);
+            }
+        }
+        BrainSettings s;
+        s.blockSize = 1000;
+        s.sampleRate = 48000.0;
+        auto brain = buildBrain ({ BrainSource { "glide", audio } }, s, SearchParams {}, {}, {});
+
+        beginTest ("Chaos spreads a static input across far more of the brain");
+        {
+            const auto calm = walk (brain, 0.0f, 0.0f);
+            const auto wild = walk (brain, 1.0f, 0.0f);
+            logMessage ("  distinct blocks over 6 s: chaos 0 -> " + juce::String (calm.distinct) + ", chaos 1 -> " + juce::String (wild.distinct));
+            expectGreaterThan (wild.distinct, calm.distinct * 3);
+        }
+
+        beginTest ("Memory makes the brain follow sequences in its source");
+        {
+            const auto loose = walk (brain, 0.0f, 0.0f);
+            const auto sticky = walk (brain, 0.0f, 1.0f);
+            logMessage ("  sequential choices: memory 0 -> " + juce::String (loose.sequential * 100.0f, 0) + "%, memory 1 -> "
+                        + juce::String (sticky.sequential * 100.0f, 0) + "%");
+            expectGreaterThan (sticky.sequential, 0.5f);
+            expectGreaterThan (sticky.sequential, loose.sequential + 0.3f);
+        }
+    }
+};
+
+static SearchMacroTests searchMacroTests;

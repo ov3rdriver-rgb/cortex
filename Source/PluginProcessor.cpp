@@ -58,6 +58,8 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
     params.freezeDetailA = get (cortex::ParamIDs::freezeDetailA);
     params.freezeEnvB = get (cortex::ParamIDs::freezeEnvB);
     params.freezeDetailB = get (cortex::ParamIDs::freezeDetailB);
+    params.chaos = get (cortex::ParamIDs::chaos);
+    params.memory = get (cortex::ParamIDs::memory);
     params.formantA = get (cortex::ParamIDs::formantA);
     params.formantB = get (cortex::ParamIDs::formantB);
     params.lfoRate = get (cortex::ParamIDs::lfoRate);
@@ -526,10 +528,8 @@ cortex::brain::SearchParams CortexAudioProcessor::readSearchParams() const
     p.pitchWeight = params.matchPitch->load();
     p.envTransplant = params.envTransplant->load();
     p.transplantCutoff = params.cutoffB->load();
-    p.usageImportance = params.novelty->load();
-    p.usageFalloff = 0.5f + 0.49f * params.boredom->load();
-    p.stickyness = params.stickyness->load();
-    return p;
+    return cortex::brain::applySearchKnobs (p, { params.novelty->load(), params.boredom->load(), params.stickyness->load() },
+                                            params.chaos->load(), params.memory->load());
 }
 
 void CortexAudioProcessor::loadBrainFrom (const juce::StringArray& filesOrFolders)

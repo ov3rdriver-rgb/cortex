@@ -60,7 +60,7 @@ CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
     tabs.addTab ("Mod", tabColour, new cortex::ui::ParamPanel (p.apvts, { lfoRate, lfoDepth, lfoShape, lfoTarget,
                                                                           envDepth, envAttack, envRelease }), true);
     tabs.addTab ("Freeze", tabColour, new cortex::ui::ParamPanel (p.apvts, { freezeEnvA, freezeDetailA, freezeEnvB, freezeDetailB }), true);
-    tabs.addTab ("Brain", tabColour, new cortex::ui::ParamPanel (p.apvts, { matchTimbre, matchPitch, envTransplant, searchMode,
+    tabs.addTab ("Brain", tabColour, new cortex::ui::ParamPanel (p.apvts, { chaos, memory, matchTimbre, matchPitch, envTransplant, searchMode,
                                                                             novelty, boredom, stickyness, blockSize, overlap }), true);
     if (p.isInstrument())
         tabs.addTab ("Synth", tabColour, new cortex::ui::ParamPanel (p.apvts, { oscWave, oscGlide, ampAttack, ampRelease }), true);

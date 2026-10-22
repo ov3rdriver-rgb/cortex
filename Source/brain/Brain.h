@@ -102,6 +102,7 @@ private:
     double compare (const Brain&, std::uint32_t index, const MatchQuery&, const SearchParams&) const noexcept;
     std::uint32_t stickify (const Brain&, std::uint32_t closest, double distance, const MatchQuery&, const SearchParams&) noexcept;
     void depleteUsage (float falloff) noexcept;
+    std::uint32_t maybeJump (const Brain&, std::uint32_t chosen, const SearchParams&) noexcept;
 
     std::vector<float> usage;
     std::uint32_t currentIndex = 0;

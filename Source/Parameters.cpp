@@ -70,6 +70,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                 std::make_unique<Float> (pid (envRelease), "Env Release", juce::NormalisableRange<float> (1.0f, 5000.0f, 0.0f, 0.4f), 200.0f,
                                          juce::AudioParameterFloatAttributes().withLabel ("ms")));
 
+    // Search macros
+    layout.add (unit (chaos, "Chaos", 0.0f), unit (memory, "Memory", 0.0f));
+
     // Brain search
     layout.add (unit (matchTimbre, "Match Timbre", 0.5f),
                 unit (matchPitch, "Match Pitch", 0.5f),

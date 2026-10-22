@@ -2,7 +2,15 @@ name: build
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# macOS minutes are billed at 10x on private repos: don't let a newer push
+# queue up behind an older run of the same branch.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   BUILD_TYPE: Release

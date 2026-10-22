@@ -44,6 +44,17 @@ struct Brain
 
     std::uint32_t numBlocks() const noexcept { return (std::uint32_t) blocks.size(); }
     bool isBlockActive (std::uint32_t index) const noexcept;
+
+    // Contiguous, block-major copies of the match features. Searching these
+    // instead of hopping between Block objects keeps the scan in cache and lets
+    // the compiler vectorise it. Built by finalise(), which every brain gets
+    // after building or loading.
+    std::vector<float> fftTable, mfccTable, normFftTable, normMfccTable;
+    void finalise();
+
+    // Same result as featureDistance() against blocks[index], but from the tables,
+    // and skipping whichever parts have zero weight.
+    float distanceTo (std::uint32_t index, const BlockFeatures& f, const BlockFeatures& n, const SearchParams&) const noexcept;
 };
 
 inline constexpr int maxStoredSynapses = 64;

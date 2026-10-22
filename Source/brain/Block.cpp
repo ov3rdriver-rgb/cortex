@@ -169,9 +169,7 @@ double featureDistance (const BlockFeatures& a, const BlockFeatures& b, const Se
     double fftAcc = 0.0;
     if (wFft > 0.0f)
     {
-        const int start = juce::jlimit (0, numFftBins, p.fftStart);
-        const int end = juce::jlimit (start, numFftBins, p.fftEnd);
-        for (int i = start; i < end; ++i)
+        for (int i = 0; i < numFftBins; ++i)
         {
             const double d = a.fft[(size_t) i] - b.fft[(size_t) i];
             fftAcc += d * d;

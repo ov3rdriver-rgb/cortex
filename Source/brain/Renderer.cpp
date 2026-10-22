@@ -2,19 +2,26 @@
 // Copyright (C) 2022 Then Try This. GPL-2.0-or-later, distributed here under AGPL-3.0.
 //
 // Differences from Samplebrain: target blocks come only from the live stream;
-// the renderer's fixed 0.2 gain is replaced by overlap-add normalisation; the
-// autotune/stretch/target-mix/normalised-pcm-mix controls are not ported (the
-// cepstral morph covers that ground).
+// searching happens on a worker thread; the renderer's fixed 0.2 gain is
+// replaced by overlap-add normalisation; the autotune/stretch/target-mix/
+// normalised-pcm-mix controls are not ported (the cepstral morph covers that).
 
 #include "Renderer.h"
 
 namespace cortex::brain
 {
+namespace
+{
+    // Time the worker gets to answer before the block is due (~23 ms at 44.1k).
+    constexpr int minSearchDelay = 1024;
+}
+
 Renderer::Renderer (std::shared_ptr<const Brain> b) : brain (std::move (b))
 {
     jassert (brain != nullptr);
     blockSize = brain->settings.blockSize;
     hop = brain->settings.hop();
+    searchDelay = juce::jmax (hop, minSearchDelay);
 
     analyser.prepare (blockSize, hop, brain->settings.sampleRate);
     search.prepare (*brain);
@@ -27,23 +34,22 @@ Renderer::Renderer (std::shared_ptr<const Brain> b) : brain (std::move (b))
 
     targetRing.assign ((size_t) blockSize, 0.0f);
     targetBlock.assign ((size_t) blockSize, 0.0f);
-    reset();
+
+    worker = std::thread ([this] { workerLoop(); });
 }
 
-void Renderer::reset()
+Renderer::~Renderer()
 {
-    std::fill (targetRing.begin(), targetRing.end(), 0.0f);
-    ringPos = 0;
-    samplesSeen = 0;
-    slideHeld = 0;
-    for (auto& v : voices)
-        v = {};
-    search.reset();
-    lastChosen = -1;
+    stopWorker = true;
+    ++wakeCounter;
+    wakeCounter.notify_one();
+    worker.join();
 }
 
 float Renderer::processSample (float target) noexcept
 {
+    startDueVoices();
+
     float out = 0.0f;
     for (auto& v : voices)
     {
@@ -80,39 +86,44 @@ void Renderer::onTargetBlockComplete() noexcept
     }
     analyser.analyse (targetBlock.data(), nullptr, targetFeatures, targetNormalised);
 
-    std::uint32_t chosen = 0;
-    switch (mode)
+    int start1, size1, start2, size2;
+    requestFifo.prepareToWrite (1, start1, size1, start2, size2);
+    if (size1 == 0)
+        return;   // worker hopelessly behind: skip this hop, current voices keep playing
+
+    auto& r = requests[(size_t) start1];
+    r.features = targetFeatures;
+    r.normalised = targetNormalised;
+    r.params = params;
+    r.mode = mode;
+    r.due = samplesSeen + searchDelay;
+    requestFifo.finishedWrite (1);
+
+    const auto sent = ++requestsSent;
+    ++wakeCounter;
+    wakeCounter.notify_one();
+
+    if (blocking)
+        while (resultsSent.load() < sent)
+            std::this_thread::yield();
+}
+
+void Renderer::startDueVoices() noexcept
+{
+    for (;;)
     {
-        case SearchMode::basic:
-            chosen = search.search (*brain, targetFeatures, targetNormalised, params);
+        int start1, size1, start2, size2;
+        resultFifo.prepareToRead (1, start1, size1, start2, size2);
+        if (size1 == 0)
             break;
 
-        case SearchMode::reverse:
-            chosen = search.reverseSearch (*brain, targetFeatures, targetNormalised, params);
+        const auto& r = results[(size_t) start1];
+        if (r.due > samplesSeen)
             break;
 
-        case SearchMode::synaptic:
-            chosen = search.searchSynapses (*brain, targetFeatures, targetNormalised, params);
-            break;
-
-        case SearchMode::synapticSlide:
-        {
-            // The target only advances once the brain has found a close enough
-            // block; until then keep chasing the held one (bounded, since a live
-            // target can't actually be paused).
-            if (slideHeld == 0 || search.getCurrentError() < params.slideError || slideHeld >= params.maxSlideHold)
-            {
-                heldFeatures = targetFeatures;
-                heldNormalised = targetNormalised;
-                slideHeld = 0;
-            }
-            chosen = search.searchSynapses (*brain, heldFeatures, heldNormalised, params);
-            ++slideHeld;
-            break;
-        }
+        startVoice (r.block);
+        resultFifo.finishedRead (1);
     }
-
-    startVoice (chosen);
 }
 
 void Renderer::startVoice (std::uint32_t blockIndex) noexcept
@@ -133,5 +144,68 @@ void Renderer::startVoice (std::uint32_t blockIndex) noexcept
     slot->block = (int) blockIndex;
     slot->position = 0;
     lastChosen.store ((int) blockIndex, std::memory_order_relaxed);
+}
+
+void Renderer::workerLoop()
+{
+    std::uint32_t seen = wakeCounter.load();
+
+    while (! stopWorker)
+    {
+        const int pending = requestFifo.getNumReady();
+        if (pending == 0)
+        {
+            wakeCounter.wait (seen);
+            seen = wakeCounter.load();
+            continue;
+        }
+
+        // Answer only the newest request; older ones get the same block.
+        int start1, size1, start2, size2;
+        requestFifo.prepareToRead (pending, start1, size1, start2, size2);
+        const auto& newest = requests[(size_t) (size2 > 0 ? start2 + size2 - 1 : start1 + size1 - 1)];
+        const auto chosen = choose (newest);
+
+        auto emit = [&] (int index)
+        {
+            int w1, s1, w2, s2;
+            resultFifo.prepareToWrite (1, w1, s1, w2, s2);
+            if (s1 > 0)
+            {
+                results[(size_t) w1] = { chosen, requests[(size_t) index].due };
+                resultFifo.finishedWrite (1);
+            }
+        };
+        for (int i = 0; i < size1; ++i) emit (start1 + i);
+        for (int i = 0; i < size2; ++i) emit (start2 + i);
+
+        requestFifo.finishedRead (pending);
+        resultsSent += pending;
+    }
+}
+
+std::uint32_t Renderer::choose (const Request& r)
+{
+    switch (r.mode)
+    {
+        case SearchMode::basic:    return search.search (*brain, r.features, r.normalised, r.params);
+        case SearchMode::reverse:  return search.reverseSearch (*brain, r.features, r.normalised, r.params);
+        case SearchMode::synaptic: return search.searchSynapses (*brain, r.features, r.normalised, r.params);
+        case SearchMode::synapticSlide:
+        {
+            // The target only advances once the brain has found a close enough
+            // block; until then keep chasing the held one (bounded, since a live
+            // target can't actually be paused).
+            if (slideHeld == 0 || search.getCurrentError() < r.params.slideError || slideHeld >= r.params.maxSlideHold)
+            {
+                heldFeatures = r.features;
+                heldNormalised = r.normalised;
+                slideHeld = 0;
+            }
+            ++slideHeld;
+            return search.searchSynapses (*brain, heldFeatures, heldNormalised, r.params);
+        }
+    }
+    return 0;
 }
 } // namespace cortex::brain

@@ -19,4 +19,9 @@ namespace cortex::BrainCache
 
     bool save (const brain::Brain&, const juce::File&);
     std::shared_ptr<brain::Brain> load (const juce::File&);
+
+    // Deletes least-recently-used caches until the directory is under maxBytes.
+    // `keep` is never deleted. load() refreshes a file's timestamp.
+    inline constexpr juce::int64 defaultMaxBytes = (juce::int64) 3 * 1024 * 1024 * 1024;
+    void prune (const juce::File& directory, juce::int64 maxBytes, const juce::File& keep);
 }

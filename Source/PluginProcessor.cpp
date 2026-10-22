@@ -179,19 +179,26 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     if (order != activeOrder && fadeRemaining == 0)
         switchFftOrder (order);
 
-    const auto morphParams = readMorphParams();
-    for (auto& slot : engines)
-        for (auto& e : slot)
-            e.morph.setTargets (morphParams);
-
     // Input B: the sidechain, or the brain rendering a match for the live input.
     // (Phase 3 delays A by the brain's block latency so the two line up.)
     auto* brainRenderer = renderer.acquire();
     const bool useBrain = params.bSource->load() >= 0.5f;
     if (brainRenderer != nullptr)
+    {
+        brainRenderer->setBlocking (isNonRealtime());
         brainRenderer->setSearch (readSearchParams(), (cortex::brain::SearchMode) juce::jlimit (0, 3, (int) params.searchMode->load()));
+    }
     if (! useBrain)
         brainRenderer = nullptr;
+
+    // With B on Brain but no brain loaded yet, stay transparent rather than
+    // morphing towards silence.
+    auto morphParams = readMorphParams();
+    if (useBrain && brainRenderer == nullptr)
+        morphParams.x = morphParams.y = 0.0f;
+    for (auto& slot : engines)
+        for (auto& e : slot)
+            e.morph.setTargets (morphParams);
 
     std::array<const float*, maxChannels> sidechain {};
     const auto* scBus = getBus (true, 1);

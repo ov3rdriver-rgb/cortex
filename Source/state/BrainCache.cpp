@@ -92,6 +92,7 @@ std::shared_ptr<brain::Brain> load (const juce::File& file)
     juce::MemoryBlock data;
     if (! file.loadFileAsData (data))
         return nullptr;
+    file.setLastModificationTime (juce::Time::getCurrentTime());   // LRU for prune()
 
     juce::MemoryInputStream in (data, false);
     if (in.readInt() != magic || in.readInt() != formatVersion)
@@ -146,6 +147,40 @@ std::shared_ptr<brain::Brain> load (const juce::File& file)
         if ((juce::int64) s.firstBlock + s.numBlocks > numBlocks)
             return nullptr;
 
+    b->finalise();
+
     return b;
+}
+} // namespace cortex::BrainCache
+
+namespace cortex::BrainCache
+{
+void prune (const juce::File& directory, juce::int64 maxBytes, const juce::File& keep)
+{
+    auto files = directory.findChildFiles (juce::File::findFiles, false, "*.cortexbrain");
+
+    struct OldestFirst
+    {
+        static int compareElements (const juce::File& a, const juce::File& b)
+        {
+            const auto ta = a.getLastModificationTime(), tb = b.getLastModificationTime();
+            return ta < tb ? -1 : (tb < ta ? 1 : 0);
+        }
+    } oldestFirst;
+    files.sort (oldestFirst);
+
+    juce::int64 total = 0;
+    for (const auto& f : files)
+        total += f.getSize();
+
+    for (const auto& f : files)
+    {
+        if (total <= maxBytes)
+            break;
+        if (f == keep)
+            continue;
+        total -= f.getSize();
+        f.deleteFile();
+    }
 }
 } // namespace cortex::BrainCache

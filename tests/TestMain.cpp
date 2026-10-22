@@ -19,7 +19,7 @@ int main()
 
     juce::UnitTestRunner runner;
     runner.setAssertOnFailure (false);
-    runner.runTestsInCategory ("Cortex");
+    runner.runTestsInCategory (juce::SystemStats::getEnvironmentVariable ("CORTEX_TEST_CATEGORY", "Cortex"));
 
     int passes = 0, failures = 0;
     for (int i = 0; i < runner.getNumResults(); ++i)

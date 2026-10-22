@@ -5,8 +5,11 @@
 
 #include "Brain.h"
 
+#include <juce_core/juce_core.h>
+
 #include <atomic>
 #include <memory>
+#include <thread>
 
 namespace cortex::brain
 {
@@ -14,32 +17,59 @@ namespace cortex::brain
 // blocks on the fly (Samplebrain's block_stream), each one is matched against
 // the brain, and the chosen brain block is overlap-added to the output.
 //
-// Construct off the audio thread (it allocates); after that process() and
-// reset() never allocate, lock or touch files. Samplebrain's std::list of
-// render blocks is replaced by a fixed voice pool.
+// Matching runs on a worker thread so a large brain can never overrun the
+// audio callback: the audio thread analyses the target block, queues it, and
+// starts the chosen block `searchDelay` samples later. If a search is late the
+// block starts as soon as it arrives; if the worker falls behind it answers only
+// the newest request and repeats that choice for the ones it skipped.
+//
+// Construct and destroy off the audio thread. processSample() never allocates,
+// locks or blocks (except in blocking mode, meant for offline rendering).
 class Renderer
 {
 public:
     explicit Renderer (std::shared_ptr<const Brain>);
+    ~Renderer();
 
     const Brain& getBrain() const noexcept { return *brain; }
     std::shared_ptr<const Brain> getBrainPtr() const noexcept { return brain; }
 
-    void reset();
     void setSearch (const SearchParams& p, SearchMode m) noexcept { params = p; mode = m; }
 
+    // Offline rendering: wait for each search so the result is deterministic.
+    void setBlocking (bool shouldBlock) noexcept { blocking = shouldBlock; }
+
     // Takes one target sample, returns one sample of brain output.
-    // Latency: one block (a target block must be complete before it can be matched).
     float processSample (float target) noexcept;
 
-    int getLatencySamples() const noexcept { return blockSize; }
+    // A target block must be complete, then searched, before it can play.
+    int getLatencySamples() const noexcept { return blockSize + searchDelay; }
 
-    // Most recently chosen brain block, for the UI (-1 before the first match).
+    // Most recently started brain block, for the UI (-1 before the first).
     int getLastChosenBlock() const noexcept { return lastChosen.load (std::memory_order_relaxed); }
 
 private:
+    struct Request
+    {
+        BlockFeatures features, normalised;
+        SearchParams params;
+        SearchMode mode = SearchMode::basic;
+        std::int64_t due = 0;
+    };
+
+    struct Result
+    {
+        std::uint32_t block = 0;
+        std::int64_t due = 0;
+    };
+
     void onTargetBlockComplete() noexcept;
+    void startDueVoices() noexcept;
     void startVoice (std::uint32_t blockIndex) noexcept;
+
+    // Worker thread.
+    void workerLoop();
+    std::uint32_t choose (const Request&);
 
     struct Voice
     {
@@ -47,24 +77,38 @@ private:
         int position = 0;
     };
     static constexpr int maxVoices = 8;
+    static constexpr int queueSize = 32;
 
     std::shared_ptr<const Brain> brain;
     BlockAnalyser analyser;
-    BrainSearch search;
     SearchParams params;
     SearchMode mode = SearchMode::basic;
+    bool blocking = false;
 
-    int blockSize = 0, hop = 0;
+    int blockSize = 0, hop = 0, searchDelay = 0;
     float outputGain = 1.0f;
 
     std::vector<float> targetRing, targetBlock;
     int ringPos = 0;
     std::int64_t samplesSeen = 0;
-
-    BlockFeatures targetFeatures, targetNormalised, heldFeatures, heldNormalised;
-    int slideHeld = 0;
+    BlockFeatures targetFeatures, targetNormalised;
 
     std::array<Voice, maxVoices> voices {};
     std::atomic<int> lastChosen { -1 };
+
+    // Audio -> worker requests, worker -> audio results (single producer/consumer each).
+    juce::AbstractFifo requestFifo { queueSize }, resultFifo { queueSize };
+    std::array<Request, queueSize> requests;
+    std::array<Result, queueSize> results;
+    std::atomic<std::uint32_t> wakeCounter { 0 };
+    std::atomic<std::int64_t> requestsSent { 0 }, resultsSent { 0 };
+    std::atomic<bool> stopWorker { false };
+
+    // Worker-only search state.
+    BrainSearch search;
+    BlockFeatures heldFeatures, heldNormalised;
+    int slideHeld = 0;
+
+    std::thread worker;
 };
 } // namespace cortex::brain

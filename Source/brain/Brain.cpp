@@ -27,6 +27,70 @@ bool Brain::isBlockActive (std::uint32_t index) const noexcept
     return false;
 }
 
+void Brain::finalise()
+{
+    const auto n = blocks.size();
+    fftTable.resize (n * numFftBins);
+    mfccTable.resize (n * numMfcc);
+    normFftTable.resize (n * numFftBins);
+    normMfccTable.resize (n * numMfcc);
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        const auto& b = blocks[i];
+        std::copy (b.features.fft.begin(), b.features.fft.end(), fftTable.begin() + (std::ptrdiff_t) (i * numFftBins));
+        std::copy (b.features.mfcc.begin(), b.features.mfcc.end(), mfccTable.begin() + (std::ptrdiff_t) (i * numMfcc));
+        std::copy (b.normalised.fft.begin(), b.normalised.fft.end(), normFftTable.begin() + (std::ptrdiff_t) (i * numFftBins));
+        std::copy (b.normalised.mfcc.begin(), b.normalised.mfcc.end(), normMfccTable.begin() + (std::ptrdiff_t) (i * numMfcc));
+    }
+}
+
+namespace
+{
+    // Sum of squared differences with independent accumulators, so it vectorises.
+    template <int N>
+    float squaredDistance (const float* a, const float* b) noexcept
+    {
+        float acc[4] {};
+        int i = 0;
+        for (; i + 4 <= N; i += 4)
+            for (int j = 0; j < 4; ++j)
+            {
+                const float d = a[i + j] - b[i + j];
+                acc[j] += d * d;
+            }
+        for (; i < N; ++i)
+        {
+            const float d = a[i] - b[i];
+            acc[0] += d * d;
+        }
+        return (acc[0] + acc[1]) + (acc[2] + acc[3]);
+    }
+}
+
+float Brain::distanceTo (std::uint32_t index, const BlockFeatures& f, const BlockFeatures& n, const SearchParams& p) const noexcept
+{
+    const float totalWeight = p.fftWeight + p.mfccWeight;
+    const float wFft = totalWeight > 0.0f ? p.fftWeight / totalWeight : 0.5f;
+    const float wMfcc = 1.0f - wFft;
+    const float mix = p.normalisedMix;
+
+    auto part = [&] (const std::vector<float>& fftT, const std::vector<float>& mfccT, const BlockFeatures& t)
+    {
+        float d = 0.0f;
+        if (wFft > 0.0f)
+            d += wFft * squaredDistance<numFftBins> (fftT.data() + (size_t) index * numFftBins, t.fft.data()) / numFftBins;
+        if (wMfcc > 0.0f)
+            d += wMfcc * squaredDistance<numMfcc> (mfccT.data() + (size_t) index * numMfcc, t.mfcc.data()) / numMfcc;
+        return d;
+    };
+
+    float d = 0.0f;
+    if (mix < 1.0f) d += (1.0f - mix) * part (fftTable, mfccTable, f);
+    if (mix > 0.0f) d += mix * part (normFftTable, normMfccTable, n);
+    return d;
+}
+
 bool buildSynapses (Brain& brain, const SearchParams& params, const ProgressFn& progress, const ShouldExitFn& shouldExit)
 {
     const auto n = brain.numBlocks();
@@ -52,10 +116,7 @@ bool buildSynapses (Brain& brain, const SearchParams& params, const ProgressFn& 
             const auto& a = brain.blocks[i];
             for (std::uint32_t j = 0; j < n; ++j)
                 if (j != i)
-                    collect.emplace_back (blend (featureDistance (a.features, brain.blocks[j].features, params),
-                                                 featureDistance (a.normalised, brain.blocks[j].normalised, params),
-                                                 params.normalisedMix),
-                                          j);
+                    collect.emplace_back ((double) brain.distanceTo (j, a.features, a.normalised, params), j);
 
             std::partial_sort (collect.begin(), collect.begin() + keep, collect.end());
             auto& syn = brain.blocks[i].synapses;
@@ -104,9 +165,7 @@ void BrainSearch::reset()
 double BrainSearch::compare (const Brain& brain, std::uint32_t index, const BlockFeatures& f, const BlockFeatures& n,
                              const SearchParams& p) const noexcept
 {
-    const auto& b = brain.blocks[index];
-    return blend (blend (featureDistance (f, b.features, p), featureDistance (n, b.normalised, p), p.normalisedMix),
-                  usage[index], p.usageImportance);
+    return blend (brain.distanceTo (index, f, n, p), usage[index], p.usageImportance);
 }
 
 void BrainSearch::depleteUsage (float falloff) noexcept

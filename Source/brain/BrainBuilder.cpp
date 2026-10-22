@@ -117,6 +117,7 @@ std::shared_ptr<Brain> buildBrain (const std::vector<BrainSource>& sources, cons
     }
 
     auto synapseProgress = [&] (float p, const juce::String& s) { if (progress) progress (0.5f + 0.5f * p, s); };
+    brain->finalise();
     if (! buildSynapses (*brain, params, synapseProgress, shouldExit))
         return nullptr;
 
@@ -167,6 +168,7 @@ void BrainBuilder::run()
         if (auto cached = BrainCache::load (cacheFile))
         {
             setStatus (1.0f, "Loaded from cache");
+            BrainCache::prune (request.cacheDirectory, BrainCache::defaultMaxBytes, cacheFile);
             callback (std::move (cached), "Loaded from cache");
             return;
         }
@@ -198,6 +200,7 @@ void BrainBuilder::run()
 
     setStatus (1.0f, "Saving cache");
     BrainCache::save (*brain, cacheFile);
+    BrainCache::prune (request.cacheDirectory, BrainCache::defaultMaxBytes, cacheFile);
 
     juce::String message;
     message << (int) brain->numBlocks() << " blocks from " << (int) brain->sounds.size() << " sounds";

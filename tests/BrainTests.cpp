@@ -94,20 +94,24 @@ public:
             auto brain = build (audio, bs, overlap);
             Renderer r (brain);
             r.setSearch (SearchParams {}, SearchMode::basic);
+            r.setBlocking (true);
 
+            // Each match starts a fixed delay after its target block completes;
+            // consecutive blocks always differ, so every change is one start.
             std::vector<float> out (audio.size());
-            int wrongBlocks = 0, expectedBlock = 0;
+            int wrongBlocks = 0, expectedBlock = 0, last = -1;
             for (size_t i = 0; i < audio.size(); ++i)
             {
                 out[i] = r.processSample (audio[i]);
-                const bool blockCompleted = i + 1 >= (size_t) bs && (i + 1 - (size_t) bs) % (size_t) brain->settings.hop() == 0;
-                if (blockCompleted)
+                if (r.getLastChosenBlock() != last)
                 {
-                    if (r.getLastChosenBlock() != expectedBlock)
+                    last = r.getLastChosenBlock();
+                    if (last != expectedBlock)
                         ++wrongBlocks;
                     ++expectedBlock;
                 }
             }
+            expectGreaterThan (expectedBlock, (int) brain->numBlocks() - 4);
             expectEquals (wrongBlocks, 0, "every target block should match its own brain block");
 
             // Compare away from the start (ramp-in) and end (no blocks past the last full one).
@@ -136,7 +140,7 @@ public:
                 bool sorted = true, noSelf = true;
                 for (auto s : syn)
                 {
-                    const double d = featureDistance (brain->blocks[i].features, brain->blocks[s].features, p);
+                    const double d = brain->distanceTo (s, brain->blocks[i].features, brain->blocks[i].normalised, p);
                     sorted &= d >= last;
                     noSelf &= s != i;
                     last = d;

@@ -31,7 +31,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
     // Cepstral morph
-    layout.add (unit (morphX, "Morph Envelope", 0.0f),
+    layout.add (unit (morphX, "Morph Envelope", 1.0f),
                 unit (morphY, "Morph Detail", 0.0f),
                 std::make_unique<Int> (pid (cutoffA), "Cutoff Quefrency A", 4, 200, 25),
                 std::make_unique<Int> (pid (cutoffB), "Cutoff Quefrency B", 4, 200, 25),
@@ -40,7 +40,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                 std::make_unique<Choice> (pid (fftSize), "FFT Size",
                                           juce::StringArray { "512", "1024", "2048", "4096" }, defaultFftSizeIndex),
                 std::make_unique<Choice> (pid (bSource), "B Source",
-                                          juce::StringArray { "Sidechain", "Brain" }, 0));
+                                          juce::StringArray { "Sidechain", "Brain" }, 1));
 
     // Brain search
     layout.add (unit (matchTimbre, "Match Timbre", 0.5f),
@@ -48,8 +48,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                 unit (envTransplant, "Envelope Transplant", 0.0f),
                 std::make_unique<Int> (pid (blockSize), "Block Size", 256, 4096, 1000),
                 std::make_unique<Float> (pid (overlap), "Block Overlap", juce::NormalisableRange<float> (0.0f, 0.75f), 0.0f),
-                unit (novelty, "Novelty", 0.0f),
-                unit (boredom, "Boredom", 0.0f),
+                unit (novelty, "Novelty", 0.3f),
+                unit (boredom, "Boredom", 0.5f),
                 unit (stickyness, "Stickyness", 0.0f),
                 std::make_unique<Choice> (pid (searchMode), "Search Mode",
                                           juce::StringArray { "Basic", "Rev", "Synaptic", "Synaptic Slide" }, 0));

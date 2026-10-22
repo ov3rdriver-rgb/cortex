@@ -27,8 +27,6 @@ struct SearchParams
     float usageFalloff = 0.9f;      // per-search decay of usage ("boredom" memory)
     float stickyness = 0.0f;        // prefer the block that follows the last one
 
-    int fftStart = 0;
-    int fftEnd = numFftBins;
     int numSynapses = 20;           // how many stored synapses synaptic search looks at
     double slideError = 1.0;        // synaptic slide: hold the target until error drops below this
     int maxSlideHold = 16;          // ...but never for more than this many hops

@@ -60,10 +60,13 @@ public:
     // delay. The host is told on the message thread (timer), never from audio.
     int getAlignedLatencySamples() const { return currentFftSize() + reportedBrainDelay.load(); }
 
-    // Brain management (message thread).
-    void loadBrainFrom (const juce::StringArray& filesOrFolders);
-    void clearBrain();
-    void rebuildBrain();
+    // Brain management (message thread). Brain 1 (index 0) feeds input B;
+    // Brain 2 (index 1) can feed input A instead of the live input (A Source),
+    // so the morph runs between two brains' matches - the 4-corner brain.
+    static constexpr int numBrains = 2;
+    void loadBrainFrom (const juce::StringArray& filesOrFolders, int brain = 0);
+    void clearBrain (int brain = 0);
+    void rebuildBrain (int brain = 0);
 
     struct BrainStatus
     {
@@ -74,19 +77,19 @@ public:
         int numSounds = 0;
         int playingBlock = -1;
     };
-    BrainStatus getBrainStatus() const;
-    std::shared_ptr<const cortex::brain::Brain> getBrain() const;
+    BrainStatus getBrainStatus (int brain = 0) const;
+    std::shared_ptr<const cortex::brain::Brain> getBrain (int brain = 0) const;
 
     // Latest morph frame (left channel) for the editor's displays.
     bool readMorphSnapshot (cortex::dsp::MorphSnapshot& out) const { return morphSnapshots.read (out); }
-    juce::Array<juce::File> getBrainFiles() const { return brainFiles; }
+    juce::Array<juce::File> getBrainFiles (int brain = 0) const { return slots[(size_t) brain].files; }
 
 private:
     static constexpr int maxChannels = 2;
 
     void parameterChanged (const juce::String& parameterID, float newValue) override;
     void timerCallback() override;
-    void onBrainBuilt (std::shared_ptr<const cortex::brain::Brain>, const juce::String& message);
+    void onBrainBuilt (int brain, std::shared_ptr<const cortex::brain::Brain>, const juce::String& message);
     cortex::brain::BrainSettings currentBrainSettings() const;
     cortex::brain::SearchParams readSearchParams() const;
     void updateLatency();
@@ -117,6 +120,7 @@ private:
         std::atomic<float>* autoMute = nullptr;
         std::atomic<float>* autoMuteMs = nullptr;
         std::atomic<float>* lowLatency = nullptr;
+        std::atomic<float>* aSource = nullptr;
         std::atomic<float>* freezeEnvA = nullptr;
         std::atomic<float>* freezeDetailA = nullptr;
         std::atomic<float>* freezeEnvB = nullptr;
@@ -148,8 +152,8 @@ private:
         std::atomic<float>* ampRelease = nullptr;
     } params;
 
-    void switchEngine (int newOrder, int newBrainDelay, const cortex::dsp::MorphParams&);
-    void primeEngine (int slot, int order, int brainDelay, const cortex::dsp::MorphParams&);
+    void switchEngine (int newOrder, int newBrainDelay, int newADelay, const cortex::dsp::MorphParams&);
+    void primeEngine (int slot, int order, int aDelay, const cortex::dsp::MorphParams&);
 
     struct Engine
     {
@@ -164,7 +168,8 @@ private:
     int fadeRemaining = 0;
     int fadeLength = 1;
     int previousOrder = 11;
-    int activeBrainDelay = 0, previousBrainDelay = 0;   // samples A is delayed to line up with the brain
+    int activeBrainDelay = 0, previousBrainDelay = 0;   // brain latency: dry path and reported latency
+    int activeADelay = 0, previousADelay = 0;           // samples A is delayed to line up with B
     std::atomic<int> reportedBrainDelay { 0 };
 
     // Input history: gated A (read at the alignment delay) and B for the engines
@@ -183,20 +188,25 @@ private:
     int silentSamples = 0;
     double currentSampleRate = 48000.0;
 
-    // Brain. Built on builderThread, handed to the audio thread through `renderer`.
+    // Brains. Each is built on its builder's thread and handed to the audio
+    // thread through its `renderer` exchange.
+    struct BrainSlot
+    {
+        juce::Array<juce::File> files;
+        std::unique_ptr<cortex::brain::BrainBuilder> builder;
+        cortex::RealtimeExchange<cortex::brain::Renderer> renderer;
+        std::atomic<int> playingBlock { -1 };
+        cortex::brain::BrainSettings builtSettings;
+        std::shared_ptr<const cortex::brain::Brain> current;   // guarded by brainLock
+        juce::String message;                                  // guarded by brainLock
+    };
+
     juce::AudioFormatManager formatManager;
-    juce::Array<juce::File> brainFiles;
-    cortex::brain::BrainBuilder builder;
-    cortex::RealtimeExchange<cortex::brain::Renderer> renderer;
-    std::atomic<int> playingBlock { -1 };
+    std::array<BrainSlot, numBrains> slots;
     cortex::SnapshotExchange<cortex::dsp::MorphSnapshot> morphSnapshots;
     std::atomic<bool> rebuildRequested { false };
     juce::uint32 rebuildDueMs = 0;
-    cortex::brain::BrainSettings builtSettings;
-
-    mutable std::mutex brainLock;   // guards the two below; never taken on the audio thread
-    std::shared_ptr<const cortex::brain::Brain> currentBrain;
-    juce::String brainMessage;
+    mutable std::mutex brainLock;   // never taken on the audio thread
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CortexAudioProcessor)
 };

@@ -4,7 +4,7 @@
 
 namespace
 {
-    constexpr int headerHeight = 54;
+    constexpr int headerHeight = 74;
     constexpr int footerHeight = 24;
     constexpr int gap = 8;
 }
@@ -22,29 +22,32 @@ CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
     title.setColour (juce::Label::textColourId, colours::text);
     addAndMakeVisible (title);
 
-    brainLabel.setFont (juce::FontOptions (13.0f));
-    brainLabel.setColour (juce::Label::textColourId, colours::text);
-    addAndMakeVisible (brainLabel);
+    for (auto* l : { &brainLabel, &brain2Label })
+    {
+        l->setFont (juce::FontOptions (13.0f));
+        l->setColour (juce::Label::textColourId, colours::text);
+        addAndMakeVisible (*l);
+    }
     addAndMakeVisible (progressBar);
 
-    chooseButton.onClick = [this]
+    chooseButton.onClick = [this] { chooseBrainFiles (0); };
+    choose2Button.onClick = [this] { chooseBrainFiles (1); };
+    rebuildButton.onClick = [this]
     {
-        chooser = std::make_unique<juce::FileChooser> ("Choose samples or a folder for the brain");
-        chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles
-                                  | juce::FileBrowserComponent::canSelectDirectories | juce::FileBrowserComponent::canSelectMultipleItems,
-                              [this] (const juce::FileChooser& fc)
-                              {
-                                  juce::StringArray paths;
-                                  for (const auto& f : fc.getResults())
-                                      paths.add (f.getFullPathName());
-                                  if (! paths.isEmpty())
-                                      processor.loadBrainFrom (paths);
-                              });
+        for (int b = 0; b < CortexAudioProcessor::numBrains; ++b)
+            if (! processor.getBrainFiles (b).isEmpty())
+                processor.rebuildBrain (b);
     };
-    rebuildButton.onClick = [this] { processor.rebuildBrain(); };
-    clearButton.onClick = [this] { processor.clearBrain(); };
-    for (auto* b : { &chooseButton, &rebuildButton, &clearButton })
+    clearButton.onClick = [this] { processor.clearBrain (0); };
+    clear2Button.onClick = [this] { processor.clearBrain (1); };
+    for (auto* b : { &chooseButton, &rebuildButton, &clearButton, &choose2Button, &clear2Button })
         addAndMakeVisible (*b);
+
+    viewBrain.addItemList ({ "Brain 1", "Brain 2" }, 1);
+    viewBrain.setTooltip ("Which brain the map and sound list show, and which one dropped files load into");
+    viewBrain.setSelectedId (1, juce::dontSendNotification);
+    viewBrain.onChange = [this] { timerCallback(); };
+    addAndMakeVisible (viewBrain);
 
     addAndMakeVisible (xyPad);
     addAndMakeVisible (cepstrumView);
@@ -56,6 +59,7 @@ CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
     juce::StringArray morphIds { lowLatency, phaseMode, fftSize, cutoffA, cutoffB, formantA, formantB, cornerGainTL, cornerGainBR };
     if (! p.isInstrument())
         morphIds.insert (0, bSource);
+    morphIds.insert (0, aSource);
     tabs.addTab ("Morph", tabColour, new cortex::ui::ParamPanel (p.apvts, morphIds), true);
     tabs.addTab ("Mod", tabColour, new cortex::ui::ParamPanel (p.apvts, { lfoRate, lfoDepth, lfoShape, lfoTarget,
                                                                           envDepth, envAttack, envRelease }), true);
@@ -117,13 +121,21 @@ void CortexAudioProcessorEditor::resized()
 
     auto header = area.removeFromTop (headerHeight - gap);
     title.setBounds (header.removeFromLeft (220));
-    auto buttons = header.removeFromRight (250);
-    chooseButton.setBounds (buttons.removeFromLeft (80).reduced (3, 8));
-    rebuildButton.setBounds (buttons.removeFromLeft (85).reduced (3, 8));
-    clearButton.setBounds (buttons.reduced (3, 8));
-    header.reduce (12, 4);
-    brainLabel.setBounds (header.removeFromTop (header.getHeight() / 2));
-    progressBar.setBounds (header.reduced (0, 3));
+
+    auto row1 = header.removeFromTop (header.getHeight() / 2);
+    auto buttons1 = row1.removeFromRight (250);
+    chooseButton.setBounds (buttons1.removeFromLeft (80).reduced (3, 4));
+    rebuildButton.setBounds (buttons1.removeFromLeft (85).reduced (3, 4));
+    clearButton.setBounds (buttons1.reduced (3, 4));
+    row1.reduce (12, 0);
+    progressBar.setBounds (row1.removeFromBottom (6));
+    brainLabel.setBounds (row1);
+
+    auto buttons2 = header.removeFromRight (250);
+    choose2Button.setBounds (buttons2.removeFromLeft (80).reduced (3, 4));
+    viewBrain.setBounds (buttons2.removeFromLeft (85).reduced (3, 4));
+    clear2Button.setBounds (buttons2.reduced (3, 4));
+    brain2Label.setBounds (header.reduced (12, 0));
 
     auto footer = area.removeFromBottom (footerHeight);
     versionLabel.setBounds (footer.removeFromRight (140));
@@ -151,7 +163,35 @@ void CortexAudioProcessorEditor::resized()
 void CortexAudioProcessorEditor::filesDropped (const juce::StringArray& files, int, int)
 {
     setDragHighlight (false);
-    processor.loadBrainFrom (files);
+    processor.loadBrainFrom (files, viewBrain.getSelectedId() - 1);
+}
+
+void CortexAudioProcessorEditor::chooseBrainFiles (int brain)
+{
+    chooser = std::make_unique<juce::FileChooser> (brain == 0 ? "Choose samples or a folder for Brain 1"
+                                                              : "Choose samples or a folder for Brain 2");
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::canSelectDirectories | juce::FileBrowserComponent::canSelectMultipleItems,
+                          [this, brain] (const juce::FileChooser& fc)
+                          {
+                              juce::StringArray paths;
+                              for (const auto& f : fc.getResults())
+                                  paths.add (f.getFullPathName());
+                              if (! paths.isEmpty())
+                                  processor.loadBrainFrom (paths, brain);
+                          });
+}
+
+juce::String CortexAudioProcessorEditor::statusText (int brain) const
+{
+    const auto s = processor.getBrainStatus (brain);
+    const juce::String name = brain == 0 ? "Brain 1" : "Brain 2";
+    if (s.building)
+        return name + ": building - " + s.message;
+    if (s.numBlocks > 0)
+        return name + ": " + juce::String (s.numBlocks) + " blocks from " + juce::String (s.numSounds) + " sounds";
+    return brain == 0 ? "Brain 1: drop a folder of samples anywhere on this window"
+                      : "Brain 2: optional - load one and set A Source to Brain 2 to morph between two brains";
 }
 
 void CortexAudioProcessorEditor::setDragHighlight (bool shouldHighlight)
@@ -162,26 +202,25 @@ void CortexAudioProcessorEditor::setDragHighlight (bool shouldHighlight)
 
 void CortexAudioProcessorEditor::timerCallback()
 {
-    const auto s = processor.getBrainStatus();
+    const auto s1 = processor.getBrainStatus (0);
+    const auto s2 = processor.getBrainStatus (1);
+    brainLabel.setText (statusText (0), juce::dontSendNotification);
+    brain2Label.setText (statusText (1), juce::dontSendNotification);
+    brain2Label.setColour (juce::Label::textColourId, s2.numBlocks > 0 || s2.building ? cortex::ui::colours::text
+                                                                                       : cortex::ui::colours::dim);
 
-    juce::String text;
-    if (s.building)
-        text = "Building brain: " + s.message;
-    else if (s.numBlocks > 0)
-        text = "Brain: " + juce::String (s.numBlocks) + " blocks from " + juce::String (s.numSounds) + " sounds";
-    else
-        text = "Drop a folder of samples anywhere on this window to build a brain";
+    const bool building = s1.building || s2.building;
+    progress = s1.building ? (double) s1.progress : (s2.building ? (double) s2.progress : 0.0);
+    progressBar.setVisible (building);
+    rebuildButton.setEnabled (! processor.getBrainFiles (0).isEmpty() || ! processor.getBrainFiles (1).isEmpty());
+    clearButton.setEnabled (s1.numBlocks > 0 || s1.building);
+    clear2Button.setEnabled (s2.numBlocks > 0 || s2.building);
 
-    brainLabel.setText (text, juce::dontSendNotification);
-    progress = s.building ? (double) s.progress : 0.0;
-    progressBar.setVisible (s.building);
-    rebuildButton.setEnabled (! processor.getBrainFiles().isEmpty());
-    clearButton.setEnabled (s.numBlocks > 0 || s.building);
-
-    const auto brain = processor.getBrain();
+    const int shown = viewBrain.getSelectedId() - 1;
+    const auto brain = processor.getBrain (shown);
     brainMap.setBrain (brain);
     soundList.setBrain (brain);
-    brainMap.setPlayingBlock (s.playingBlock);
+    brainMap.setPlayingBlock ((shown == 0 ? s1 : s2).playingBlock);
 
     cortex::dsp::MorphSnapshot snapshot;
     if (processor.readMorphSnapshot (snapshot))

@@ -558,3 +558,145 @@ public:
 };
 
 static CepstralGlideTests cepstralGlideTests;
+
+class FourCornerBrainTests final : public juce::UnitTest
+{
+public:
+    FourCornerBrainTests() : juce::UnitTest ("4-corner brain", "Cortex") {}
+
+    static juce::File writeFolder (const juce::String& name, const std::vector<float>& audio)
+    {
+        const auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                             .getChildFile ("cortex-4c-" + name + "-" + juce::String (juce::Random::getSystemRandom().nextInt()));
+        dir.createDirectory();
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::AudioFormatWriter> w (wav.createWriterFor (new juce::FileOutputStream (dir.getChildFile (name + ".wav")),
+                                                                         48000.0, 1, 24, {}, 0));
+        const float* chans[] { audio.data() };
+        w->writeFromFloatArrays (chans, 1, (int) audio.size());
+        return dir;
+    }
+
+    static double centroidOf (const std::vector<float>& x)
+    {
+        constexpr int o = 14, len = 1 << o;
+        juce::dsp::FFT fft (o);
+        std::vector<float> buf (2 * len, 0.0f);
+        for (int i = 0; i < len; ++i)
+            buf[(size_t) i] = x[x.size() - len + (size_t) i] * (0.5f - 0.5f * std::cos (juce::MathConstants<float>::twoPi * i / len));
+        fft.performFrequencyOnlyForwardTransform (buf.data(), true);
+        double num = 0.0, den = 0.0;
+        for (int k = 1; k <= len / 2; ++k)
+        {
+            const double p = (double) buf[(size_t) k] * buf[(size_t) k];
+            num += p * k * 48000.0 / len;
+            den += p;
+        }
+        return num / den;
+    }
+
+    struct Render
+    {
+        double centroid = 0.0;
+        int latency = 0;
+    };
+
+    Render render (const juce::File& brain1, const juce::File& brain2, float aSource, float xy, float phase)
+    {
+        CortexAudioProcessor proc (false);
+        auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+        set (cortex::ParamIDs::aSource, aSource);
+        set (cortex::ParamIDs::morphX, xy);
+        set (cortex::ParamIDs::morphY, xy);
+        set (cortex::ParamIDs::phaseMode, phase);
+        set (cortex::ParamIDs::novelty, 0.0f);
+        set (cortex::ParamIDs::limiter, 0.0f);
+        set (cortex::ParamIDs::autoMute, 0.0f);
+        proc.setNonRealtime (true);
+        proc.prepareToPlay (48000.0, 512);
+        proc.loadBrainFrom ({ brain1.getFullPathName() }, 0);
+        if (brain2 != juce::File())
+            proc.loadBrainFrom ({ brain2.getFullPathName() }, 1);
+        for (int i = 0; i < 600 && (proc.getBrain (0) == nullptr || (brain2 != juce::File() && proc.getBrain (1) == nullptr)); ++i)
+            juce::Thread::sleep (50);
+
+        // Input: a mid-bright saw at 220 Hz.
+        juce::AudioBuffer<float> buf (2, 512);
+        juce::MidiBuffer midi;
+        std::vector<float> out;
+        double phaseAcc = 0.0;
+        for (int b = 0; b < 300; ++b)
+        {
+            for (int i = 0; i < 512; ++i)
+            {
+                phaseAcc += 220.0 / 48000.0;
+                const float s = (float) (0.3 * (2.0 * (phaseAcc - std::floor (phaseAcc)) - 1.0));
+                buf.setSample (0, i, s);
+                buf.setSample (1, i, s);
+            }
+            proc.processBlock (buf, midi);
+            out.insert (out.end(), buf.getReadPointer (0), buf.getReadPointer (0) + 512);
+        }
+        return { centroidOf (out), proc.getAlignedLatencySamples() };
+    }
+
+    void runTest() override
+    {
+        // Brain 1: dark (a saw through a steep lowpass). Brain 2: bright noise.
+        std::vector<float> dark ((size_t) 96000, 0.0f), bright ((size_t) 96000);
+        for (int h = 1; h * 220.0 < 12000.0; ++h)
+        {
+            const double amp = 0.3 / h / (1.0 + std::pow (h * 220.0 / 300.0, 2.0));
+            for (size_t i = 0; i < dark.size(); ++i)
+                dark[i] += (float) (amp * std::sin (juce::MathConstants<double>::twoPi * h * 220.0 * (double) i / 48000.0));
+        }
+        juce::Random rng (8);
+        float prev = 0.0f;
+        for (auto& v : bright)
+        {
+            const float w = rng.nextFloat() - 0.5f;
+            v = 0.4f * (w - prev);   // first difference: tilted towards the highs
+            prev = w;
+        }
+        const auto dir1 = writeFolder ("dark", dark), dir2 = writeFolder ("bright", bright);
+
+        beginTest ("A Source = Brain 2: the pad morphs between the two brains");
+        {
+            const auto pureA = render (dir1, dir2, 1.0f, 0.0f, 0.0f);   // (0,0), phase A -> Brain 2
+            const auto pureB = render (dir1, dir2, 1.0f, 1.0f, 1.0f);   // (1,1), phase B -> Brain 1
+            logMessage ("  centroid: pure A (Brain 2, bright) " + juce::String (pureA.centroid, 0)
+                        + " Hz, pure B (Brain 1, dark) " + juce::String (pureB.centroid, 0) + " Hz");
+            expectGreaterThan (pureA.centroid, pureB.centroid * 4.0);
+            expectEquals (pureA.latency, 2048 + 1000 + 1024, "FFT + one brain's latency, not two");
+        }
+
+        beginTest ("A Source = Brain 2 with no Brain 2 loaded: A stays the live input");
+        {
+            const auto fallback = render (dir1, {}, 1.0f, 0.0f, 0.0f);
+            const auto input = render (dir1, {}, 0.0f, 0.0f, 0.0f);
+            logMessage ("  centroid with no Brain 2: " + juce::String (fallback.centroid, 0) + " Hz (input path " + juce::String (input.centroid, 0) + " Hz)");
+            expectWithinAbsoluteError (fallback.centroid, input.centroid, input.centroid * 0.02);
+        }
+
+        beginTest ("Both brains' file lists survive save / restore");
+        {
+            CortexAudioProcessor proc (false);
+            proc.prepareToPlay (48000.0, 512);
+            proc.loadBrainFrom ({ dir1.getFullPathName() }, 0);
+            proc.loadBrainFrom ({ dir2.getFullPathName() }, 1);
+            juce::MemoryBlock state;
+            proc.getStateInformation (state);
+
+            CortexAudioProcessor restored (false);
+            restored.setStateInformation (state.getData(), (int) state.getSize());
+            expect (restored.getBrainFiles (0) == proc.getBrainFiles (0));
+            expect (restored.getBrainFiles (1) == proc.getBrainFiles (1));
+            expect (restored.getBrainFiles (0) != restored.getBrainFiles (1));
+        }
+
+        dir1.deleteRecursively();
+        dir2.deleteRecursively();
+    }
+};
+
+static FourCornerBrainTests fourCornerBrainTests;

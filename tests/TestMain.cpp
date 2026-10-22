@@ -2,9 +2,20 @@
 #include <juce_events/juce_events.h>
 #include <cstdio>
 
+namespace
+{
+    struct StdoutLogger final : juce::Logger
+    {
+        void logMessage (const juce::String& m) override { std::printf ("%s\n", m.toRawUTF8()); }
+    };
+}
+
 int main()
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
+
+    StdoutLogger logger;
+    juce::Logger::setCurrentLogger (&logger);
 
     juce::UnitTestRunner runner;
     runner.setAssertOnFailure (false);

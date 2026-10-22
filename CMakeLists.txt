@@ -36,10 +36,17 @@ juce_add_plugin(Cortex
     VST3_CATEGORIES Fx Spectral
     AU_MAIN_TYPE kAudioUnitType_Effect)
 
+set(CORTEX_DSP_SOURCES
+    ${PROJECT_SOURCE_DIR}/Source/dsp/STFT.cpp
+    ${PROJECT_SOURCE_DIR}/Source/dsp/Cepstrum.cpp
+    ${PROJECT_SOURCE_DIR}/Source/dsp/CepstralMorph.cpp
+    ${PROJECT_SOURCE_DIR}/Source/dsp/PhaseBlend.cpp)
+
 target_sources(Cortex PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
-    Source/Parameters.cpp)
+    Source/Parameters.cpp
+    ${CORTEX_DSP_SOURCES})
 
 target_include_directories(Cortex PRIVATE Source)
 

@@ -1,0 +1,69 @@
+#include "STFT.h"
+
+namespace cortex::dsp
+{
+void STFT::prepare()
+{
+    for (auto* v : { &inA, &inB, &outAcc, &frameA, &frameB, &frameOut })
+        v->assign ((size_t) maxFftSize, 0.0f);
+
+    for (int o = minFftOrder; o <= maxFftOrder; ++o)
+    {
+        const int size = 1 << o;
+        const int h = size / overlap;
+        auto& w = windows[(size_t) (o - minFftOrder)];
+        w.resize ((size_t) size);
+
+        // Periodic Hann, so shifted copies sum exactly.
+        for (int i = 0; i < size; ++i)
+            w[(size_t) i] = 0.5f - 0.5f * std::cos (juce::MathConstants<float>::twoPi * (float) i / (float) size);
+
+        // Analysis * synthesis window overlap-adds to a constant; normalise it out.
+        double sum = 0.0;
+        for (int i = 0; i < size; i += h)
+            sum += (double) w[(size_t) i] * w[(size_t) i];
+        olaScales[(size_t) (o - minFftOrder)] = (float) (1.0 / sum);
+    }
+
+    setOrder (juce::jlimit (minFftOrder, maxFftOrder, (int) std::log2 (n)));
+}
+
+void STFT::setOrder (int order)
+{
+    order = juce::jlimit (minFftOrder, maxFftOrder, order);
+    n = 1 << order;
+    window = windows[(size_t) (order - minFftOrder)].data();
+    olaScale = olaScales[(size_t) (order - minFftOrder)];
+    reset();
+}
+
+void STFT::reset()
+{
+    for (auto* v : { &inA, &inB, &outAcc })
+        std::fill (v->begin(), v->end(), 0.0f);
+    pos = 0;
+    hopCounter = 0;
+}
+
+void STFT::gatherFrames() noexcept
+{
+    // pos now points at the oldest sample in the ring.
+    for (int i = 0, idx = pos; i < n; ++i)
+    {
+        frameA[(size_t) i] = inA[(size_t) idx] * window[i];
+        frameB[(size_t) i] = inB[(size_t) idx] * window[i];
+        if (++idx == n)
+            idx = 0;
+    }
+}
+
+void STFT::overlapAdd() noexcept
+{
+    for (int i = 0, idx = pos; i < n; ++i)
+    {
+        outAcc[(size_t) idx] += frameOut[(size_t) i] * window[i] * olaScale;
+        if (++idx == n)
+            idx = 0;
+    }
+}
+} // namespace cortex::dsp

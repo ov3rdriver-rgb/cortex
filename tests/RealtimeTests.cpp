@@ -161,6 +161,44 @@ public:
         expectEquals (trackedAllocations.load(), 0);
         expectEquals (trackedFrees.load(), 0);
 
+        beginTest ("Instrument processBlock never allocates or frees (MIDI, legato, brain)");
+        {
+            CortexAudioProcessor inst (true);
+            auto setI = [&] (const char* id, float v) { auto* p = inst.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+            setI ("envTransplant", 0.7f);
+            inst.prepareToPlay (48000.0, 512);
+            inst.loadBrainFrom ({ dir.getFullPathName() });
+            for (int i = 0; i < 600 && inst.getBrain() == nullptr; ++i)
+                juce::Thread::sleep (50);
+
+            juce::AudioBuffer<float> ibuf (2, 512);
+            trackedAllocations = 0;
+            trackedFrees = 0;
+            for (int block = 0; block < 300; ++block)
+            {
+                // MIDI is filled in by the "host" outside the tracked call.
+                midi.clear();
+                if (block % 30 == 0)  midi.addEvent (juce::MidiMessage::noteOn (1, 48 + (block / 30) % 12, 0.8f), 17);
+                if (block % 30 == 10) midi.addEvent (juce::MidiMessage::noteOn (1, 60, 0.8f), 100);       // legato
+                if (block % 30 == 20) midi.addEvent (juce::MidiMessage::noteOff (1, 60), 3);
+                if (block % 30 == 25) midi.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+                if (block % 7 == 0)   midi.addEvent (juce::MidiMessage::pitchWheel (1, 4096 + block * 20), 50);
+                ibuf.clear();
+
+                {
+                    ScopedTracking t;
+                    inst.processBlock (ibuf, midi);
+                }
+                if (block % 20 == 0)
+                    juce::Thread::sleep (2);
+            }
+
+            logMessage ("  instrument audio-thread allocations: " + juce::String (trackedAllocations.load())
+                        + ", frees: " + juce::String (trackedFrees.load()));
+            expectEquals (trackedAllocations.load(), 0);
+            expectEquals (trackedFrees.load(), 0);
+        }
+
         dir.deleteRecursively();
     }
 };

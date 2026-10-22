@@ -59,29 +59,35 @@ jobs:
         run: |
           curl -sSfLO "https://github.com/Tracktion/pluginval/releases/download/${PLUGINVAL_VERSION}/${{ matrix.pluginval_zip }}"
           unzip -q ${{ matrix.pluginval_zip }}
-          VST3=$(find build -type d -name "Cortex.vst3" -path "*VST3*" | head -1)
-          echo "Validating $VST3"
-          ./${{ matrix.pluginval_bin }} --strictness-level 10 --validate-in-process --skip-gui-tests --timeout-ms 600000 "$VST3"
+          for name in "Cortex" "Cortex Instrument"; do
+            VST3=$(find build -type d -name "$name.vst3" -path "*VST3*" | head -1)
+            echo "Validating $VST3"
+            ./${{ matrix.pluginval_bin }} --strictness-level 10 --validate-in-process --skip-gui-tests --timeout-ms 600000 "$VST3"
+          done
 
       - name: pluginval (AU)
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          AU=$(find build -type d -name "Cortex.component" | head -1)
           mkdir -p ~/Library/Audio/Plug-Ins/Components
-          cp -R "$AU" ~/Library/Audio/Plug-Ins/Components/
+          for name in "Cortex" "Cortex Instrument"; do
+            AU=$(find build -type d -name "$name.component" | head -1)
+            cp -R "$AU" ~/Library/Audio/Plug-Ins/Components/
+          done
           killall -9 AudioComponentRegistrar || true
-          ./${{ matrix.pluginval_bin }} --strictness-level 10 --validate-in-process --skip-gui-tests --timeout-ms 600000 ~/Library/Audio/Plug-Ins/Components/Cortex.component
+          for name in "Cortex" "Cortex Instrument"; do
+            ./${{ matrix.pluginval_bin }} --strictness-level 10 --validate-in-process --skip-gui-tests --timeout-ms 600000 "$HOME/Library/Audio/Plug-Ins/Components/$name.component"
+          done
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4
         with:
           name: Cortex-${{ runner.os }}
           path: |
-            build/Cortex_artefacts/${{ env.BUILD_TYPE }}/VST3
-            build/Cortex_artefacts/${{ env.BUILD_TYPE }}/AU
-            build/Cortex_artefacts/${{ env.BUILD_TYPE }}/Standalone
-            build/Cortex_artefacts/VST3
-            build/Cortex_artefacts/AU
-            build/Cortex_artefacts/Standalone
+            build/Cortex*_artefacts/${{ env.BUILD_TYPE }}/VST3
+            build/Cortex*_artefacts/${{ env.BUILD_TYPE }}/AU
+            build/Cortex*_artefacts/${{ env.BUILD_TYPE }}/Standalone
+            build/Cortex*_artefacts/VST3
+            build/Cortex*_artefacts/AU
+            build/Cortex*_artefacts/Standalone
           if-no-files-found: ignore

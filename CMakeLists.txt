@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Cortex VERSION 0.5.0 LANGUAGES C CXX)
+project(Cortex VERSION 0.6.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -34,21 +34,6 @@ if(APPLE)
     list(APPEND CORTEX_FORMATS AU)
 endif()
 
-juce_add_plugin(Cortex
-    # Company name, website, bundle ID and manufacturer code are intentionally
-    # unset (JUCE defaults) until the publisher identity is decided.
-    PLUGIN_CODE Crtx
-    PRODUCT_NAME "Cortex"
-    FORMATS ${CORTEX_FORMATS}
-    IS_SYNTH FALSE
-    NEEDS_MIDI_INPUT FALSE
-    NEEDS_MIDI_OUTPUT FALSE
-    IS_MIDI_EFFECT FALSE
-    EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD FALSE
-    VST3_CATEGORIES Fx Spectral
-    AU_MAIN_TYPE kAudioUnitType_Effect)
-
 set(CORTEX_DSP_SOURCES
     ${PROJECT_SOURCE_DIR}/Source/dsp/STFT.cpp
     ${PROJECT_SOURCE_DIR}/Source/dsp/Cepstrum.cpp
@@ -58,30 +43,61 @@ set(CORTEX_DSP_SOURCES
     ${PROJECT_SOURCE_DIR}/Source/brain/Brain.cpp
     ${PROJECT_SOURCE_DIR}/Source/brain/BrainBuilder.cpp
     ${PROJECT_SOURCE_DIR}/Source/brain/Renderer.cpp
-    ${PROJECT_SOURCE_DIR}/Source/state/BrainCache.cpp)
+    ${PROJECT_SOURCE_DIR}/Source/state/BrainCache.cpp
+    ${PROJECT_SOURCE_DIR}/Source/synth/MonoSynth.cpp)
 
-target_sources(Cortex PRIVATE
-    Source/PluginProcessor.cpp
-    Source/PluginEditor.cpp
-    Source/Parameters.cpp
-    ${CORTEX_DSP_SOURCES})
+# Both plugins are built from the same sources; the processor picks effect or
+# instrument behaviour from JucePlugin_IsSynth.
+# Company name, website, bundle ID and manufacturer code are intentionally
+# unset (JUCE defaults) until the publisher identity is decided.
+function(cortex_add_plugin target)
+    juce_add_plugin(${target}
+        FORMATS ${CORTEX_FORMATS}
+        NEEDS_MIDI_OUTPUT FALSE
+        IS_MIDI_EFFECT FALSE
+        EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+        COPY_PLUGIN_AFTER_BUILD FALSE
+        ${ARGN})
 
-target_include_directories(Cortex PRIVATE Source "${PROJECT_BINARY_DIR}/generated")
+    target_sources(${target} PRIVATE
+        Source/PluginProcessor.cpp
+        Source/PluginEditor.cpp
+        Source/Parameters.cpp
+        ${CORTEX_DSP_SOURCES})
 
-target_compile_definitions(Cortex PUBLIC
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
-    JUCE_VST3_CAN_REPLACE_VST2=0
-    JUCE_DISPLAY_SPLASH_SCREEN=0)
+    target_include_directories(${target} PRIVATE Source "${PROJECT_BINARY_DIR}/generated")
 
-target_link_libraries(Cortex
-    PRIVATE
-        juce::juce_audio_utils
-        juce::juce_dsp
-    PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags
-        juce::juce_recommended_warning_flags)
+    target_compile_definitions(${target} PUBLIC
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_VST3_CAN_REPLACE_VST2=0
+        JUCE_DISPLAY_SPLASH_SCREEN=0)
+
+    target_link_libraries(${target}
+        PRIVATE
+            juce::juce_audio_utils
+            juce::juce_dsp
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_lto_flags
+            juce::juce_recommended_warning_flags)
+endfunction()
+
+cortex_add_plugin(Cortex
+    PLUGIN_CODE Crtx
+    PRODUCT_NAME "Cortex"
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT FALSE
+    VST3_CATEGORIES Fx Spectral
+    AU_MAIN_TYPE kAudioUnitType_Effect)
+
+cortex_add_plugin(CortexInstrument
+    PLUGIN_CODE Crti
+    PRODUCT_NAME "Cortex Instrument"
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    VST3_CATEGORIES Instrument Synth
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice)
 
 if(CORTEX_BUILD_TESTS)
     enable_testing()

@@ -16,12 +16,21 @@ namespace
     constexpr double crossfadeSeconds = 0.03;
 }
 
-CortexAudioProcessor::CortexAudioProcessor()
-    : AudioProcessor (BusesProperties()
-                          .withInput ("Input", juce::AudioChannelSet::stereo(), true)
-                          .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
-                          .withInput ("Sidechain", juce::AudioChannelSet::stereo(), false)),
-      apvts (*this, nullptr, "CortexParams", cortex::createParameterLayout()),
+juce::AudioProcessor::BusesProperties CortexAudioProcessor::busesFor (bool isInstrument)
+{
+    if (isInstrument)
+        return BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true);
+
+    return BusesProperties()
+               .withInput ("Input", juce::AudioChannelSet::stereo(), true)
+               .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+               .withInput ("Sidechain", juce::AudioChannelSet::stereo(), false);
+}
+
+CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
+    : AudioProcessor (busesFor (isInstrument)),
+      apvts (*this, nullptr, "CortexParams", cortex::createParameterLayout (isInstrument)),
+      instrument (isInstrument),
       builder ([this] (std::shared_ptr<const cortex::brain::Brain> b, const juce::String& m) { onBrainBuilt (std::move (b), m); })
 {
     formatManager.registerBasicFormats();
@@ -53,6 +62,13 @@ CortexAudioProcessor::CortexAudioProcessor()
     params.boredom = get (cortex::ParamIDs::boredom);
     params.stickyness = get (cortex::ParamIDs::stickyness);
     params.searchMode = get (cortex::ParamIDs::searchMode);
+    if (instrument)
+    {
+        params.oscWave = get (cortex::ParamIDs::oscWave);
+        params.oscGlide = get (cortex::ParamIDs::oscGlide);
+        params.ampAttack = get (cortex::ParamIDs::ampAttack);
+        params.ampRelease = get (cortex::ParamIDs::ampRelease);
+    }
 
     for (auto* id : { cortex::ParamIDs::fftSize, cortex::ParamIDs::blockSize, cortex::ParamIDs::overlap })
         apvts.addParameterListener (id, this);
@@ -103,6 +119,7 @@ cortex::dsp::MorphParams CortexAudioProcessor::readMorphParams() const
 void CortexAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     currentSampleRate = sampleRate;
+    monoSynth.prepare (sampleRate);
 
     for (auto& slot : engines)
         for (auto& e : slot)
@@ -156,6 +173,8 @@ bool CortexAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) c
 
     if (mainOut != juce::AudioChannelSet::mono() && mainOut != juce::AudioChannelSet::stereo())
         return false;
+    if (instrument)
+        return layouts.inputBuses.isEmpty() || mainIn.isDisabled();
     if (mainIn != mainOut)
         return false;
 
@@ -165,7 +184,7 @@ bool CortexAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) c
         || sidechain == juce::AudioChannelSet::stereo();
 }
 
-void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
 
@@ -175,9 +194,20 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     for (int ch = getTotalNumInputChannels(); ch < getTotalNumOutputChannels(); ++ch)
         buffer.clear (ch, 0, numSamples);
 
+    // Instrument: A is the MIDI-played oscillator, written where an effect's input would be.
+    if (instrument && numChannels > 0)
+    {
+        monoSynth.setWaveform ((cortex::synth::Waveform) juce::jlimit (0, 3, (int) params.oscWave->load()));
+        monoSynth.setGlide (params.oscGlide->load());
+        monoSynth.setEnvelope (params.ampAttack->load(), params.ampRelease->load());
+        monoSynth.render (midi, buffer.getWritePointer (0), numSamples);
+        for (int ch = 1; ch < numChannels; ++ch)
+            buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);
+    }
+
     // Input B: the sidechain, or the brain rendering a match for the live input.
     auto* brainRenderer = renderer.acquire();
-    const bool useBrain = params.bSource->load() >= 0.5f;
+    const bool useBrain = instrument || params.bSource->load() >= 0.5f;   // the instrument has no sidechain
     if (brainRenderer != nullptr)
     {
         brainRenderer->setBlocking (isNonRealtime());
@@ -537,5 +567,5 @@ std::shared_ptr<const cortex::brain::Brain> CortexAudioProcessor::getBrain() con
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new CortexAudioProcessor();
+    return new CortexAudioProcessor (JucePlugin_IsSynth != 0);
 }

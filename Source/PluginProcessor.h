@@ -8,13 +8,22 @@
 #include "brain/Renderer.h"
 #include "dsp/CepstralMorph.h"
 #include "dsp/STFT.h"
+#include "synth/MonoSynth.h"
+
+#ifndef JucePlugin_IsSynth
+ #define JucePlugin_IsSynth 0
+#endif
 
 class CortexAudioProcessor final : public juce::AudioProcessor,
                                    private juce::AudioProcessorValueTreeState::Listener,
                                    private juce::Timer
 {
 public:
-    CortexAudioProcessor();
+    // The same processor builds both plugins: the effect (input A is the
+    // track's audio) and Cortex Instrument (input A is a MIDI-played oscillator).
+    explicit CortexAudioProcessor (bool isInstrument = JucePlugin_IsSynth != 0);
+
+    bool isInstrument() const noexcept { return instrument; }
     ~CortexAudioProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -27,7 +36,7 @@ public:
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override { return JucePlugin_Name; }
-    bool acceptsMidi() const override { return false; }
+    bool acceptsMidi() const override { return instrument; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
@@ -78,6 +87,11 @@ private:
     void updateLatency();
     cortex::dsp::MorphParams readMorphParams() const;
 
+    static BusesProperties busesFor (bool isInstrument);
+
+    const bool instrument;
+    cortex::synth::MonoSynth monoSynth;
+
     struct Params
     {
         std::atomic<float>* morphX = nullptr;
@@ -105,6 +119,10 @@ private:
         std::atomic<float>* boredom = nullptr;
         std::atomic<float>* stickyness = nullptr;
         std::atomic<float>* searchMode = nullptr;
+        std::atomic<float>* oscWave = nullptr;
+        std::atomic<float>* oscGlide = nullptr;
+        std::atomic<float>* ampAttack = nullptr;
+        std::atomic<float>* ampRelease = nullptr;
     } params;
 
     void switchEngine (int newOrder, int newBrainDelay, const cortex::dsp::MorphParams&);

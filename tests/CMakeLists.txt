@@ -10,6 +10,7 @@ target_sources(CortexTests PRIVATE
     BrainTests.cpp
     DiagTests.cpp
     RealtimeTests.cpp
+    InstrumentTests.cpp
     ${CORTEX_DSP_SOURCES})
 
 target_include_directories(CortexTests PRIVATE ${PROJECT_SOURCE_DIR}/Source "${PROJECT_BINARY_DIR}/generated")

@@ -25,7 +25,7 @@ namespace
     }
 }
 
-juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
+juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool instrument)
 {
     using namespace ParamIDs;
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
@@ -66,6 +66,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                 std::make_unique<Float> (pid (autoMuteMs), "Auto-Mute Time",
                                          juce::NormalisableRange<float> (10.0f, 2000.0f, 1.0f, 0.5f), 250.0f,
                                          juce::AudioParameterFloatAttributes().withLabel ("ms")));
+
+    if (instrument)
+    {
+        auto ms = [] (const char* id, const char* name, float max, float def)
+        {
+            return std::make_unique<Float> (pid (id), name, juce::NormalisableRange<float> (0.0f, max, 0.1f, 0.4f), def,
+                                            juce::AudioParameterFloatAttributes().withLabel ("ms"));
+        };
+        layout.add (std::make_unique<Choice> (pid (oscWave), "Oscillator", juce::StringArray { "Saw", "Square", "Triangle", "Sine" }, 0),
+                    ms (oscGlide, "Glide", 2000.0f, 60.0f),
+                    ms (ampAttack, "Attack", 2000.0f, 5.0f),
+                    ms (ampRelease, "Release", 5000.0f, 250.0f));
+    }
 
     return layout;
 }

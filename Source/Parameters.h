@@ -31,6 +31,12 @@ namespace cortex::ParamIDs
     inline constexpr auto gateThresh    = "gateThresh";
     inline constexpr auto autoMute      = "autoMute";
     inline constexpr auto autoMuteMs    = "autoMuteMs";
+
+    // Cortex Instrument only.
+    inline constexpr auto oscWave       = "oscWave";
+    inline constexpr auto oscGlide      = "oscGlide";
+    inline constexpr auto ampAttack     = "ampAttack";
+    inline constexpr auto ampRelease    = "ampRelease";
 }
 
 namespace cortex
@@ -39,5 +45,5 @@ namespace cortex
     inline constexpr int fftSizes[] { 512, 1024, 2048, 4096 };
     inline constexpr int defaultFftSizeIndex = 2;
 
-    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool instrument);
 }

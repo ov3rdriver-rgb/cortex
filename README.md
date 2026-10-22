@@ -2,7 +2,12 @@
 
 Samplebrain × cepstral morph, as a VST3 / AU / Standalone plugin. See [BRIEF.md](BRIEF.md) for the design.
 
-**Status:** Phase 2 (brain engine): drop a folder of samples to build a brain (background thread, cached to disk as `.cortexbrain`); set **B Source** to Brain to feed the live-matched brain into the cepstral morph. Phase 3 aligns latency and adds split-cepstrum matching.
+**Status:** v0.6. Two plugins from one codebase:
+
+- **Cortex** (effect): your track's audio is matched against a brain of samples, and the matches are cepstrally morphed with it.
+- **Cortex Instrument** (mono synth): a MIDI-played oscillator (saw/square/triangle/sine, legato glide) drives the brain instead.
+
+Drop a folder of samples on the plugin to build a brain (cached as `.cortexbrain`). Match Timbre / Match Pitch steer the search, Envelope Transplant gives brain grains your spectral envelope, and the XY morph (Morph Envelope / Morph Detail) blends the two.
 
 ## Build
 

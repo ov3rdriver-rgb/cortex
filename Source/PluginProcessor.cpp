@@ -7,7 +7,7 @@ namespace
 {
     // Plugin state keeps a reference to the brain (file list + cache path),
     // never raw audio. Populated in Phase 2.
-    const juce::Identifier brainStateId { "Brain" };
+    const juce::Identifier brainStateIds[] { "Brain", "Brain2" };
     const juce::Identifier sourceId { "Source" };
     const juce::Identifier pathId { "path" };
 
@@ -30,9 +30,12 @@ juce::AudioProcessor::BusesProperties CortexAudioProcessor::busesFor (bool isIns
 CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
     : AudioProcessor (busesFor (isInstrument)),
       apvts (*this, nullptr, "CortexParams", cortex::createParameterLayout (isInstrument)),
-      instrument (isInstrument),
-      builder ([this] (std::shared_ptr<const cortex::brain::Brain> b, const juce::String& m) { onBrainBuilt (std::move (b), m); })
+      instrument (isInstrument)
 {
+    for (int b = 0; b < numBrains; ++b)
+        slots[(size_t) b].builder = std::make_unique<cortex::brain::BrainBuilder> (
+            [this, b] (std::shared_ptr<const cortex::brain::Brain> brain, const juce::String& m) { onBrainBuilt (b, std::move (brain), m); });
+
     formatManager.registerBasicFormats();
 
     auto get = [this] (const char* id) { return apvts.getRawParameterValue (id); };
@@ -54,6 +57,7 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
     params.autoMute = get (cortex::ParamIDs::autoMute);
     params.autoMuteMs = get (cortex::ParamIDs::autoMuteMs);
     params.lowLatency = get (cortex::ParamIDs::lowLatency);
+    params.aSource = get (cortex::ParamIDs::aSource);
     params.freezeEnvA = get (cortex::ParamIDs::freezeEnvA);
     params.freezeDetailA = get (cortex::ParamIDs::freezeDetailA);
     params.freezeEnvB = get (cortex::ParamIDs::freezeEnvB);
@@ -96,7 +100,8 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
 CortexAudioProcessor::~CortexAudioProcessor()
 {
     stopTimer();
-    builder.cancel();
+    for (auto& s : slots)
+        s.builder->cancel();
     for (auto* id : { cortex::ParamIDs::fftSize, cortex::ParamIDs::blockSize, cortex::ParamIDs::overlap, cortex::ParamIDs::lowLatency })
         apvts.removeParameterListener (id, this);
 }
@@ -179,12 +184,14 @@ void CortexAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     silentSamples = 0;
     activeOrder = -1;   // forces an engine setup on the first block
     activeBrainDelay = previousBrainDelay = 0;
+    activeADelay = previousADelay = 0;
 
     // Brains are built at the host rate; a new rate needs a rebuild (usually a cache hit).
     {
         std::lock_guard<std::mutex> l (brainLock);
-        if (! brainFiles.isEmpty() && builtSettings.sampleRate != sampleRate)
-            rebuildRequested = true;
+        for (const auto& s : slots)
+            if (! s.files.isEmpty() && s.builtSettings.sampleRate != sampleRate)
+                rebuildRequested = true;
     }
 
     updateLatency();
@@ -231,16 +238,23 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);
     }
 
-    // Input B: the sidechain, or the brain rendering a match for the live input.
-    auto* brainRenderer = renderer.acquire();
+    // Input B: the sidechain, or Brain 1 rendering a match for the live input.
+    // Input A: the live input, or Brain 2's match for it (4-corner brain).
+    auto* brainRenderer = slots[0].renderer.acquire();
+    auto* brain2Renderer = slots[1].renderer.acquire();
     const bool useBrain = instrument || params.bSource->load() >= 0.5f;   // the instrument has no sidechain
-    if (brainRenderer != nullptr)
-    {
-        brainRenderer->setBlocking (isNonRealtime());
-        brainRenderer->setSearch (readSearchParams(), (cortex::brain::SearchMode) juce::jlimit (0, 3, (int) params.searchMode->load()));
-    }
+    const auto searchParams = readSearchParams();
+    const auto searchMode = (cortex::brain::SearchMode) juce::jlimit (0, 3, (int) params.searchMode->load());
+    for (auto* r : { brainRenderer, brain2Renderer })
+        if (r != nullptr)
+        {
+            r->setBlocking (isNonRealtime());
+            r->setSearch (searchParams, searchMode);
+        }
     if (! useBrain)
         brainRenderer = nullptr;
+    if (params.aSource->load() < 0.5f)
+        brain2Renderer = nullptr;   // without Brain 2 loaded, A stays the live input
 
     // With B on Brain but no brain loaded yet, stay transparent rather than
     // morphing towards silence.
@@ -271,13 +285,19 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // note/attack comes straight through and the brain's timbre follows a
     // grain behind. Total latency is then just the 512-sample FFT.
     const bool lowLatency = params.lowLatency->load() > 0.5f;
-    if (brainRenderer != nullptr)
-        brainRenderer->setLowLatency (lowLatency);
+    for (auto* r : { brainRenderer, brain2Renderer })
+        if (r != nullptr)
+            r->setLowLatency (lowLatency);
     const int order = lowLatency ? cortex::dsp::minFftOrder
                                  : cortex::dsp::minFftOrder + juce::jlimit (0, 3, (int) params.fftSize->load());
-    const int brainDelay = brainRenderer != nullptr && ! lowLatency ? brainRenderer->getLatencySamples() : 0;
-    if ((order != activeOrder || brainDelay != activeBrainDelay) && fadeRemaining == 0)
-        switchEngine (order, brainDelay, morphParams);
+    // Everything lines up with the latest brain; A from Brain 2 is already that
+    // late itself, so it only waits for any difference.
+    const int latencyB = brainRenderer != nullptr && ! lowLatency ? brainRenderer->getLatencySamples() : 0;
+    const int latencyA = brain2Renderer != nullptr && ! lowLatency ? brain2Renderer->getLatencySamples() : 0;
+    const int brainDelay = juce::jmax (latencyA, latencyB);
+    const int aDelay = brainDelay - latencyA;
+    if ((order != activeOrder || brainDelay != activeBrainDelay || aDelay != activeADelay) && fadeRemaining == 0)
+        switchEngine (order, brainDelay, aDelay, morphParams);
 
     for (auto& slot : engines)
         for (auto& e : slot)
@@ -329,9 +349,9 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         out[(size_t) ch] = buffer.getWritePointer (ch);
 
     constexpr int historyMask = historySize - 1;
-    const int newDelay = activeBrainDelay, oldDelay = previousBrainDelay;
-    const int newLatency = (1 << activeOrder) + newDelay;
-    const int oldLatency = (1 << previousOrder) + oldDelay;
+    const int newDelay = activeADelay, oldDelay = previousADelay;
+    const int newLatency = (1 << activeOrder) + activeBrainDelay;
+    const int oldLatency = (1 << previousOrder) + previousBrainDelay;
     auto& active = engines[(size_t) activeSlot];
     auto& fading = engines[(size_t) (1 - activeSlot)];
 
@@ -351,14 +371,19 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             gainOld = std::cos (t * juce::MathConstants<float>::halfPi);
         }
 
-        // The brain is mono: it matches the mono mix of A and feeds every channel's B.
-        float brainOut = 0.0f;
-        if (brainRenderer != nullptr)
+        // The brains are mono: each matches the mono mix of the live input and
+        // feeds every channel.
+        float brainOut = 0.0f, brain2Out = 0.0f;
+        if (brainRenderer != nullptr || brain2Renderer != nullptr)
         {
             float mono = 0.0f;
             for (int ch = 0; ch < numChannels; ++ch)
                 mono += out[(size_t) ch][i];
-            brainOut = brainRenderer->processSample (mono / (float) juce::jmax (1, numChannels));
+            mono /= (float) juce::jmax (1, numChannels);
+            if (brainRenderer != nullptr)
+                brainOut = brainRenderer->processSample (mono);
+            if (brain2Renderer != nullptr)
+                brain2Out = brain2Renderer->processSample (mono);
         }
 
         for (int ch = 0; ch < numChannels; ++ch)
@@ -366,7 +391,7 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             const auto c = (size_t) ch;
             const float a = out[c][i];
             const float b = sidechain[c] != nullptr ? sidechain[c][i] : brainOut;
-            const float gatedA = a * ga, gatedB = b * gb;
+            const float gatedA = (brain2Renderer != nullptr ? brain2Out : a) * ga, gatedB = b * gb;
 
             historyA[c][(size_t) historyPos] = gatedA;
             historyB[c][(size_t) historyPos] = gatedB;
@@ -402,7 +427,8 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             --fadeRemaining;
     }
 
-    playingBlock.store (brainRenderer != nullptr ? brainRenderer->getLastChosenBlock() : -1, std::memory_order_relaxed);
+    slots[0].playingBlock.store (brainRenderer != nullptr ? brainRenderer->getLastChosenBlock() : -1, std::memory_order_relaxed);
+    slots[1].playingBlock.store (brain2Renderer != nullptr ? brain2Renderer->getLastChosenBlock() : -1, std::memory_order_relaxed);
     if (numChannels > 0)
         morphSnapshots.publish (engines[(size_t) activeSlot][0].morph.getSnapshot());
 
@@ -413,30 +439,33 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     }
 }
 
-void CortexAudioProcessor::switchEngine (int newOrder, int newBrainDelay, const cortex::dsp::MorphParams& morphParams)
+void CortexAudioProcessor::switchEngine (int newOrder, int newBrainDelay, int newADelay, const cortex::dsp::MorphParams& morphParams)
 {
     if (activeOrder < 0)
     {
         // First block after prepare: nothing to fade from.
-        primeEngine (activeSlot, newOrder, newBrainDelay, morphParams);
+        primeEngine (activeSlot, newOrder, newADelay, morphParams);
         previousOrder = activeOrder = newOrder;
         previousBrainDelay = activeBrainDelay = newBrainDelay;
+        previousADelay = activeADelay = newADelay;
     }
     else
     {
         previousOrder = activeOrder;
         previousBrainDelay = activeBrainDelay;
+        previousADelay = activeADelay;
         activeSlot = 1 - activeSlot;
-        primeEngine (activeSlot, newOrder, newBrainDelay, morphParams);
+        primeEngine (activeSlot, newOrder, newADelay, morphParams);
         activeOrder = newOrder;
         activeBrainDelay = newBrainDelay;
+        activeADelay = newADelay;
         fadeRemaining = fadeLength;
     }
 
     reportedBrainDelay.store (newBrainDelay);
 }
 
-void CortexAudioProcessor::primeEngine (int slot, int order, int brainDelay, const cortex::dsp::MorphParams& morphParams)
+void CortexAudioProcessor::primeEngine (int slot, int order, int aDelay, const cortex::dsp::MorphParams& morphParams)
 {
     // Run the last 2N input samples (A at this engine's alignment delay) through
     // the new engine so its overlap-add buffer is already in steady state when
@@ -457,7 +486,7 @@ void CortexAudioProcessor::primeEngine (int slot, int order, int brainDelay, con
         for (int i = 2 * n; i > 0; --i)
         {
             const auto idx = (size_t) ((historyPos - i) & historyMask);
-            const auto idxA = (size_t) ((historyPos - i - brainDelay) & historyMask);
+            const auto idxA = (size_t) ((historyPos - i - aDelay) & historyMask);
             e.stft.processSample (ha[idxA], hb[idx], [&e] (const float* fa, const float* fb, float* fo)
                                   { e.morph.processFrame (fa, fb, fo); });
         }
@@ -472,14 +501,16 @@ juce::AudioProcessorEditor* CortexAudioProcessor::createEditor()
 void CortexAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
-    state.removeChild (state.getChildWithName (brainStateId), nullptr);
-
-    // The brain is stored by reference (source files); the analysis comes back
+    // Brains are stored by reference (source files); the analysis comes back
     // from the .cortexbrain cache, which is keyed on those files and settings.
-    juce::ValueTree brainTree (brainStateId);
-    for (const auto& f : brainFiles)
-        brainTree.appendChild (juce::ValueTree (sourceId, { { pathId, f.getFullPathName() } }), nullptr);
-    state.appendChild (brainTree, nullptr);
+    for (int b = 0; b < numBrains; ++b)
+    {
+        state.removeChild (state.getChildWithName (brainStateIds[b]), nullptr);
+        juce::ValueTree brainTree (brainStateIds[b]);
+        for (const auto& f : slots[(size_t) b].files)
+            brainTree.appendChild (juce::ValueTree (sourceId, { { pathId, f.getFullPathName() } }), nullptr);
+        state.appendChild (brainTree, nullptr);
+    }
 
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
@@ -492,18 +523,24 @@ void CortexAudioProcessor::setStateInformation (const void* data, int sizeInByte
         if (xml->hasTagName (apvts.state.getType()))
         {
             auto state = juce::ValueTree::fromXml (*xml);
-            juce::StringArray paths;
-            for (const auto& source : state.getChildWithName (brainStateId))
-                paths.add (source[pathId].toString());
-            state.removeChild (state.getChildWithName (brainStateId), nullptr);
+            std::array<juce::StringArray, numBrains> paths;
+            for (int b = 0; b < numBrains; ++b)
+            {
+                for (const auto& source : state.getChildWithName (brainStateIds[b]))
+                    paths[(size_t) b].add (source[pathId].toString());
+                state.removeChild (state.getChildWithName (brainStateIds[b]), nullptr);
+            }
             apvts.replaceState (state);
 
-            // Hosts never call this on the audio thread. The build itself is
-            // asynchronous, and usually a fast cache load.
-            if (paths.isEmpty())
-                clearBrain();
-            else
-                loadBrainFrom (paths);
+            // Hosts never call this on the audio thread. The builds themselves
+            // are asynchronous, and usually fast cache loads.
+            for (int b = 0; b < numBrains; ++b)
+            {
+                if (paths[(size_t) b].isEmpty())
+                    clearBrain (b);
+                else
+                    loadBrainFrom (paths[(size_t) b], b);
+            }
         }
     }
 
@@ -534,50 +571,50 @@ cortex::brain::SearchParams CortexAudioProcessor::readSearchParams() const
                                             params.chaos->load(), params.memory->load());
 }
 
-void CortexAudioProcessor::loadBrainFrom (const juce::StringArray& filesOrFolders)
+void CortexAudioProcessor::loadBrainFrom (const juce::StringArray& filesOrFolders, int brain)
 {
-    brainFiles = cortex::brain::collectAudioFiles (filesOrFolders, formatManager);
-    rebuildBrain();
+    slots[(size_t) brain].files = cortex::brain::collectAudioFiles (filesOrFolders, formatManager);
+    rebuildBrain (brain);
 }
 
-void CortexAudioProcessor::clearBrain()
+void CortexAudioProcessor::clearBrain (int brain)
 {
-    builder.cancel();
-    brainFiles.clear();
-    renderer.publishClear();
+    auto& s = slots[(size_t) brain];
+    s.builder->cancel();
+    s.files.clear();
+    s.renderer.publishClear();
     std::lock_guard<std::mutex> l (brainLock);
-    currentBrain = nullptr;
-    brainMessage = {};
+    s.current = nullptr;
+    s.message = {};
 }
 
-void CortexAudioProcessor::rebuildBrain()
+void CortexAudioProcessor::rebuildBrain (int brain)
 {
-    rebuildRequested = false;
-    rebuildDueMs = 0;
-
-    if (brainFiles.isEmpty())
+    auto& s = slots[(size_t) brain];
+    if (s.files.isEmpty())
     {
-        clearBrain();
+        clearBrain (brain);
         return;
     }
-
-    builder.start ({ brainFiles, currentBrainSettings(), cortex::BrainCache::defaultDirectory() });
+    s.builder->start ({ s.files, currentBrainSettings(), cortex::BrainCache::defaultDirectory() });
 }
 
-void CortexAudioProcessor::onBrainBuilt (std::shared_ptr<const cortex::brain::Brain> brain, const juce::String& message)
+void CortexAudioProcessor::onBrainBuilt (int brain, std::shared_ptr<const cortex::brain::Brain> built, const juce::String& message)
 {
     // Builder thread: the renderer allocates here, never on the audio thread.
-    renderer.publish (std::make_unique<cortex::brain::Renderer> (brain));
+    auto& s = slots[(size_t) brain];
+    s.renderer.publish (std::make_unique<cortex::brain::Renderer> (built));
 
     std::lock_guard<std::mutex> l (brainLock);
-    builtSettings = brain->settings;
-    currentBrain = std::move (brain);
-    brainMessage = message;
+    s.builtSettings = built->settings;
+    s.current = std::move (built);
+    s.message = message;
 }
 
 void CortexAudioProcessor::timerCallback()
 {
-    renderer.collectGarbage();
+    for (auto& s : slots)
+        s.renderer.collectGarbage();
 
     if (getLatencySamples() != getAlignedLatencySamples())
         updateLatency();
@@ -588,30 +625,36 @@ void CortexAudioProcessor::timerCallback()
     if (rebuildRequested.exchange (false))
         rebuildDueMs = now + 600;
     if (rebuildDueMs != 0 && now >= rebuildDueMs)
-        rebuildBrain();
+    {
+        rebuildDueMs = 0;
+        for (int b = 0; b < numBrains; ++b)
+            if (! slots[(size_t) b].files.isEmpty())
+                rebuildBrain (b);
+    }
 }
 
-CortexAudioProcessor::BrainStatus CortexAudioProcessor::getBrainStatus() const
+CortexAudioProcessor::BrainStatus CortexAudioProcessor::getBrainStatus (int brain) const
 {
+    const auto& slot = slots[(size_t) brain];
     BrainStatus s;
-    s.building = builder.isBuilding();
-    s.progress = builder.getProgress();
+    s.building = slot.builder->isBuilding();
+    s.progress = slot.builder->getProgress();
 
     std::lock_guard<std::mutex> l (brainLock);
-    s.playingBlock = playingBlock.load (std::memory_order_relaxed);
-    s.message = s.building ? builder.getStatus() : brainMessage;
-    if (currentBrain != nullptr)
+    s.playingBlock = slot.playingBlock.load (std::memory_order_relaxed);
+    s.message = s.building ? slot.builder->getStatus() : slot.message;
+    if (slot.current != nullptr)
     {
-        s.numBlocks = (int) currentBrain->numBlocks();
-        s.numSounds = (int) currentBrain->sounds.size();
+        s.numBlocks = (int) slot.current->numBlocks();
+        s.numSounds = (int) slot.current->sounds.size();
     }
     return s;
 }
 
-std::shared_ptr<const cortex::brain::Brain> CortexAudioProcessor::getBrain() const
+std::shared_ptr<const cortex::brain::Brain> CortexAudioProcessor::getBrain (int brain) const
 {
     std::lock_guard<std::mutex> l (brainLock);
-    return currentBrain;
+    return slots[(size_t) brain].current;
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

@@ -40,6 +40,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                 std::make_unique<Choice> (pid (fftSize), "FFT Size",
                                           juce::StringArray { "512", "1024", "2048", "4096" }, defaultFftSizeIndex),
                 std::make_unique<Bool> (pid (lowLatency), "Low Latency", false),
+                std::make_unique<Choice> (pid (aSource), "A Source", juce::StringArray { "Input", "Brain 2" }, 0),
                 std::make_unique<Choice> (pid (bSource), "B Source",
                                           juce::StringArray { "Sidechain", "Brain" }, 1));
 

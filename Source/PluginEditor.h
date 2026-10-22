@@ -40,10 +40,15 @@ private:
     CortexAudioProcessor& processor;
     cortex::ui::CortexLookAndFeel lookAndFeel;
 
-    juce::Label title, brainLabel;
+    void chooseBrainFiles (int brain);
+    juce::String statusText (int brain) const;
+
+    juce::Label title, brainLabel, brain2Label;
     double progress = 0.0;
     juce::ProgressBar progressBar { progress };
     juce::TextButton chooseButton { "Load..." }, rebuildButton { "Rebuild" }, clearButton { "Clear" };
+    juce::TextButton choose2Button { "Load 2..." }, clear2Button { "Clear 2" };
+    juce::ComboBox viewBrain;   // which brain the map, sound list and drops refer to
     std::unique_ptr<juce::FileChooser> chooser;
     bool dragHighlight = false;
 

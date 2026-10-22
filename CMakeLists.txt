@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Cortex VERSION 0.0.1 LANGUAGES C CXX)
+project(Cortex VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,6 +8,19 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 option(CORTEX_BUILD_TESTS "Build unit tests" ON)
+
+# Version + commit shown in the editor, so it's obvious which build a host loaded.
+# Re-runs on every commit because CMake watches .git/logs/HEAD.
+find_package(Git QUIET)
+set(CORTEX_GIT_HASH "unknown")
+if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
+    execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse --short HEAD
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}" OUTPUT_VARIABLE CORTEX_GIT_HASH OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(EXISTS "${PROJECT_SOURCE_DIR}/.git/logs/HEAD")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/.git/logs/HEAD")
+    endif()
+endif()
+configure_file(cmake/Version.h.in "${PROJECT_BINARY_DIR}/generated/Version.h" @ONLY)
 
 include(FetchContent)
 FetchContent_Declare(juce
@@ -53,7 +66,7 @@ target_sources(Cortex PRIVATE
     Source/Parameters.cpp
     ${CORTEX_DSP_SOURCES})
 
-target_include_directories(Cortex PRIVATE Source)
+target_include_directories(Cortex PRIVATE Source "${PROJECT_BINARY_DIR}/generated")
 
 target_compile_definitions(Cortex PUBLIC
     JUCE_WEB_BROWSER=0

@@ -34,7 +34,7 @@ private:
     bool dragHighlight = false;
 
     juce::GenericAudioProcessorEditor generic;
-    juce::Label credits;
+    juce::Label credits, versionLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CortexAudioProcessorEditor)
 };

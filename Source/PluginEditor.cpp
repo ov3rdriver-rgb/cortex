@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "Version.h"
 
 namespace
 {
@@ -41,6 +42,12 @@ CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
     credits.setJustificationType (juce::Justification::centred);
     addAndMakeVisible (credits);
 
+    versionLabel.setText ("v" CORTEX_VERSION_STRING " (" CORTEX_GIT_HASH ")", juce::dontSendNotification);
+    versionLabel.setFont (juce::FontOptions (12.0f));
+    versionLabel.setJustificationType (juce::Justification::centredRight);
+    versionLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.6f));
+    addAndMakeVisible (versionLabel);
+
     setResizable (true, true);
     setSize (560, 720);
     timerCallback();
@@ -76,7 +83,9 @@ void CortexAudioProcessorEditor::resized()
     brainLabel.setBounds (brain.removeFromTop (brain.getHeight() / 2));
     progressBar.setBounds (brain.reduced (0, 3));
 
-    credits.setBounds (area.removeFromBottom (28));
+    auto footer = area.removeFromBottom (28);
+    versionLabel.setBounds (footer.removeFromRight (110).withTrimmedRight (8));
+    credits.setBounds (footer);
     generic.setBounds (area);
 }
 

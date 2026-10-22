@@ -68,9 +68,28 @@ private:
         std::atomic<float>* autoMuteMs = nullptr;
     } params;
 
-    std::array<cortex::dsp::STFT, maxChannels> stft;
-    std::array<cortex::dsp::CepstralMorph, maxChannels> morph;
-    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::None> dryDelay { cortex::dsp::maxFftSize };
+    void switchFftOrder (int newOrder);
+    void primeEngine (int slot, int order);
+
+    struct Engine
+    {
+        cortex::dsp::STFT stft;
+        cortex::dsp::CepstralMorph morph;
+    };
+
+    // Two engine slots, so an FFT size change can crossfade from the old size to
+    // the new one instead of clicking (BRIEF.md §7).
+    std::array<std::array<Engine, maxChannels>, 2> engines;
+    int activeSlot = 0;
+    int fadeRemaining = 0;
+    int fadeLength = 1;
+    int previousOrder = 11;
+
+    // Input history: gated A/B to prime a newly sized engine, raw A for the dry path.
+    static constexpr int historySize = 2 * cortex::dsp::maxFftSize;
+    std::array<std::vector<float>, maxChannels> historyA, historyB, historyDry;
+    int historyPos = 0;
+
     juce::dsp::Limiter<float> limiter;
 
     juce::SmoothedValue<float> gateGainA, gateGainB, wetMix, outGain;

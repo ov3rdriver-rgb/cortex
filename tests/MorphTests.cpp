@@ -299,6 +299,51 @@ public:
             }
         }
 
+        for (float wetAmount : { 0.0f, 1.0f })
+        {
+            beginTest ("No click when FFT size changes (" + juce::String (wetAmount == 0.0f ? "dry" : "wet") + " path)");
+
+            CortexAudioProcessor proc;
+            set (proc, dryWet, wetAmount);
+            set (proc, limiter, 0.0f);
+            set (proc, autoMute, 0.0f);
+            proc.prepareToPlay (testSampleRate, 480);
+
+            // A 440 Hz sine at 0.5 moves at most 0.029 per sample. The equal-power
+            // crossfade between two differently-delayed copies stays well under 0.06;
+            // a hard switch jumps by up to ~1.
+            juce::AudioBuffer<float> buf (2, 480);
+            juce::MidiBuffer midi;
+            float last = 0.0f, maxStep = 0.0f;
+            int sample = 0;
+            const int sizes[] { 0, 3, 1, 2, 0 };
+
+            for (int block = 0; block < 300; ++block)
+            {
+                if (block % 60 == 0)
+                    set (proc, fftSize, (float) sizes[block / 60]);
+
+                for (int i = 0; i < 480; ++i)
+                {
+                    const auto v = (float) (0.5 * std::sin (juce::MathConstants<double>::twoPi * 440.0 * (sample + i) / testSampleRate));
+                    buf.setSample (0, i, v);
+                    buf.setSample (1, i, v);
+                }
+                proc.processBlock (buf, midi);
+
+                for (int i = 0; i < 480; ++i, ++sample)
+                {
+                    const float s = buf.getSample (0, i);
+                    if (sample > 8192)
+                        maxStep = std::max (maxStep, std::abs (s - last));
+                    last = s;
+                }
+            }
+
+            logMessage ("  max sample step: " + juce::String (maxStep, 4));
+            expectLessThan (maxStep, 0.06f);
+        }
+
         beginTest ("Changing FFT size while running stays finite");
         {
             CortexAudioProcessor proc;

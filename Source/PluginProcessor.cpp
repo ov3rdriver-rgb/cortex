@@ -10,6 +10,7 @@ namespace
 
     constexpr double dcBlockHz = 5.0;
     constexpr double rampSeconds = 0.01;
+    constexpr double crossfadeSeconds = 0.03;
 }
 
 CortexAudioProcessor::CortexAudioProcessor()
@@ -82,14 +83,21 @@ void CortexAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
 {
     currentSampleRate = sampleRate;
 
+    for (auto& slot : engines)
+        for (auto& e : slot)
+        {
+            e.stft.prepare();
+            e.morph.prepare (sampleRate);
+        }
+
     for (int ch = 0; ch < maxChannels; ++ch)
-    {
-        stft[(size_t) ch].prepare();
-        morph[(size_t) ch].prepare (sampleRate);
-    }
+        for (auto* h : { &historyA, &historyB, &historyDry })
+            (*h)[(size_t) ch].assign ((size_t) historySize, 0.0f);
+    historyPos = 0;
+    fadeRemaining = 0;
+    fadeLength = juce::roundToInt (crossfadeSeconds * sampleRate);
 
     juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) juce::jmax (1, samplesPerBlock), (juce::uint32) maxChannels };
-    dryDelay.prepare (spec);
     limiter.prepare (spec);
     limiter.setThreshold (-0.3f);
     limiter.setRelease (50.0f);
@@ -138,23 +146,15 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     for (int ch = getTotalNumInputChannels(); ch < getTotalNumOutputChannels(); ++ch)
         buffer.clear (ch, 0, numSamples);
 
-    // FFT size change: switch plans (no allocation) and re-align the dry path.
+    // FFT size change. A change that arrives mid-crossfade waits for the next block after it.
     const int order = cortex::dsp::minFftOrder + juce::jlimit (0, 3, (int) params.fftSize->load());
-    if (order != activeOrder)
-    {
-        for (int ch = 0; ch < maxChannels; ++ch)
-        {
-            stft[(size_t) ch].setOrder (order);
-            morph[(size_t) ch].setOrder (order);
-        }
-        dryDelay.reset();
-        dryDelay.setDelay ((float) (1 << order));
-        activeOrder = order;
-    }
+    if (order != activeOrder && fadeRemaining == 0)
+        switchFftOrder (order);
 
     const auto morphParams = readMorphParams();
-    for (auto& m : morph)
-        m.setTargets (morphParams);
+    for (auto& slot : engines)
+        for (auto& e : slot)
+            e.morph.setTargets (morphParams);
 
     // Input B. bSource == Brain is wired up in Phase 3; until then it is silent.
     std::array<const float*, maxChannels> sidechain {};
@@ -189,8 +189,9 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     {
         silentSamples = 0;
     }
-    for (auto& s : stft)
-        s.setSkipFrames (muted);
+    for (auto& slot : engines)
+        for (auto& e : slot)
+            e.stft.setSkipFrames (muted);
 
     wetMix.setTargetValue (params.dryWet->load());
     outGain.setTargetValue (juce::Decibels::decibelsToGain (params.outGain->load()));
@@ -199,6 +200,12 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     for (int ch = 0; ch < numChannels; ++ch)
         out[(size_t) ch] = buffer.getWritePointer (ch);
 
+    constexpr int historyMask = historySize - 1;
+    const int newLatency = 1 << activeOrder;
+    const int oldLatency = 1 << previousOrder;
+    auto& active = engines[(size_t) activeSlot];
+    auto& fading = engines[(size_t) (1 - activeSlot)];
+
     for (int i = 0; i < numSamples; ++i)
     {
         const float ga = gateGainA.getNextValue();
@@ -206,17 +213,40 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         const float wet = wetMix.getNextValue();
         const float og = outGain.getNextValue();
 
+        // Equal-power crossfade from the previous FFT size, if one is running.
+        float gainNew = 1.0f, gainOld = 0.0f;
+        if (fadeRemaining > 0)
+        {
+            const float t = 1.0f - (float) fadeRemaining / (float) fadeLength;
+            gainNew = std::sin (t * juce::MathConstants<float>::halfPi);
+            gainOld = std::cos (t * juce::MathConstants<float>::halfPi);
+        }
+
         for (int ch = 0; ch < numChannels; ++ch)
         {
             const auto c = (size_t) ch;
             const float a = out[c][i];
             const float b = sidechain[c] != nullptr ? sidechain[c][i] : 0.0f;
+            const float gatedA = a * ga, gatedB = b * gb;
 
-            dryDelay.pushSample (ch, a);
-            const float dry = dryDelay.popSample (ch);
+            historyA[c][(size_t) historyPos] = gatedA;
+            historyB[c][(size_t) historyPos] = gatedB;
+            historyDry[c][(size_t) historyPos] = a;
 
-            const float w = stft[c].processSample (a * ga, b * gb, [this, c] (const float* fa, const float* fb, float* fo)
-                                                   { morph[c].processFrame (fa, fb, fo); });
+            auto runEngine = [&] (Engine& e)
+            {
+                return e.stft.processSample (gatedA, gatedB, [&e] (const float* fa, const float* fb, float* fo)
+                                             { e.morph.processFrame (fa, fb, fo); });
+            };
+
+            float w = runEngine (active[c]);
+            float dry = historyDry[c][(size_t) ((historyPos - newLatency) & historyMask)];
+
+            if (fadeRemaining > 0)
+            {
+                w = gainNew * w + gainOld * runEngine (fading[c]);
+                dry = gainNew * dry + gainOld * historyDry[c][(size_t) ((historyPos - oldLatency) & historyMask)];
+            }
 
             // DC blocker on the wet path.
             const float y = w - dcX1[c] + dcCoeff * dcY1[c];
@@ -225,12 +255,61 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
             out[c][i] = (dry + wet * (y - dry)) * og;
         }
+
+        historyPos = (historyPos + 1) & historyMask;
+        if (fadeRemaining > 0)
+            --fadeRemaining;
     }
 
     if (params.limiter->load() > 0.5f && numChannels > 0)
     {
         juce::dsp::AudioBlock<float> block (buffer.getArrayOfWritePointers(), (size_t) numChannels, (size_t) numSamples);
         limiter.process (juce::dsp::ProcessContextReplacing<float> (block));
+    }
+}
+
+void CortexAudioProcessor::switchFftOrder (int newOrder)
+{
+    if (activeOrder < 0)
+    {
+        // First block after prepare: nothing to fade from.
+        primeEngine (activeSlot, newOrder);
+        previousOrder = activeOrder = newOrder;
+        return;
+    }
+
+    previousOrder = activeOrder;
+    activeSlot = 1 - activeSlot;
+    primeEngine (activeSlot, newOrder);
+    activeOrder = newOrder;
+    fadeRemaining = fadeLength;
+}
+
+void CortexAudioProcessor::primeEngine (int slot, int order)
+{
+    // Run the last 2N input samples through the new engine so its overlap-add
+    // buffer is already in steady state when the crossfade starts. Costs 16
+    // frames once per FFT size change.
+    constexpr int historyMask = historySize - 1;
+    const int n = 1 << order;
+    const auto morphParams = readMorphParams();
+
+    for (int ch = 0; ch < maxChannels; ++ch)
+    {
+        auto& e = engines[(size_t) slot][(size_t) ch];
+        e.stft.setOrder (order);
+        e.morph.setOrder (order);
+        e.morph.setTargets (morphParams);
+        e.morph.snapToTargets();
+
+        const auto& ha = historyA[(size_t) ch];
+        const auto& hb = historyB[(size_t) ch];
+        for (int i = 2 * n; i > 0; --i)
+        {
+            const auto idx = (size_t) ((historyPos - i) & historyMask);
+            e.stft.processSample (ha[idx], hb[idx], [&e] (const float* fa, const float* fb, float* fo)
+                                  { e.morph.processFrame (fa, fb, fo); });
+        }
     }
 }
 

@@ -46,6 +46,7 @@ CortexAudioProcessor::CortexAudioProcessor()
     params.autoMuteMs = get (cortex::ParamIDs::autoMuteMs);
     params.matchTimbre = get (cortex::ParamIDs::matchTimbre);
     params.matchPitch = get (cortex::ParamIDs::matchPitch);
+    params.envTransplant = get (cortex::ParamIDs::envTransplant);
     params.blockSize = get (cortex::ParamIDs::blockSize);
     params.overlap = get (cortex::ParamIDs::overlap);
     params.novelty = get (cortex::ParamIDs::novelty);
@@ -446,6 +447,8 @@ cortex::brain::SearchParams CortexAudioProcessor::readSearchParams() const
     cortex::brain::SearchParams p;
     p.timbreWeight = params.matchTimbre->load();
     p.pitchWeight = params.matchPitch->load();
+    p.envTransplant = params.envTransplant->load();
+    p.transplantCutoff = params.cutoffB->load();
     p.usageImportance = params.novelty->load();
     p.usageFalloff = 0.5f + 0.49f * params.boredom->load();
     p.stickyness = params.stickyness->load();

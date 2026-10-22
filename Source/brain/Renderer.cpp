@@ -7,6 +7,7 @@
 // normalised-pcm-mix controls are not ported (the cepstral morph covers that).
 
 #include "Renderer.h"
+#include "dsp/Cepstrum.h"
 
 namespace cortex::brain
 {
@@ -39,6 +40,28 @@ Renderer::Renderer (std::shared_ptr<const Brain> b) : brain (std::move (b))
     targetBlock.assign ((size_t) blockSize, 0.0f);
     windowedTarget.assign ((size_t) blockSize, 0.0f);
 
+    grains.assign ((size_t) numGrains, std::vector<float> ((size_t) blockSize, 0.0f));
+
+    const int order = (int) std::ceil (std::log2 ((double) blockSize)) + 1;
+    transplantSize = 1 << order;
+    transplantFft = std::make_unique<juce::dsp::FFT> (order);
+    transplantTime.assign ((size_t) transplantSize, {});
+    transplantSpec.assign ((size_t) transplantSize, {});
+    {
+        // Calibrate the inverse scale, independent of JUCE's FFT engine.
+        std::vector<std::complex<float>> x ((size_t) transplantSize), X ((size_t) transplantSize), y ((size_t) transplantSize);
+        x[1] = 1.0f;
+        transplantFft->perform (x.data(), X.data(), false);
+        transplantFft->perform (X.data(), y.data(), true);
+        transplantInverseScale = 1.0f / y[1].real();
+    }
+    const int bins = transplantSize / 2 + 1;
+    cepstrumCos.resize ((size_t) (numCepstrum * bins));
+    for (int q = 0; q < numCepstrum; ++q)
+        for (int k = 0; k < bins; ++k)
+            cepstrumCos[(size_t) (q * bins + k)] = (q == 0 ? 1.0f : 2.0f)
+                * (float) std::cos (juce::MathConstants<double>::twoPi * q * k / transplantSize);
+
     worker = std::thread ([this] { workerLoop(); });
 }
 
@@ -57,11 +80,14 @@ float Renderer::processSample (float target) noexcept
     float out = 0.0f;
     for (auto& v : voices)
     {
-        if (v.block < 0)
+        if (v.pcm == nullptr)
             continue;
-        out += v.gain * brain->blocks[(size_t) v.block].pcm[(size_t) v.position];
+        out += v.gain * v.pcm[v.position];
         if (++v.position >= blockSize)
-            v.block = -1;
+        {
+            v.pcm = nullptr;
+            releaseGrain (v.grain);
+        }
     }
 
     targetRing[(size_t) ringPos] = target;
@@ -125,18 +151,18 @@ void Renderer::startDueVoices() noexcept
         if (r.due > samplesSeen)
             break;
 
-        startVoice (r.block, r.gain);
+        startVoice (r);
         resultFifo.finishedRead (1);
     }
 }
 
-void Renderer::startVoice (std::uint32_t blockIndex, float gain) noexcept
+void Renderer::startVoice (const Result& r) noexcept
 {
     // Free voice, or steal the one closest to finishing.
     Voice* slot = &voices[0];
     for (auto& v : voices)
     {
-        if (v.block < 0)
+        if (v.pcm == nullptr)
         {
             slot = &v;
             break;
@@ -145,10 +171,64 @@ void Renderer::startVoice (std::uint32_t blockIndex, float gain) noexcept
             slot = &v;
     }
 
-    slot->block = (int) blockIndex;
+    if (slot->pcm != nullptr)
+        releaseGrain (slot->grain);
+
+    slot->pcm = r.grain >= 0 ? grains[(size_t) r.grain].data() : brain->blocks[r.block].pcm.data();
+    slot->grain = r.grain;
     slot->position = 0;
-    slot->gain = gain;
-    lastChosen.store ((int) blockIndex, std::memory_order_relaxed);
+    slot->gain = r.gain;
+    lastChosen.store ((int) r.block, std::memory_order_relaxed);
+}
+
+void Renderer::releaseGrain (int grain) noexcept
+{
+    if (grain >= 0)
+        grainState[(size_t) grain].store (0, std::memory_order_release);
+}
+
+int Renderer::acquireGrain() noexcept
+{
+    for (int g = 0; g < numGrains; ++g)
+    {
+        int expected = 0;
+        if (grainState[(size_t) g].compare_exchange_strong (expected, 1, std::memory_order_acq_rel))
+            return g;
+    }
+    return -1;
+}
+
+void Renderer::transplantEnvelope (const Block& block, const BlockFeatures& target, float amount, float cutoff, float* out)
+{
+    const int n = transplantSize;
+    const int bins = n / 2 + 1;
+
+    for (int i = 0; i < n; ++i)
+        transplantTime[(size_t) i] = { i < blockSize ? block.pcm[(size_t) i] : 0.0f, 0.0f };
+    transplantFft->perform (transplantTime.data(), transplantSpec.data(), false);
+
+    // Log-gain = amount * (target envelope - block envelope), both rebuilt
+    // from their low-quefrency cepstra with the morph's tapered lifter.
+    const int numQ = juce::jmin (numCepstrum, (int) std::ceil (cutoff) + 5);
+    float diff[numCepstrum] {};
+    for (int q = 0; q < numQ; ++q)
+        diff[q] = amount * cortex::dsp::Cepstrum::envelopeWeight (q, cutoff)
+                * (target.cepstrum[(size_t) q] - block.features.cepstrum[(size_t) q]);
+
+    for (int k = 0; k < bins; ++k)
+    {
+        float logGain = 0.0f;
+        for (int q = 0; q < numQ; ++q)
+            logGain += diff[q] * cepstrumCos[(size_t) (q * bins + k)];
+        const float g = std::exp (juce::jlimit (-12.0f, 12.0f, logGain));
+        transplantSpec[(size_t) k] *= g;
+        if (k > 0 && k < n / 2)
+            transplantSpec[(size_t) (n - k)] *= g;
+    }
+
+    transplantFft->perform (transplantSpec.data(), transplantTime.data(), true);
+    for (int i = 0; i < blockSize; ++i)
+        out[i] = transplantTime[(size_t) i].real() * transplantInverseScale;
 }
 
 void Renderer::workerLoop()
@@ -170,19 +250,41 @@ void Renderer::workerLoop()
         requestFifo.prepareToRead (pending, start1, size1, start2, size2);
         const auto& newest = requests[(size_t) (size2 > 0 ? start2 + size2 - 1 : start1 + size1 - 1)];
         const auto chosen = choose (newest);
+        const auto& block = brain->blocks[chosen];
+
+        // Envelope transplant into a pooled grain (if one is free; otherwise
+        // the block plays untouched this time).
+        int grain = -1;
+        float grainRms = brain->blockRms[chosen];
+        if (newest.params.envTransplant > 0.0f && (grain = acquireGrain()) >= 0)
+        {
+            auto& g = grains[(size_t) grain];
+            transplantEnvelope (block, newest.features, newest.params.envTransplant, newest.params.transplantCutoff, g.data());
+            grainRms = rmsOf (g);
+        }
 
         // Play the grain at the input's level (Samplebrain's normalised
         // playback, by RMS), bounded so near-silent blocks can't explode.
-        const float gain = juce::jmin (maxLevelMatchGain, newest.targetRms / juce::jmax (1.0e-9f, brain->blockRms[chosen]));
+        const float gain = juce::jmin (maxLevelMatchGain, newest.targetRms / juce::jmax (1.0e-9f, grainRms));
+        const float plainGain = juce::jmin (maxLevelMatchGain, newest.targetRms / juce::jmax (1.0e-9f, brain->blockRms[chosen]));
 
+        // Older, skipped requests repeat the choice as a plain block; only the
+        // newest gets the transplanted grain, so each grain has one owner.
+        const int newestIndex = size2 > 0 ? start2 + size2 - 1 : start1 + size1 - 1;
         auto emit = [&] (int index)
         {
+            const bool isNewest = index == newestIndex;
             int w1, s1, w2, s2;
             resultFifo.prepareToWrite (1, w1, s1, w2, s2);
             if (s1 > 0)
             {
-                results[(size_t) w1] = { chosen, requests[(size_t) index].due, gain };
+                results[(size_t) w1] = { chosen, requests[(size_t) index].due,
+                                         isNewest ? gain : plainGain, isNewest ? grain : -1 };
                 resultFifo.finishedWrite (1);
+            }
+            else if (isNewest)
+            {
+                releaseGrain (grain);
             }
         };
         for (int i = 0; i < size1; ++i) emit (start1 + i);

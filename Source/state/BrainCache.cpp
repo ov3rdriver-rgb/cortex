@@ -6,7 +6,7 @@ namespace
 {
     constexpr int magic = 0x42585443;   // "CTXB"
     // Bump whenever the analysis or this layout changes; old caches are then rebuilt.
-    constexpr int formatVersion = 3;   // 2: split-cepstrum pitch features; 3: silent blocks dropped
+    constexpr int formatVersion = 4;   // 2: split-cepstrum pitch features; 3: silent blocks dropped; 4: peak-held envelope
 
     template <typename T>
     void writePod (juce::OutputStream& out, const T& value)

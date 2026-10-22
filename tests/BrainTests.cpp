@@ -346,6 +346,68 @@ public:
             expectEquals (byTimbre, juce::String ("bright330"));
         }
 
+        beginTest ("Envelope transplant gives brain grains the input's spectral envelope");
+        {
+            // Brain: a saw through a steep lowpass (harmonics present but dark).
+            // Input: the same saw, unfiltered (bright).
+            auto darkSaw = [] (size_t length)
+            {
+                std::vector<float> v (length, 0.0f);
+                for (int h = 1; h * 220.0 < 16000.0; ++h)
+                {
+                    const double f = h * 220.0;
+                    const double amp = 0.3 / h / (1.0 + std::pow (f / 400.0, 2.0));
+                    for (size_t i = 0; i < length; ++i)
+                        v[i] += (float) (amp * std::sin (juce::MathConstants<double>::twoPi * f * (double) i / brainRate));
+                }
+                return v;
+            };
+
+            BrainSettings s;
+            s.blockSize = 2048;
+            s.overlap = 0.5f;
+            s.sampleRate = brainRate;
+            auto brain = buildBrain ({ BrainSource { "dark", darkSaw (96000) } }, s, SearchParams {}, {}, {});
+            const auto bright = saw (96000, 220.0, 16000.0);
+
+            auto centroidWith = [&] (float amount)
+            {
+                Renderer r (brain);
+                r.setBlocking (true);
+                SearchParams p;
+                p.envTransplant = amount;
+                r.setSearch (p, SearchMode::basic);
+
+                std::vector<float> out (bright.size());
+                for (size_t i = 0; i < bright.size(); ++i)
+                    out[i] = r.processSample (bright[i]);
+
+                constexpr int order = 14, n = 1 << order;
+                juce::dsp::FFT fft (order);
+                std::vector<float> spec (2 * n, 0.0f);
+                for (int i = 0; i < n; ++i)
+                    spec[(size_t) i] = out[out.size() - n + (size_t) i] * (0.5f - 0.5f * std::cos (juce::MathConstants<float>::twoPi * i / n));
+                fft.performFrequencyOnlyForwardTransform (spec.data(), true);
+                double num = 0.0, den = 0.0;
+                for (int k = 1; k <= n / 2; ++k)
+                {
+                    const double pw = (double) spec[(size_t) k] * spec[(size_t) k];
+                    num += pw * k * brainRate / n;
+                    den += pw;
+                }
+                return num / den;
+            };
+
+            const double off = centroidWith (0.0f), half = centroidWith (0.5f), full = centroidWith (1.0f);
+            logMessage ("  brain output centroid: transplant 0 -> " + juce::String (off, 0) + " Hz, 0.5 -> "
+                        + juce::String (half, 0) + " Hz, 1 -> " + juce::String (full, 0) + " Hz");
+            // The transplant is linear in dB, so the centroid (dominated by the
+            // strong low harmonics) moves little at 0.5 and a lot near 1.
+            expectGreaterThan (half, off);
+            expectGreaterThan (full, half);
+            expectGreaterThan (full, off * 2.0, "full transplant should take on the bright input's tilt");
+        }
+
         beginTest ("Silent blocks are left out of the brain");
         {
             auto audio = saw (96000, 220.0, 8000.0);

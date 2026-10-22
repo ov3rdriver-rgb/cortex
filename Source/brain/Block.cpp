@@ -26,6 +26,9 @@ namespace
     // peak well above 0.1; noise stays around 0.02.
     constexpr float unvoicedPeak = 0.03f, voicedPeak = 0.12f;
 
+    // Blocks at least this pitched get a peak-held envelope cepstrum.
+    constexpr float envelopePeakHoldVoicing = 0.3f;
+
     double hzToMel (double hz) { return 2595.0 * std::log10 (1.0 + hz / 700.0); }
     double melToHz (double mel) { return 700.0 * (std::pow (10.0, mel / 2595.0) - 1.0); }
 }
@@ -71,6 +74,7 @@ void BlockAnalyser::prepare (int newBlockSize, int hop, double newSampleRate)
     windowed.assign ((size_t) blockSize, 0.0f);
     magnitude.assign ((size_t) (fftSize / 2 + 1), 0.0f);
     melEnergy.assign ((size_t) numMelBands, 0.0f);
+    peakHeld.assign ((size_t) (fftSize / 2 + 1), 0.0f);
     timeBuf.assign ((size_t) fftSize, {});
     specBuf.assign ((size_t) fftSize, {});
 
@@ -240,6 +244,27 @@ void BlockAnalyser::analyse (const float* raw, float* windowedOut, BlockFeatures
 
         out.f0 = (float) (sampleRate / ((float) peakQ + shift));
         out.voicing = juce::jlimit (0.0f, 1.0f, (peak - unvoicedPeak) / (voicedPeak - unvoicedPeak));
+    }
+
+    // For pitched blocks, take the envelope cepstrum from the spectrum with each
+    // harmonic's peak held across the valleys between harmonics. Otherwise the
+    // envelope averages in those valleys (which sink to the noise floor in dark
+    // sounds) and under-reads the real formant/tilt shape.
+    if (out.voicing >= envelopePeakHoldVoicing)
+    {
+        const int reach = juce::jmax (1, (int) std::lround (0.6 * out.f0 * fftSize / sampleRate));
+        for (int k = 0; k <= half; ++k)
+        {
+            float m = 0.0f;
+            for (int j = juce::jmax (0, k - reach), end = juce::jmin (half, k + reach); j <= end; ++j)
+                m = juce::jmax (m, magnitude[(size_t) j]);
+            peakHeld[(size_t) k] = std::log (m + 1.0e-6f);
+        }
+        for (int k = 0; k < fftSize; ++k)
+            timeBuf[(size_t) k] = { peakHeld[(size_t) (k <= half ? k : fftSize - k)], 0.0f };
+        fft->perform (timeBuf.data(), specBuf.data(), false);
+        for (int q = 0; q < numCepstrum; ++q)
+            out.cepstrum[(size_t) q] = specBuf[(size_t) q].real() * invN;
     }
 }
 } // namespace cortex::brain

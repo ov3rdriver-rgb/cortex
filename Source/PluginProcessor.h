@@ -98,6 +98,7 @@ private:
         std::atomic<float>* autoMuteMs = nullptr;
         std::atomic<float>* matchTimbre = nullptr;
         std::atomic<float>* matchPitch = nullptr;
+        std::atomic<float>* envTransplant = nullptr;
         std::atomic<float>* blockSize = nullptr;
         std::atomic<float>* overlap = nullptr;
         std::atomic<float>* novelty = nullptr;

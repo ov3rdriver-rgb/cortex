@@ -75,7 +75,7 @@ private:
     int blockSize = 0, fftSize = 0;
     double sampleRate = 48000.0;
     std::unique_ptr<juce::dsp::FFT> fft;
-    std::vector<float> window, windowed, magnitude, melEnergy;
+    std::vector<float> window, windowed, magnitude, melEnergy, peakHeld;
     std::vector<Complex> timeBuf, specBuf;
 
     struct MelFilter { int firstBin = 0; std::vector<float> weights; };

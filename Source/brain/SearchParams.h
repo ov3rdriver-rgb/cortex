@@ -27,6 +27,12 @@ struct SearchParams
     float usageFalloff = 0.9f;      // per-search decay of usage ("boredom" memory)
     float stickyness = 0.0f;        // prefer the block that follows the last one
 
+    // Envelope transplant (BRIEF.md §4 idea 3): pull each matched grain's
+    // spectral envelope towards the input block's, so the brain "sings with
+    // your mouth". The envelope/detail split uses this lifter cutoff.
+    float envTransplant = 0.0f;
+    float transplantCutoff = 25.0f;
+
     int numSynapses = 20;           // how many stored synapses synaptic search looks at
     double slideError = 1.0;        // synaptic slide: hold the target until error drops below this
     int maxSlideHold = 16;          // ...but never for more than this many hops

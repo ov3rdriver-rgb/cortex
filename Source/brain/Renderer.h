@@ -51,21 +51,23 @@ public:
 private:
     struct Request
     {
-        BlockFeatures features, normalised;
+        BlockFeatures features;
         SearchParams params;
         SearchMode mode = SearchMode::basic;
         std::int64_t due = 0;
+        float targetRms = 0.0f;
     };
 
     struct Result
     {
         std::uint32_t block = 0;
         std::int64_t due = 0;
+        float gain = 1.0f;
     };
 
     void onTargetBlockComplete() noexcept;
     void startDueVoices() noexcept;
-    void startVoice (std::uint32_t blockIndex) noexcept;
+    void startVoice (std::uint32_t blockIndex, float gain) noexcept;
 
     // Worker thread.
     void workerLoop();
@@ -75,6 +77,7 @@ private:
     {
         int block = -1;
         int position = 0;
+        float gain = 1.0f;
     };
     static constexpr int maxVoices = 8;
     static constexpr int queueSize = 32;
@@ -88,10 +91,10 @@ private:
     int blockSize = 0, hop = 0, searchDelay = 0;
     float outputGain = 1.0f;
 
-    std::vector<float> targetRing, targetBlock;
+    std::vector<float> targetRing, targetBlock, windowedTarget;
     int ringPos = 0;
     std::int64_t samplesSeen = 0;
-    BlockFeatures targetFeatures, targetNormalised;
+    BlockFeatures targetFeatures;
 
     std::array<Voice, maxVoices> voices {};
     std::atomic<int> lastChosen { -1 };
@@ -106,7 +109,7 @@ private:
 
     // Worker-only search state.
     BrainSearch search;
-    BlockFeatures heldFeatures, heldNormalised;
+    MatchQuery heldQuery;
     int slideHeld = 0;
 
     std::thread worker;

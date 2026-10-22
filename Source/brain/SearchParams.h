@@ -17,12 +17,12 @@ enum class SearchMode
 
 struct SearchParams
 {
-    // Weights of the two feature distances. Samplebrain blends them with a single
-    // `ratio`; Phase 3 replaces these with split-cepstrum Match Timbre / Match Pitch.
-    float fftWeight = 0.5f;
-    float mfccWeight = 0.5f;
+    // Split-cepstrum matching (BRIEF.md §4 idea 2), replacing Samplebrain's single
+    // FFT-vs-MFCC `ratio`: how much the spectral envelope and the pitch content
+    // each count. Both zero counts them equally.
+    float timbreWeight = 0.5f;
+    float pitchWeight = 0.5f;
 
-    float normalisedMix = 0.0f;     // 0 = compare raw features, 1 = peak-normalised ones (Samplebrain n_ratio)
     float usageImportance = 0.0f;   // "novelty": penalise recently used blocks
     float usageFalloff = 0.9f;      // per-search decay of usage ("boredom" memory)
     float stickyness = 0.0f;        // prefer the block that follows the last one

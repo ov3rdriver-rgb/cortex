@@ -6,7 +6,7 @@ namespace
 {
     constexpr int magic = 0x42585443;   // "CTXB"
     // Bump whenever the analysis or this layout changes; old caches are then rebuilt.
-    constexpr int formatVersion = 1;
+    constexpr int formatVersion = 3;   // 2: split-cepstrum pitch features; 3: silent blocks dropped
 
     template <typename T>
     void writePod (juce::OutputStream& out, const T& value)
@@ -74,7 +74,6 @@ bool save (const brain::Brain& b, const juce::File& file)
         {
             out.write (blk.pcm.data(), blk.pcm.size() * sizeof (float));
             writePod (out, blk.features);
-            writePod (out, blk.normalised);
             out.writeInt ((int) blk.synapses.size());
             out.write (blk.synapses.data(), blk.synapses.size() * sizeof (std::uint32_t));
         }
@@ -128,7 +127,7 @@ std::shared_ptr<brain::Brain> load (const juce::File& file)
     {
         blk.pcm.resize ((size_t) b->settings.blockSize);
         if (in.read (blk.pcm.data(), pcmBytes) != pcmBytes
-            || ! readPod (in, blk.features) || ! readPod (in, blk.normalised))
+            || ! readPod (in, blk.features))
             return nullptr;
 
         const int numSyn = in.readInt();

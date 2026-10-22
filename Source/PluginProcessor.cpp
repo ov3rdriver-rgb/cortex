@@ -444,10 +444,8 @@ cortex::brain::BrainSettings CortexAudioProcessor::currentBrainSettings() const
 cortex::brain::SearchParams CortexAudioProcessor::readSearchParams() const
 {
     cortex::brain::SearchParams p;
-    // Placeholder mapping until Phase 3's split-cepstrum matching: MFCCs carry
-    // timbre, the linear FFT bins carry more of the harmonic (pitch) detail.
-    p.mfccWeight = params.matchTimbre->load();
-    p.fftWeight = params.matchPitch->load();
+    p.timbreWeight = params.matchTimbre->load();
+    p.pitchWeight = params.matchPitch->load();
     p.usageImportance = params.novelty->load();
     p.usageFalloff = 0.5f + 0.49f * params.boredom->load();
     p.stickyness = params.stickyness->load();

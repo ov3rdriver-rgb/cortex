@@ -100,8 +100,11 @@ std::shared_ptr<Brain> buildBrain (const std::vector<BrainSource>& sources, cons
         {
             Block b;
             b.pcm.resize ((size_t) bs);
-            analyser.analyse (src.mono.data() + pos, b.pcm.data(), b.features, b.normalised);
-            brain->blocks.push_back (std::move (b));
+            analyser.analyse (src.mono.data() + pos, b.pcm.data(), b.features);
+
+            // Silence (gaps, tails) never makes a useful match; leave it out.
+            if (rmsOf (b.pcm) >= silentBlockRms)
+                brain->blocks.push_back (std::move (b));
 
             if (brain->blocks.size() % 64 == 0)
             {

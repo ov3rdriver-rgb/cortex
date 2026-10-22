@@ -14,6 +14,9 @@ namespace
 {
     // Time the worker gets to answer before the block is due (~23 ms at 44.1k).
     constexpr int minSearchDelay = 1024;
+
+    // Most a brain grain is boosted to match the input's level (+24 dB).
+    constexpr float maxLevelMatchGain = 16.0f;
 }
 
 Renderer::Renderer (std::shared_ptr<const Brain> b) : brain (std::move (b))
@@ -34,6 +37,7 @@ Renderer::Renderer (std::shared_ptr<const Brain> b) : brain (std::move (b))
 
     targetRing.assign ((size_t) blockSize, 0.0f);
     targetBlock.assign ((size_t) blockSize, 0.0f);
+    windowedTarget.assign ((size_t) blockSize, 0.0f);
 
     worker = std::thread ([this] { workerLoop(); });
 }
@@ -55,7 +59,7 @@ float Renderer::processSample (float target) noexcept
     {
         if (v.block < 0)
             continue;
-        out += brain->blocks[(size_t) v.block].pcm[(size_t) v.position];
+        out += v.gain * brain->blocks[(size_t) v.block].pcm[(size_t) v.position];
         if (++v.position >= blockSize)
             v.block = -1;
     }
@@ -84,7 +88,7 @@ void Renderer::onTargetBlockComplete() noexcept
         if (++idx == blockSize)
             idx = 0;
     }
-    analyser.analyse (targetBlock.data(), nullptr, targetFeatures, targetNormalised);
+    analyser.analyse (targetBlock.data(), windowedTarget.data(), targetFeatures);
 
     int start1, size1, start2, size2;
     requestFifo.prepareToWrite (1, start1, size1, start2, size2);
@@ -93,10 +97,10 @@ void Renderer::onTargetBlockComplete() noexcept
 
     auto& r = requests[(size_t) start1];
     r.features = targetFeatures;
-    r.normalised = targetNormalised;
     r.params = params;
     r.mode = mode;
     r.due = samplesSeen + searchDelay;
+    r.targetRms = rmsOf (windowedTarget);
     requestFifo.finishedWrite (1);
 
     const auto sent = ++requestsSent;
@@ -121,12 +125,12 @@ void Renderer::startDueVoices() noexcept
         if (r.due > samplesSeen)
             break;
 
-        startVoice (r.block);
+        startVoice (r.block, r.gain);
         resultFifo.finishedRead (1);
     }
 }
 
-void Renderer::startVoice (std::uint32_t blockIndex) noexcept
+void Renderer::startVoice (std::uint32_t blockIndex, float gain) noexcept
 {
     // Free voice, or steal the one closest to finishing.
     Voice* slot = &voices[0];
@@ -143,6 +147,7 @@ void Renderer::startVoice (std::uint32_t blockIndex) noexcept
 
     slot->block = (int) blockIndex;
     slot->position = 0;
+    slot->gain = gain;
     lastChosen.store ((int) blockIndex, std::memory_order_relaxed);
 }
 
@@ -166,13 +171,17 @@ void Renderer::workerLoop()
         const auto& newest = requests[(size_t) (size2 > 0 ? start2 + size2 - 1 : start1 + size1 - 1)];
         const auto chosen = choose (newest);
 
+        // Play the grain at the input's level (Samplebrain's normalised
+        // playback, by RMS), bounded so near-silent blocks can't explode.
+        const float gain = juce::jmin (maxLevelMatchGain, newest.targetRms / juce::jmax (1.0e-9f, brain->blockRms[chosen]));
+
         auto emit = [&] (int index)
         {
             int w1, s1, w2, s2;
             resultFifo.prepareToWrite (1, w1, s1, w2, s2);
             if (s1 > 0)
             {
-                results[(size_t) w1] = { chosen, requests[(size_t) index].due };
+                results[(size_t) w1] = { chosen, requests[(size_t) index].due, gain };
                 resultFifo.finishedWrite (1);
             }
         };
@@ -186,11 +195,13 @@ void Renderer::workerLoop()
 
 std::uint32_t Renderer::choose (const Request& r)
 {
+    const auto query = brain->makeQuery (r.features);
+
     switch (r.mode)
     {
-        case SearchMode::basic:    return search.search (*brain, r.features, r.normalised, r.params);
-        case SearchMode::reverse:  return search.reverseSearch (*brain, r.features, r.normalised, r.params);
-        case SearchMode::synaptic: return search.searchSynapses (*brain, r.features, r.normalised, r.params);
+        case SearchMode::basic:    return search.search (*brain, query, r.params);
+        case SearchMode::reverse:  return search.reverseSearch (*brain, query, r.params);
+        case SearchMode::synaptic: return search.searchSynapses (*brain, query, r.params);
         case SearchMode::synapticSlide:
         {
             // The target only advances once the brain has found a close enough
@@ -198,12 +209,11 @@ std::uint32_t Renderer::choose (const Request& r)
             // target can't actually be paused).
             if (slideHeld == 0 || search.getCurrentError() < r.params.slideError || slideHeld >= r.params.maxSlideHold)
             {
-                heldFeatures = r.features;
-                heldNormalised = r.normalised;
+                heldQuery = query;
                 slideHeld = 0;
             }
             ++slideHeld;
-            return search.searchSynapses (*brain, heldFeatures, heldNormalised, r.params);
+            return search.searchSynapses (*brain, heldQuery, r.params);
         }
     }
     return 0;

@@ -111,9 +111,10 @@ public:
             brain.blocks.resize ((size_t) numBlocks);
             for (auto& b : brain.blocks)
             {
-                for (auto& v : b.features.fft) v = rng.nextFloat() * 4.0f;
-                for (auto& v : b.features.mfcc) v = rng.nextFloat() * 10.0f;
-                b.normalised = b.features;
+                for (auto& v : b.features.cepstrum) v = rng.nextFloat() - 0.5f;
+                for (auto& v : b.features.chroma) v = rng.nextFloat() / 12.0f;
+                b.features.f0 = 100.0f + 400.0f * rng.nextFloat();
+                b.features.voicing = rng.nextFloat();
             }
             brain.sounds.push_back ({ "bench", 0, (std::uint32_t) numBlocks, true });
             brain.finalise();
@@ -128,20 +129,12 @@ public:
             const auto t0 = juce::Time::getMillisecondCounterHiRes();
             std::uint32_t sink = 0;
             for (int i = 0; i < runs; ++i)
-                sink += search.search (brain, target, target, p);
+                sink += search.search (brain, brain.makeQuery (target), p);
             const double ms = (juce::Time::getMillisecondCounterHiRes() - t0) / runs;
 
-            // Old path, for comparison: per-Block struct, both raw and normalised.
-            const auto t1 = juce::Time::getMillisecondCounterHiRes();
-            double best = 1e30;
-            for (int r = 0; r < 4; ++r)
-                for (const auto& b : brain.blocks)
-                    best = std::min (best, 0.5 * featureDistance (target, b.features, p) + 0.5 * featureDistance (target, b.normalised, p));
-            const double oldMs = (juce::Time::getMillisecondCounterHiRes() - t1) / 4;
-
             // At block 1000 / 44.1 kHz there are ~44 searches a second.
-            std::printf ("  %6d blocks: %.2f ms/search (old path %.2f ms) -> %.0f%% of one core at 44 searches/s  [%u %g]\n",
-                         numBlocks, ms, oldMs, ms * 44.0 / 10.0, sink % 2, best > 0 ? 0.0 : 1.0);
+            std::printf ("  %6d blocks: %.2f ms/search -> %.0f%% of one core at 44 searches/s  [%u]\n",
+                         numBlocks, ms, ms * 44.0 / 10.0, sink % 2);
         }
         expect (true);
     }

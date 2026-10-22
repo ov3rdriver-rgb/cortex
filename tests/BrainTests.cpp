@@ -4,6 +4,7 @@
 #include "state/BrainCache.h"
 
 #include <cmath>
+#include <cstring>
 
 using namespace cortex::brain;
 
@@ -77,13 +78,15 @@ public:
         {
             BlockAnalyser an;
             an.prepare (1000, 1000, brainRate);
-            BlockFeatures f1, n1, f2, n2, f3, n3;
-            an.analyse (audio.data() + 5000, nullptr, f1, n1);
-            an.analyse (audio.data() + 5000, nullptr, f2, n2);
-            an.analyse (audio.data() + 20000, nullptr, f3, n3);
+            BlockFeatures f1, f2, f3;
+            an.analyse (audio.data() + 5000, nullptr, f1);
+            an.analyse (audio.data() + 5000, nullptr, f2);
+            an.analyse (audio.data() + 20000, nullptr, f3);
+            auto brain = build (audio, 1000, 0.0f);
             SearchParams p;
-            expectEquals (featureDistance (f1, f2, p), 0.0);
-            expectGreaterThan (featureDistance (f1, f3, p), 0.0);
+            const auto q1 = brain->makeQuery (f1), q2 = brain->makeQuery (f2), q3 = brain->makeQuery (f3);
+            expect (q1.timbre == q2.timbre && q1.pitch == q2.pitch);
+            expect (q1.timbre != q3.timbre);
         }
 
         for (float overlap : { 0.25f, 0.5f })
@@ -140,7 +143,7 @@ public:
                 bool sorted = true, noSelf = true;
                 for (auto s : syn)
                 {
-                    const double d = brain->distanceTo (s, brain->blocks[i].features, brain->blocks[i].normalised, p);
+                    const double d = brain->distanceTo (s, brain->makeQuery (brain->blocks[i].features), p);
                     sorted &= d >= last;
                     noSelf &= s != i;
                     last = d;
@@ -181,7 +184,8 @@ public:
                 expectEquals ((int) loaded->numBlocks(), (int) brain->numBlocks());
                 expect (loaded->blocks[7].pcm == brain->blocks[7].pcm);
                 expect (loaded->blocks[7].synapses == brain->blocks[7].synapses);
-                expectEquals (featureDistance (loaded->blocks[7].features, brain->blocks[7].features, SearchParams {}), 0.0);
+                expect (std::memcmp (&loaded->blocks[7].features, &brain->blocks[7].features, sizeof (BlockFeatures)) == 0);
+                expect (loaded->timbreTable == brain->timbreTable && loaded->pitchTable == brain->pitchTable);
             }
 
             // A truncated file must be rejected, not crash.
@@ -253,6 +257,141 @@ public:
 };
 
 static BrainEngineTests brainEngineTests;
+
+namespace
+{
+// Band-limited saw with harmonics up to `maxHarmonicHz` (low values = darker).
+std::vector<float> saw (size_t length, double f0, double maxHarmonicHz)
+{
+    std::vector<float> v (length, 0.0f);
+    for (int h = 1; h * f0 < maxHarmonicHz; ++h)
+        for (size_t i = 0; i < length; ++i)
+            v[i] += (float) (0.3 / h * std::sin (juce::MathConstants<double>::twoPi * h * f0 * (double) i / brainRate));
+    return v;
+}
+}
+
+class SplitMatchingTests final : public juce::UnitTest
+{
+public:
+    SplitMatchingTests() : juce::UnitTest ("Split-cepstrum matching", "Cortex") {}
+
+    void runTest() override
+    {
+        beginTest ("Cepstral pitch: f0 and voicing of saws; noise is unvoiced");
+        {
+            BlockAnalyser an;
+            an.prepare (2048, 2048, brainRate);
+            BlockFeatures f;
+
+            for (double hz : { 110.0, 220.0, 440.0, 660.0 })
+            {
+                const auto s = saw (4096, hz, 12000.0);
+                an.analyse (s.data() + 1024, nullptr, f);
+                logMessage ("  saw " + juce::String (hz) + " Hz -> f0 " + juce::String (f.f0, 1) + ", voicing " + juce::String (f.voicing, 2));
+                expectWithinAbsoluteError (f.f0, (float) hz, (float) hz * 0.03f);
+                expectGreaterThan (f.voicing, 0.6f);
+            }
+
+            an.analyse (testSignal (4096, 3).data(), nullptr, f);   // includes a tone
+            juce::Random rng (4);
+            std::vector<float> noise (4096);
+            for (auto& v : noise)
+                v = rng.nextFloat() - 0.5f;
+            an.analyse (noise.data(), nullptr, f);
+            logMessage ("  white noise -> voicing " + juce::String (f.voicing, 2));
+            expectLessThan (f.voicing, 0.3f);
+
+            const auto a = saw (4096, 220.0, 12000.0);
+            an.analyse (a.data(), nullptr, f);
+            const auto peak = std::max_element (f.chroma.begin(), f.chroma.end()) - f.chroma.begin();
+            expectEquals ((int) peak, 0, "220 Hz is an A: chroma should peak at pitch class 0");
+        }
+
+        beginTest ("Match Pitch finds same-pitch blocks, Match Timbre finds same-tone blocks");
+        {
+            // Brain: a bright saw at 330 Hz and a dark saw at 220 Hz.
+            // Target: a bright saw at 220 Hz - same tone as the first, same pitch as the second.
+            BrainSource bright330 { "bright330", saw (48000, 330.0, 16000.0) };
+            BrainSource dark220 { "dark220", saw (48000, 220.0, 900.0) };
+            BrainSettings s;
+            s.blockSize = 2048;
+            s.sampleRate = brainRate;
+            auto brain = buildBrain ({ bright330, dark220 }, s, SearchParams {}, {}, {});
+
+            BlockAnalyser an;
+            an.prepare (2048, 2048, brainRate);
+            BlockFeatures target;
+            const auto t = saw (4096, 220.0, 16000.0);
+            an.analyse (t.data() + 1000, nullptr, target);
+            const auto q = brain->makeQuery (target);
+
+            auto soundOf = [&] (std::uint32_t block) { return block < brain->sounds[1].firstBlock ? juce::String ("bright330") : juce::String ("dark220"); };
+
+            SearchParams pitchOnly;
+            pitchOnly.timbreWeight = 0.0f;
+            pitchOnly.pitchWeight = 1.0f;
+            BrainSearch search;
+            search.prepare (*brain);
+            const auto byPitch = soundOf (search.search (*brain, q, pitchOnly));
+
+            SearchParams timbreOnly;
+            timbreOnly.timbreWeight = 1.0f;
+            timbreOnly.pitchWeight = 0.0f;
+            search.reset();
+            const auto byTimbre = soundOf (search.search (*brain, q, timbreOnly));
+
+            logMessage ("  pitch-only -> " + byPitch + ", timbre-only -> " + byTimbre);
+            expectEquals (byPitch, juce::String ("dark220"));
+            expectEquals (byTimbre, juce::String ("bright330"));
+        }
+
+        beginTest ("Silent blocks are left out of the brain");
+        {
+            auto audio = saw (96000, 220.0, 8000.0);
+            std::fill (audio.begin() + 48000, audio.end(), 0.0f);
+            BrainSettings s;
+            s.blockSize = 1000;
+            s.sampleRate = brainRate;
+            auto brain = buildBrain ({ BrainSource { "half-silent", audio } }, s, SearchParams {}, {}, {});
+            expectEquals ((int) brain->numBlocks(), 48);
+        }
+
+        beginTest ("Brain grains are played at the input's level");
+        {
+            // A quiet brain (-20 dB) driven by a full-level input of the same sound.
+            // Grains land at random phase against each other, so allow a little
+            // overlap cancellation.
+            auto quiet = saw (96000, 220.0, 8000.0);
+            for (auto& v : quiet)
+                v *= 0.1f;
+            BrainSettings s;
+            s.blockSize = 1024;
+            s.overlap = 0.5f;
+            s.sampleRate = brainRate;
+            auto brain = buildBrain ({ BrainSource { "quiet", quiet } }, s, SearchParams {}, {}, {});
+
+            Renderer r (brain);
+            r.setBlocking (true);
+            const auto loud = saw (96000, 220.0, 8000.0);
+            double inSq = 0.0, outSq = 0.0;
+            for (size_t i = 0; i < loud.size(); ++i)
+            {
+                const float o = r.processSample (loud[i]);
+                if (i > 20000)
+                {
+                    inSq += (double) loud[i] * loud[i];
+                    outSq += (double) o * o;
+                }
+            }
+            const double ratioDb = 10.0 * std::log10 (outSq / inSq);
+            logMessage ("  brain output vs input level: " + juce::String (ratioDb, 2) + " dB");
+            expectWithinAbsoluteError (ratioDb, 0.0, 3.0);
+        }
+    }
+};
+
+static SplitMatchingTests splitMatchingTests;
 
 class ProcessorBrainTests final : public juce::UnitTest
 {

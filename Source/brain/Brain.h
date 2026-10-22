@@ -12,6 +12,12 @@
 
 namespace cortex::brain
 {
+struct MatchQuery
+{
+    std::array<float, numTimbre> timbre {};
+    std::array<float, numPitch> pitch {};
+};
+
 struct BrainSettings
 {
     int blockSize = 1000;
@@ -45,19 +51,30 @@ struct Brain
     std::uint32_t numBlocks() const noexcept { return (std::uint32_t) blocks.size(); }
     bool isBlockActive (std::uint32_t index) const noexcept;
 
-    // Contiguous, block-major copies of the match features. Searching these
-    // instead of hopping between Block objects keeps the scan in cache and lets
-    // the compiler vectorise it. Built by finalise(), which every brain gets
-    // after building or loading.
-    std::vector<float> fftTable, mfccTable, normFftTable, normMfccTable;
+    // Contiguous, block-major match tables: each block's timbre and pitch
+    // vectors, standardised per dimension over this brain (zero mean, unit
+    // variance) so the two weights act on comparable scales. Scanning these
+    // keeps the search in cache and lets the compiler vectorise it. Built by
+    // finalise(), which every brain gets after building or loading.
+    std::vector<float> timbreTable, pitchTable;
+    std::vector<float> blockRms;   // RMS of each windowed block, for level matching
+    std::array<float, numTimbre> timbreMean {}, timbreScale {};
+    std::array<float, numPitch> pitchMean {}, pitchScale {};
     void finalise();
 
-    // Same result as featureDistance() against blocks[index], but from the tables,
-    // and skipping whichever parts have zero weight.
-    float distanceTo (std::uint32_t index, const BlockFeatures& f, const BlockFeatures& n, const SearchParams&) const noexcept;
+    // A target's features, standardised the same way as the tables.
+    MatchQuery makeQuery (const BlockFeatures&) const noexcept;
+
+    // Weighted squared distance to blocks[index]; skips a part whose weight is zero.
+    float distanceTo (std::uint32_t index, const MatchQuery&, const SearchParams&) const noexcept;
 };
 
 inline constexpr int maxStoredSynapses = 64;
+
+// Blocks quieter than this (RMS, -60 dBFS) never make it into a brain.
+inline constexpr float silentBlockRms = 0.001f;
+
+float rmsOf (const std::vector<float>& pcm) noexcept;
 
 using ProgressFn = std::function<void (float progress, const juce::String& status)>;
 using ShouldExitFn = std::function<bool()>;
@@ -74,17 +91,16 @@ public:
     void prepare (const Brain&);
     void reset();
 
-    std::uint32_t search (const Brain&, const BlockFeatures& f, const BlockFeatures& n, const SearchParams&);
-    std::uint32_t reverseSearch (const Brain&, const BlockFeatures& f, const BlockFeatures& n, const SearchParams&);
-    std::uint32_t searchSynapses (const Brain&, const BlockFeatures& f, const BlockFeatures& n, const SearchParams&);
+    std::uint32_t search (const Brain&, const MatchQuery&, const SearchParams&);
+    std::uint32_t reverseSearch (const Brain&, const MatchQuery&, const SearchParams&);
+    std::uint32_t searchSynapses (const Brain&, const MatchQuery&, const SearchParams&);
 
     double getCurrentError() const noexcept { return currentError; }
     std::uint32_t getCurrentBlock() const noexcept { return currentIndex; }
 
 private:
-    double compare (const Brain&, std::uint32_t index, const BlockFeatures& f, const BlockFeatures& n, const SearchParams&) const noexcept;
-    std::uint32_t stickify (const Brain&, std::uint32_t closest, double distance,
-                            const BlockFeatures& f, const BlockFeatures& n, const SearchParams&) noexcept;
+    double compare (const Brain&, std::uint32_t index, const MatchQuery&, const SearchParams&) const noexcept;
+    std::uint32_t stickify (const Brain&, std::uint32_t closest, double distance, const MatchQuery&, const SearchParams&) noexcept;
     void depleteUsage (float falloff) noexcept;
 
     std::vector<float> usage;

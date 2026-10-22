@@ -59,6 +59,7 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
     params.freezeEnvB = get (cortex::ParamIDs::freezeEnvB);
     params.freezeDetailB = get (cortex::ParamIDs::freezeDetailB);
     params.chaos = get (cortex::ParamIDs::chaos);
+    params.cepstralGlide = get (cortex::ParamIDs::cepstralGlide);
     params.memory = get (cortex::ParamIDs::memory);
     params.formantA = get (cortex::ParamIDs::formantA);
     params.formantB = get (cortex::ParamIDs::formantB);
@@ -528,6 +529,7 @@ cortex::brain::SearchParams CortexAudioProcessor::readSearchParams() const
     p.pitchWeight = params.matchPitch->load();
     p.envTransplant = params.envTransplant->load();
     p.transplantCutoff = params.cutoffB->load();
+    p.cepstralGlide = params.cepstralGlide->load();
     return cortex::brain::applySearchKnobs (p, { params.novelty->load(), params.boredom->load(), params.stickyness->load() },
                                             params.chaos->load(), params.memory->load());
 }

@@ -464,3 +464,97 @@ public:
 };
 
 static SearchMacroTests searchMacroTests;
+
+class CepstralGlideTests final : public juce::UnitTest
+{
+public:
+    CepstralGlideTests() : juce::UnitTest ("Cepstral glide", "Cortex") {}
+
+    // Saw at 220 Hz through a gentle (bright) or steep (dark) lowpass.
+    static std::vector<float> saw (size_t length, double cornerHz)
+    {
+        std::vector<float> v (length, 0.0f);
+        for (int h = 1; h * 220.0 < 16000.0; ++h)
+        {
+            const double f = h * 220.0;
+            const double amp = 0.3 / h / (1.0 + std::pow (f / cornerHz, 2.0));
+            for (size_t i = 0; i < length; ++i)
+                v[i] += (float) (amp * std::sin (juce::MathConstants<double>::twoPi * f * (double) i / 48000.0));
+        }
+        return v;
+    }
+
+    static double centroid (const std::vector<float>& x, size_t from, int length)
+    {
+        juce::dsp::FFT fft (order);
+        std::vector<std::complex<float>> in ((size_t) frameSize), out ((size_t) frameSize);
+        for (int i = 0; i < length; ++i)
+            in[(size_t) i] = x[from + (size_t) i] * (0.5f - 0.5f * std::cos (juce::MathConstants<float>::twoPi * i / length));
+        fft.perform (in.data(), out.data(), false);
+        double num = 0.0, den = 0.0;
+        for (int k = 1; k < frameSize / 2; ++k)
+        {
+            const double p = std::norm (out[(size_t) k]);
+            num += p * k * 48000.0 / frameSize;
+            den += p;
+        }
+        return num / den;
+    }
+
+    // Renders a dark->bright input and returns (start, end) centroids of the
+    // first bright grain played after the dark one.
+    std::pair<double, double> firstBrightGrain (float glide)
+    {
+        using namespace cortex::brain;
+        constexpr int bs = 2048;
+        BrainSettings s;
+        s.blockSize = bs;
+        s.sampleRate = 48000.0;
+        auto brain = buildBrain ({ BrainSource { "dark", saw (bs, 300.0) }, BrainSource { "bright", saw (bs, 8000.0) } },
+                                 s, SearchParams {}, {}, {});
+        expectEquals ((int) brain->numBlocks(), 2);
+
+        Renderer r (brain);
+        r.setBlocking (true);
+        SearchParams p;
+        p.cepstralGlide = glide;
+        r.setSearch (p, SearchMode::basic);
+
+        const auto dark = saw (bs * 2, 300.0), bright = saw (bs * 10, 8000.0);
+        std::vector<float> out;
+        size_t brightStart = 0;
+        int last = -1;
+        auto feed = [&] (const std::vector<float>& x)
+        {
+            for (auto v : x)
+            {
+                out.push_back (r.processSample (v));
+                if (r.getLastChosenBlock() != last)
+                {
+                    if (last == 0 && r.getLastChosenBlock() == 1 && brightStart == 0)
+                        brightStart = out.size();   // this grain's first sample comes next
+                    last = r.getLastChosenBlock();
+                }
+            }
+        };
+        feed (dark);
+        feed (bright);
+        expect (brightStart > 0, "the brain should switch from the dark block to the bright one");
+
+        return { centroid (out, brightStart, bs / 4), centroid (out, brightStart + 3 * bs / 4 - 64, bs / 4) };
+    }
+
+    void runTest() override
+    {
+        beginTest ("With glide the new grain starts from the previous grain's envelope and ends on its own");
+        const auto [plainStart, plainEnd] = firstBrightGrain (0.0f);
+        const auto [glideStart, glideEnd] = firstBrightGrain (1.0f);
+        logMessage ("  first bright grain centroid, start -> end: no glide " + juce::String (plainStart, 0) + " -> "
+                    + juce::String (plainEnd, 0) + " Hz, glide " + juce::String (glideStart, 0) + " -> " + juce::String (glideEnd, 0) + " Hz");
+        expectGreaterThan (glideEnd, glideStart * 1.4, "glide: dark at the start, bright at the end");
+        expectLessThan (std::abs (plainEnd - plainStart), plainEnd * 0.15, "no glide: bright throughout");
+        expectWithinAbsoluteError (glideEnd, plainEnd, plainEnd * 0.2, "the glide ends on the grain's own envelope");
+    }
+};
+
+static CepstralGlideTests cepstralGlideTests;

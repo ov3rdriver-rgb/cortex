@@ -122,6 +122,7 @@ private:
         std::atomic<float>* freezeEnvB = nullptr;
         std::atomic<float>* freezeDetailB = nullptr;
         std::atomic<float>* chaos = nullptr;
+        std::atomic<float>* cepstralGlide = nullptr;
         std::atomic<float>* memory = nullptr;
         std::atomic<float>* formantA = nullptr;
         std::atomic<float>* formantB = nullptr;

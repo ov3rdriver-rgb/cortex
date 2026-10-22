@@ -16,6 +16,10 @@ namespace
     // Time the worker gets to answer before the block is due (~23 ms at 44.1k).
     constexpr int minSearchDelay = 1024;
 
+    // A glide reaches the grain's own envelope this far through the grain,
+    // and holds it for the rest.
+    constexpr float glideArrival = 0.75f;
+
     // Most a brain grain is boosted to match the input's level (+24 dB).
     constexpr float maxLevelMatchGain = 16.0f;
 
@@ -51,6 +55,8 @@ Renderer::Renderer (std::shared_ptr<const Brain> b) : brain (std::move (b))
     transplantFft = std::make_unique<juce::dsp::FFT> (order);
     transplantTime.assign ((size_t) transplantSize, {});
     transplantSpec.assign ((size_t) transplantSize, {});
+    glideInput.assign ((size_t) blockSize, 0.0f);
+    glideSegment.assign ((size_t) blockSize, 0.0f);
     {
         // Calibrate the inverse scale, independent of JUCE's FFT engine.
         std::vector<std::complex<float>> x ((size_t) transplantSize), X ((size_t) transplantSize), y ((size_t) transplantSize);
@@ -209,15 +215,33 @@ int Renderer::acquireGrain() noexcept
     return -1;
 }
 
-void Renderer::transplantEnvelope (const Block& block, const BlockFeatures& target, float amount, float cutoff, float* out)
+void Renderer::applyCepstralGain (const float* in, int length, const float* logGainCeps, int numQ, float* out)
 {
     const int n = transplantSize;
     const int bins = n / 2 + 1;
 
     for (int i = 0; i < n; ++i)
-        transplantTime[(size_t) i] = { i < blockSize ? block.pcm[(size_t) i] : 0.0f, 0.0f };
+        transplantTime[(size_t) i] = { i < length ? in[i] : 0.0f, 0.0f };
     transplantFft->perform (transplantTime.data(), transplantSpec.data(), false);
 
+    for (int k = 0; k < bins; ++k)
+    {
+        float logGain = 0.0f;
+        for (int q = 0; q < numQ; ++q)
+            logGain += logGainCeps[q] * cepstrumCos[(size_t) (q * bins + k)];
+        const float g = std::exp (juce::jlimit (-12.0f, 12.0f, logGain));
+        transplantSpec[(size_t) k] *= g;
+        if (k > 0 && k < n / 2)
+            transplantSpec[(size_t) (n - k)] *= g;
+    }
+
+    transplantFft->perform (transplantSpec.data(), transplantTime.data(), true);
+    for (int i = 0; i < length; ++i)
+        out[i] = transplantTime[(size_t) i].real() * transplantInverseScale;
+}
+
+void Renderer::transplantEnvelope (const Block& block, const BlockFeatures& target, float amount, float cutoff, float* out)
+{
     // Log-gain = amount * (target envelope - block envelope), both rebuilt
     // from their low-quefrency cepstra with the morph's tapered lifter.
     const int numQ = juce::jmin (numCepstrum, (int) std::ceil (cutoff) + 5);
@@ -226,20 +250,44 @@ void Renderer::transplantEnvelope (const Block& block, const BlockFeatures& targ
         diff[q] = amount * cortex::dsp::Cepstrum::envelopeWeight (q, cutoff)
                 * (target.cepstrum[(size_t) q] - block.features.cepstrum[(size_t) q]);
 
-    for (int k = 0; k < bins; ++k)
-    {
-        float logGain = 0.0f;
-        for (int q = 0; q < numQ; ++q)
-            logGain += diff[q] * cepstrumCos[(size_t) (q * bins + k)];
-        const float g = std::exp (juce::jlimit (-12.0f, 12.0f, logGain));
-        transplantSpec[(size_t) k] *= g;
-        if (k > 0 && k < n / 2)
-            transplantSpec[(size_t) (n - k)] *= g;
-    }
+    applyCepstralGain (block.pcm.data(), blockSize, diff, numQ, out);
+}
 
-    transplantFft->perform (transplantSpec.data(), transplantTime.data(), true);
-    for (int i = 0; i < blockSize; ++i)
-        out[i] = transplantTime[(size_t) i].real() * transplantInverseScale;
+void Renderer::glideEnvelope (const float* in, const float* fromCeps, const float* toCeps, float amount, float cutoff, float* out)
+{
+    // The grain is cut into Hann segments at 50% overlap (they sum to 1).
+    // Segment s is pulled towards the previous grain's envelope by
+    // amount * (1 - t), t = its centre's position in the grain (reaching 1 at
+    // glideArrival), so the envelope glides from where the last grain ended
+    // to this one's own.
+    const int segmentLength = 2 * blockSize / (glideSegments + 1);
+    const int segmentHop = segmentLength / 2;
+    const int numQ = juce::jmin (numCepstrum, (int) std::ceil (cutoff) + 5);
+
+    std::fill (out, out + blockSize, 0.0f);
+    for (int s = 0; s <= glideSegments + 1; ++s)
+    {
+        const int start = (s - 1) * segmentHop;
+        for (int i = 0; i < segmentLength; ++i)
+        {
+            const int pos = start + i;
+            const float w = 0.5f - 0.5f * std::cos (juce::MathConstants<float>::twoPi * (float) i / (float) segmentLength);
+            glideSegment[(size_t) i] = pos >= 0 && pos < blockSize ? in[pos] * w : 0.0f;
+        }
+
+        const float t = juce::jlimit (0.0f, 1.0f, (float) (start + segmentHop) / (glideArrival * (float) blockSize));
+        float diff[numCepstrum] {};
+        for (int q = 0; q < numQ; ++q)
+            diff[q] = amount * (1.0f - t) * cortex::dsp::Cepstrum::envelopeWeight (q, cutoff) * (fromCeps[q] - toCeps[q]);
+
+        applyCepstralGain (glideSegment.data(), segmentLength, diff, numQ, glideSegment.data());
+        for (int i = 0; i < segmentLength; ++i)
+        {
+            const int pos = start + i;
+            if (pos >= 0 && pos < blockSize)
+                out[pos] += glideSegment[(size_t) i];
+        }
+    }
 }
 
 void Renderer::workerLoop()
@@ -263,16 +311,38 @@ void Renderer::workerLoop()
         const auto chosen = choose (newest);
         const auto& block = brain->blocks[chosen];
 
-        // Envelope transplant into a pooled grain (if one is free; otherwise
-        // the block plays untouched this time).
+        // This grain's envelope after any transplant: where a glide ends, and
+        // where the next grain's glide starts.
+        const float transplant = newest.params.envTransplant;
+        std::array<float, numCepstrum> grainEnvelope {};
+        for (int q = 0; q < numCepstrum; ++q)
+            grainEnvelope[(size_t) q] = block.features.cepstrum[(size_t) q]
+                                      + transplant * (newest.features.cepstrum[(size_t) q] - block.features.cepstrum[(size_t) q]);
+        const bool glide = newest.params.cepstralGlide > 0.0f && hasPreviousEnvelope;
+
+        // Transplant and/or glide into a pooled grain (if one is free;
+        // otherwise the block plays untouched this time).
         int grain = -1;
         float grainRms = brain->blockRms[chosen];
-        if (newest.params.envTransplant > 0.0f && (grain = acquireGrain()) >= 0)
+        if ((transplant > 0.0f || glide) && (grain = acquireGrain()) >= 0)
         {
             auto& g = grains[(size_t) grain];
-            transplantEnvelope (block, newest.features, newest.params.envTransplant, newest.params.transplantCutoff, g.data());
+            const float* source = block.pcm.data();
+            if (transplant > 0.0f)
+            {
+                transplantEnvelope (block, newest.features, transplant, newest.params.transplantCutoff, g.data());
+                source = g.data();
+            }
+            if (glide)
+            {
+                std::copy (source, source + blockSize, glideInput.begin());
+                glideEnvelope (glideInput.data(), previousEnvelope.data(), grainEnvelope.data(),
+                               newest.params.cepstralGlide, newest.params.transplantCutoff, g.data());
+            }
             grainRms = rmsOf (g);
         }
+        previousEnvelope = grainEnvelope;
+        hasPreviousEnvelope = true;
 
         // Play the grain at the input's level (Samplebrain's normalised
         // playback, by RMS), bounded so near-silent blocks can't explode.

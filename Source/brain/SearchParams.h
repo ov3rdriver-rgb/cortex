@@ -33,6 +33,11 @@ struct SearchParams
     float envTransplant = 0.0f;
     float transplantCutoff = 25.0f;
 
+    // Synaptic drift with cepstral glide (BRIEF.md §4 idea 4): each new grain
+    // starts from the previous grain's spectral envelope and glides to its
+    // own, so jumps between blocks become timbral slides.
+    float cepstralGlide = 0.0f;
+
     // Chance per search of jumping to a random block instead of the match.
     float randomJump = 0.0f;
 

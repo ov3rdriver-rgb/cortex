@@ -7,6 +7,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include <array>
 #include <atomic>
 #include <complex>
 #include <memory>
@@ -88,6 +89,9 @@ private:
     std::uint32_t choose (const Request&);
     int acquireGrain() noexcept;
     void transplantEnvelope (const Block&, const BlockFeatures& target, float amount, float cutoff, float* out);
+    void glideEnvelope (const float* in, const float* fromCeps, const float* toCeps, float amount, float cutoff, float* out);
+    // out[0..length) = in filtered by the log-gain whose cepstrum is logGainCeps.
+    void applyCepstralGain (const float* in, int length, const float* logGainCeps, int numQ, float* out);
 
     struct Voice
     {
@@ -140,6 +144,12 @@ private:
     float transplantInverseScale = 1.0f;
     std::vector<std::complex<float>> transplantTime, transplantSpec;
     std::vector<float> cepstrumCos;   // numCepstrum x (transplantSize/2 + 1)
+
+    // Worker-only: cepstral glide (BRIEF.md §4 idea 4).
+    static constexpr int glideSegments = 4;
+    std::vector<float> glideInput, glideSegment;
+    std::array<float, numCepstrum> previousEnvelope {};
+    bool hasPreviousEnvelope = false;
 
     // Worker-only search state.
     BrainSearch search;

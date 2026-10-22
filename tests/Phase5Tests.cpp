@@ -295,3 +295,78 @@ public:
 };
 
 static CutoffModulationTests cutoffModulationTests;
+
+class FormantShiftTests final : public juce::UnitTest
+{
+public:
+    FormantShiftTests() : juce::UnitTest ("Formant shift", "Cortex") {}
+
+    // Frequency of the strongest bin in a frame's spectrum.
+    static double peakHz (const std::vector<float>& frame)
+    {
+        juce::dsp::FFT fft (order);
+        std::vector<std::complex<float>> in ((size_t) frameSize), out ((size_t) frameSize);
+        for (int i = 0; i < frameSize; ++i)
+            in[(size_t) i] = frame[(size_t) i];
+        fft.perform (in.data(), out.data(), false);
+        int best = 1;
+        for (int k = 1; k < frameSize / 2; ++k)
+            if (std::abs (out[(size_t) k]) > std::abs (out[(size_t) best]))
+                best = k;
+        return best * 48000.0 / frameSize;
+    }
+
+    void runTest() override
+    {
+        // 187.5 Hz harmonics (exactly every 8 bins) under one formant at 1 kHz,
+        // wide enough for a 25-bin lifter to resolve.
+        constexpr double f0 = 187.5;
+        std::vector<float> voice ((size_t) frameSize, 0.0f), silence ((size_t) frameSize, 0.0f);
+        for (int h = 1; h * f0 < 12000.0; ++h)
+        {
+            const double f = h * f0;
+            const double amp = 0.02 + std::exp (-0.5 * std::pow ((f - 1000.0) / 400.0, 2.0));
+            for (int i = 0; i < frameSize; ++i)
+                voice[(size_t) i] += (float) (amp * std::sin (juce::MathConstants<double>::twoPi * f * i / 48000.0));
+        }
+        for (int i = 0; i < frameSize; ++i)
+            voice[(size_t) i] *= 0.5f - 0.5f * std::cos (juce::MathConstants<float>::twoPi * i / frameSize);
+
+        auto shifted = [&] (float semitones)
+        {
+            CepstralMorph m;
+            m.prepare (48000.0);
+            m.setOrder (order);
+            MorphParams p;
+            p.formantA = semitones;
+            m.setTargets (p);
+            m.snapToTargets();
+            std::vector<float> out ((size_t) frameSize);
+            m.processFrame (voice.data(), silence.data(), out.data());
+            return out;
+        };
+
+        beginTest ("Formant moves with the shift; harmonics (pitch) stay put");
+        for (auto [st, expectedHz] : { std::pair { 0.0f, 1000.0 }, std::pair { 12.0f, 2000.0 }, std::pair { -12.0f, 500.0 } })
+        {
+            const double hz = peakHz (shifted (st));
+            const double harmonicError = std::abs (hz - f0 * std::round (hz / f0));
+            logMessage ("  shift " + juce::String (st, 0) + " st -> loudest harmonic " + juce::String (hz, 0) + " Hz");
+            expectWithinAbsoluteError (hz, expectedHz, f0 * 0.75);
+            expectLessThan (harmonicError, 30.0, "peak must sit on a harmonic of the original pitch");
+        }
+
+        beginTest ("Zero shift is bit-identical to no formant processing");
+        {
+            const auto a = shifted (0.0f);
+            CepstralMorph plain;
+            plain.prepare (48000.0);
+            plain.setOrder (order);
+            std::vector<float> b ((size_t) frameSize);
+            plain.processFrame (voice.data(), silence.data(), b.data());
+            expect (a == b);
+        }
+    }
+};
+
+static FormantShiftTests formantShiftTests;

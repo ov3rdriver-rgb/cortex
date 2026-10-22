@@ -58,6 +58,8 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
     params.freezeDetailA = get (cortex::ParamIDs::freezeDetailA);
     params.freezeEnvB = get (cortex::ParamIDs::freezeEnvB);
     params.freezeDetailB = get (cortex::ParamIDs::freezeDetailB);
+    params.formantA = get (cortex::ParamIDs::formantA);
+    params.formantB = get (cortex::ParamIDs::formantB);
     params.lfoRate = get (cortex::ParamIDs::lfoRate);
     params.lfoDepth = get (cortex::ParamIDs::lfoDepth);
     params.lfoShape = get (cortex::ParamIDs::lfoShape);
@@ -131,6 +133,8 @@ cortex::dsp::MorphParams CortexAudioProcessor::readMorphParams() const
     p.freezeDetailA = params.freezeDetailA->load() > 0.5f;
     p.freezeEnvB = params.freezeEnvB->load() > 0.5f;
     p.freezeDetailB = params.freezeDetailB->load() > 0.5f;
+    p.formantA = params.formantA->load();
+    p.formantB = params.formantB->load();
     return p;
 }
 

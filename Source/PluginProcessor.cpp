@@ -75,8 +75,7 @@ int CortexAudioProcessor::currentFftSize() const
 
 void CortexAudioProcessor::updateLatency()
 {
-    // STFT latency = FFT size. Phase 2+: add the brain block size when the brain is in the path.
-    setLatencySamples (currentFftSize());
+    setLatencySamples (getAlignedLatencySamples());
 }
 
 void CortexAudioProcessor::parameterChanged (const juce::String& parameterID, float)
@@ -134,7 +133,8 @@ void CortexAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     dcX1.fill (0.0f);
     dcY1.fill (0.0f);
     silentSamples = 0;
-    activeOrder = -1;   // forces setOrder() on the first block
+    activeOrder = -1;   // forces an engine setup on the first block
+    activeBrainDelay = previousBrainDelay = 0;
 
     // Brains are built at the host rate; a new rate needs a rebuild (usually a cache hit).
     {
@@ -174,13 +174,7 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     for (int ch = getTotalNumInputChannels(); ch < getTotalNumOutputChannels(); ++ch)
         buffer.clear (ch, 0, numSamples);
 
-    // FFT size change. A change that arrives mid-crossfade waits for the next block after it.
-    const int order = cortex::dsp::minFftOrder + juce::jlimit (0, 3, (int) params.fftSize->load());
-    if (order != activeOrder && fadeRemaining == 0)
-        switchFftOrder (order);
-
     // Input B: the sidechain, or the brain rendering a match for the live input.
-    // (Phase 3 delays A by the brain's block latency so the two line up.)
     auto* brainRenderer = renderer.acquire();
     const bool useBrain = params.bSource->load() >= 0.5f;
     if (brainRenderer != nullptr)
@@ -196,6 +190,16 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     auto morphParams = readMorphParams();
     if (useBrain && brainRenderer == nullptr)
         morphParams.x = morphParams.y = 0.0f;
+
+    // The brain answers one block (plus search time) late, so A is delayed by the
+    // same amount to line the two up. A change of FFT size or of that delay
+    // crossfades to a freshly primed engine. A change that arrives mid-crossfade
+    // waits for the next block after it.
+    const int order = cortex::dsp::minFftOrder + juce::jlimit (0, 3, (int) params.fftSize->load());
+    const int brainDelay = brainRenderer != nullptr ? brainRenderer->getLatencySamples() : 0;
+    if ((order != activeOrder || brainDelay != activeBrainDelay) && fadeRemaining == 0)
+        switchEngine (order, brainDelay, morphParams);
+
     for (auto& slot : engines)
         for (auto& e : slot)
             e.morph.setTargets (morphParams);
@@ -246,8 +250,9 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         out[(size_t) ch] = buffer.getWritePointer (ch);
 
     constexpr int historyMask = historySize - 1;
-    const int newLatency = 1 << activeOrder;
-    const int oldLatency = 1 << previousOrder;
+    const int newDelay = activeBrainDelay, oldDelay = previousBrainDelay;
+    const int newLatency = (1 << activeOrder) + newDelay;
+    const int oldLatency = (1 << previousOrder) + oldDelay;
     auto& active = engines[(size_t) activeSlot];
     auto& fading = engines[(size_t) (1 - activeSlot)];
 
@@ -288,18 +293,20 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             historyB[c][(size_t) historyPos] = gatedB;
             historyDry[c][(size_t) historyPos] = a;
 
-            auto runEngine = [&] (Engine& e)
+            // Each engine reads A at its own alignment delay.
+            auto runEngine = [&] (Engine& e, int delay)
             {
-                return e.stft.processSample (gatedA, gatedB, [&e] (const float* fa, const float* fb, float* fo)
+                const float delayedA = historyA[c][(size_t) ((historyPos - delay) & historyMask)];
+                return e.stft.processSample (delayedA, gatedB, [&e] (const float* fa, const float* fb, float* fo)
                                              { e.morph.processFrame (fa, fb, fo); });
             };
 
-            float w = runEngine (active[c]);
+            float w = runEngine (active[c], newDelay);
             float dry = historyDry[c][(size_t) ((historyPos - newLatency) & historyMask)];
 
             if (fadeRemaining > 0)
             {
-                w = gainNew * w + gainOld * runEngine (fading[c]);
+                w = gainNew * w + gainOld * runEngine (fading[c], oldDelay);
                 dry = gainNew * dry + gainOld * historyDry[c][(size_t) ((historyPos - oldLatency) & historyMask)];
             }
 
@@ -325,31 +332,36 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     }
 }
 
-void CortexAudioProcessor::switchFftOrder (int newOrder)
+void CortexAudioProcessor::switchEngine (int newOrder, int newBrainDelay, const cortex::dsp::MorphParams& morphParams)
 {
     if (activeOrder < 0)
     {
         // First block after prepare: nothing to fade from.
-        primeEngine (activeSlot, newOrder);
+        primeEngine (activeSlot, newOrder, newBrainDelay, morphParams);
         previousOrder = activeOrder = newOrder;
-        return;
+        previousBrainDelay = activeBrainDelay = newBrainDelay;
+    }
+    else
+    {
+        previousOrder = activeOrder;
+        previousBrainDelay = activeBrainDelay;
+        activeSlot = 1 - activeSlot;
+        primeEngine (activeSlot, newOrder, newBrainDelay, morphParams);
+        activeOrder = newOrder;
+        activeBrainDelay = newBrainDelay;
+        fadeRemaining = fadeLength;
     }
 
-    previousOrder = activeOrder;
-    activeSlot = 1 - activeSlot;
-    primeEngine (activeSlot, newOrder);
-    activeOrder = newOrder;
-    fadeRemaining = fadeLength;
+    reportedBrainDelay.store (newBrainDelay);
 }
 
-void CortexAudioProcessor::primeEngine (int slot, int order)
+void CortexAudioProcessor::primeEngine (int slot, int order, int brainDelay, const cortex::dsp::MorphParams& morphParams)
 {
-    // Run the last 2N input samples through the new engine so its overlap-add
-    // buffer is already in steady state when the crossfade starts. Costs 16
-    // frames once per FFT size change.
+    // Run the last 2N input samples (A at this engine's alignment delay) through
+    // the new engine so its overlap-add buffer is already in steady state when
+    // the crossfade starts. Costs 16 frames once per switch.
     constexpr int historyMask = historySize - 1;
     const int n = 1 << order;
-    const auto morphParams = readMorphParams();
 
     for (int ch = 0; ch < maxChannels; ++ch)
     {
@@ -364,7 +376,8 @@ void CortexAudioProcessor::primeEngine (int slot, int order)
         for (int i = 2 * n; i > 0; --i)
         {
             const auto idx = (size_t) ((historyPos - i) & historyMask);
-            e.stft.processSample (ha[idx], hb[idx], [&e] (const float* fa, const float* fb, float* fo)
+            const auto idxA = (size_t) ((historyPos - i - brainDelay) & historyMask);
+            e.stft.processSample (ha[idxA], hb[idx], [&e] (const float* fa, const float* fb, float* fo)
                                   { e.morph.processFrame (fa, fb, fo); });
         }
     }
@@ -485,6 +498,9 @@ void CortexAudioProcessor::onBrainBuilt (std::shared_ptr<const cortex::brain::Br
 void CortexAudioProcessor::timerCallback()
 {
     renderer.collectGarbage();
+
+    if (getLatencySamples() != getAlignedLatencySamples())
+        updateLatency();
 
     // Debounce block size / overlap / sample-rate changes so dragging a knob
     // doesn't restart the build on every step.

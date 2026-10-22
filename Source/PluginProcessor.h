@@ -45,6 +45,10 @@ public:
 
     int currentFftSize() const;
 
+    // What getLatencySamples() is heading for: FFT size plus the brain alignment
+    // delay. The host is told on the message thread (timer), never from audio.
+    int getAlignedLatencySamples() const { return currentFftSize() + reportedBrainDelay.load(); }
+
     // Brain management (message thread).
     void loadBrainFrom (const juce::StringArray& filesOrFolders);
     void clearBrain();
@@ -102,8 +106,8 @@ private:
         std::atomic<float>* searchMode = nullptr;
     } params;
 
-    void switchFftOrder (int newOrder);
-    void primeEngine (int slot, int order);
+    void switchEngine (int newOrder, int newBrainDelay, const cortex::dsp::MorphParams&);
+    void primeEngine (int slot, int order, int brainDelay, const cortex::dsp::MorphParams&);
 
     struct Engine
     {
@@ -118,9 +122,13 @@ private:
     int fadeRemaining = 0;
     int fadeLength = 1;
     int previousOrder = 11;
+    int activeBrainDelay = 0, previousBrainDelay = 0;   // samples A is delayed to line up with the brain
+    std::atomic<int> reportedBrainDelay { 0 };
 
-    // Input history: gated A/B to prime a newly sized engine, raw A for the dry path.
-    static constexpr int historySize = 2 * cortex::dsp::maxFftSize;
+    // Input history: gated A (read at the alignment delay) and B for the engines
+    // and priming, raw A for the dry path. Must cover 2N + the largest brain
+    // delay (block 4096 + search delay 4096).
+    static constexpr int historySize = 32768;
     std::array<std::vector<float>, maxChannels> historyA, historyB, historyDry;
     int historyPos = 0;
 

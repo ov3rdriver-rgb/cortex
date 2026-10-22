@@ -308,3 +308,87 @@ public:
 };
 
 static ProcessorBrainTests processorBrainTests;
+
+class AlignmentTests final : public juce::UnitTest
+{
+public:
+    AlignmentTests() : juce::UnitTest ("Brain alignment", "Cortex") {}
+
+    // Lag (0..maxLag) at which `out` best matches `in`, by normalised cross-correlation.
+    static int bestLag (const std::vector<float>& in, const std::vector<float>& out, int from, int length, int maxLag)
+    {
+        double best = -1.0;
+        int bestLagFound = -1;
+        for (int lag = 0; lag <= maxLag; ++lag)
+        {
+            double xy = 0.0, yy = 0.0;
+            for (int i = from; i < from + length; ++i)
+            {
+                xy += (double) out[(size_t) i] * in[(size_t) (i - lag)];
+                yy += (double) out[(size_t) i] * out[(size_t) i];
+            }
+            const double score = yy > 0.0 ? xy / std::sqrt (yy) : 0.0;
+            if (score > best)
+            {
+                best = score;
+                bestLagFound = lag;
+            }
+        }
+        return bestLagFound;
+    }
+
+    void runTest() override
+    {
+        const auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("cortex-align-" + juce::String (juce::Random::getSystemRandom().nextInt()));
+        dir.createDirectory();
+        const auto signal = testSignal ((size_t) brainRate * 4, 21);
+        writeWav (dir.getChildFile ("brain.wav"), signal, brainRate);
+
+        struct Case { const char* name; float xy; float phase; };
+        for (auto c : { Case { "A path (pure A)", 0.0f, 0.0f }, Case { "B path (pure brain)", 1.0f, 1.0f } })
+        {
+            beginTest (juce::String ("Output lines up with reported latency: ") + c.name);
+
+            CortexAudioProcessor proc;
+            auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+            set ("bSource", 1.0f);
+            set ("blockSize", 1024.0f);
+            set ("overlap", 0.5f);
+            set ("morphX", c.xy);
+            set ("morphY", c.xy);
+            set ("phaseMode", c.phase);
+            set ("novelty", 0.0f);
+            set ("dryWet", 1.0f);
+            set ("limiter", 0.0f);
+            set ("autoMute", 0.0f);
+            proc.setNonRealtime (true);   // deterministic brain searches
+            proc.prepareToPlay (brainRate, 512);
+            proc.loadBrainFrom ({ dir.getFullPathName() });
+            for (int i = 0; i < 600 && proc.getBrain() == nullptr; ++i)
+                juce::Thread::sleep (50);
+            expect (proc.getBrain() != nullptr);
+
+            juce::AudioBuffer<float> buf (2, 512);
+            juce::MidiBuffer midi;
+            std::vector<float> out (signal.size());
+            for (size_t start = 0; start + 512 <= signal.size(); start += 512)
+            {
+                for (int ch = 0; ch < 2; ++ch)
+                    buf.copyFrom (ch, 0, signal.data() + start, 512);
+                proc.processBlock (buf, midi);
+                std::copy (buf.getReadPointer (0), buf.getReadPointer (0) + 512, out.begin() + (std::ptrdiff_t) start);
+            }
+
+            // FFT 2048 + brain (block 1024 + search delay 1024).
+            const int expected = 2048 + 1024 + 1024;
+            expectEquals (proc.getAlignedLatencySamples(), expected);
+            const int lag = bestLag (signal, out, (int) signal.size() / 2, 8192, 8000);
+            logMessage ("  best lag " + juce::String (lag) + ", reported " + juce::String (proc.getAlignedLatencySamples()));
+            expectEquals (lag, expected);
+        }
+
+        dir.deleteRecursively();
+    }
+};
+
+static AlignmentTests alignmentTests;

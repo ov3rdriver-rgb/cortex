@@ -53,6 +53,7 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
     params.gateThresh = get (cortex::ParamIDs::gateThresh);
     params.autoMute = get (cortex::ParamIDs::autoMute);
     params.autoMuteMs = get (cortex::ParamIDs::autoMuteMs);
+    params.lowLatency = get (cortex::ParamIDs::lowLatency);
     params.matchTimbre = get (cortex::ParamIDs::matchTimbre);
     params.matchPitch = get (cortex::ParamIDs::matchPitch);
     params.envTransplant = get (cortex::ParamIDs::envTransplant);
@@ -70,7 +71,7 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
         params.ampRelease = get (cortex::ParamIDs::ampRelease);
     }
 
-    for (auto* id : { cortex::ParamIDs::fftSize, cortex::ParamIDs::blockSize, cortex::ParamIDs::overlap })
+    for (auto* id : { cortex::ParamIDs::fftSize, cortex::ParamIDs::blockSize, cortex::ParamIDs::overlap, cortex::ParamIDs::lowLatency })
         apvts.addParameterListener (id, this);
     updateLatency();
     startTimerHz (10);
@@ -80,12 +81,14 @@ CortexAudioProcessor::~CortexAudioProcessor()
 {
     stopTimer();
     builder.cancel();
-    for (auto* id : { cortex::ParamIDs::fftSize, cortex::ParamIDs::blockSize, cortex::ParamIDs::overlap })
+    for (auto* id : { cortex::ParamIDs::fftSize, cortex::ParamIDs::blockSize, cortex::ParamIDs::overlap, cortex::ParamIDs::lowLatency })
         apvts.removeParameterListener (id, this);
 }
 
 int CortexAudioProcessor::currentFftSize() const
 {
+    if (params.lowLatency->load() > 0.5f)
+        return cortex::lowLatencyFftSize;
     const auto index = juce::jlimit (0, (int) std::size (cortex::fftSizes) - 1, (int) params.fftSize->load());
     return cortex::fftSizes[index];
 }
@@ -97,7 +100,7 @@ void CortexAudioProcessor::updateLatency()
 
 void CortexAudioProcessor::parameterChanged (const juce::String& parameterID, float)
 {
-    if (parameterID == cortex::ParamIDs::fftSize)
+    if (parameterID == cortex::ParamIDs::fftSize || parameterID == cortex::ParamIDs::lowLatency)
         updateLatency();
     else
         rebuildRequested = true;   // block size / overlap: rebuilt (debounced) by the timer
@@ -226,8 +229,15 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // same amount to line the two up. A change of FFT size or of that delay
     // crossfades to a freshly primed engine. A change that arrives mid-crossfade
     // waits for the next block after it.
-    const int order = cortex::dsp::minFftOrder + juce::jlimit (0, 3, (int) params.fftSize->load());
-    const int brainDelay = brainRenderer != nullptr ? brainRenderer->getLatencySamples() : 0;
+    // Low latency: smallest FFT, and A is not held back for the brain - your
+    // note/attack comes straight through and the brain's timbre follows a
+    // grain behind. Total latency is then just the 512-sample FFT.
+    const bool lowLatency = params.lowLatency->load() > 0.5f;
+    if (brainRenderer != nullptr)
+        brainRenderer->setLowLatency (lowLatency);
+    const int order = lowLatency ? cortex::dsp::minFftOrder
+                                 : cortex::dsp::minFftOrder + juce::jlimit (0, 3, (int) params.fftSize->load());
+    const int brainDelay = brainRenderer != nullptr && ! lowLatency ? brainRenderer->getLatencySamples() : 0;
     if ((order != activeOrder || brainDelay != activeBrainDelay) && fadeRemaining == 0)
         switchEngine (order, brainDelay, morphParams);
 

@@ -217,3 +217,116 @@ public:
 };
 
 static InstrumentProcessorTests instrumentProcessorTests;
+
+class LowLatencyTests final : public juce::UnitTest
+{
+public:
+    LowLatencyTests() : juce::UnitTest ("Low latency", "Cortex") {}
+
+    static juce::File brainFolder()
+    {
+        const auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("cortex-ll-" + juce::String (juce::Random::getSystemRandom().nextInt()));
+        dir.createDirectory();
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::AudioFormatWriter> w (wav.createWriterFor (new juce::FileOutputStream (dir.getChildFile ("b.wav")), rate, 1, 24, {}, 0));
+        juce::AudioBuffer<float> a (1, 96000);
+        juce::Random rng (12);
+        for (int i = 0; i < a.getNumSamples(); ++i)
+            a.setSample (0, i, 0.3f * (float) std::sin (i * 0.03) + 0.1f * (rng.nextFloat() - 0.5f));
+        w->writeFromAudioSampleBuffer (a, 0, a.getNumSamples());
+        return dir;
+    }
+
+    static void loadBrain (CortexAudioProcessor& proc, const juce::File& dir)
+    {
+        proc.loadBrainFrom ({ dir.getFullPathName() });
+        for (int i = 0; i < 600 && proc.getBrain() == nullptr; ++i)
+            juce::Thread::sleep (50);
+    }
+
+    // Samples from note-on until the instrument's output first passes `threshold`.
+    int noteToSound (bool lowLatency, const juce::File& dir)
+    {
+        CortexAudioProcessor proc (true);
+        auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+        set (cortex::ParamIDs::lowLatency, lowLatency ? 1.0f : 0.0f);
+        set (cortex::ParamIDs::limiter, 0.0f);
+        proc.setNonRealtime (true);
+        proc.prepareToPlay (rate, 256);
+        loadBrain (proc, dir);
+        expect (proc.getBrain() != nullptr);
+
+        juce::AudioBuffer<float> buf (2, 256);
+        juce::MidiBuffer midi;
+        constexpr int noteBlock = 40;   // let engines settle in silence first
+        for (int block = 0; block < 200; ++block)
+        {
+            buf.clear();
+            midi.clear();
+            if (block == noteBlock)
+                midi.addEvent (juce::MidiMessage::noteOn (1, 57, 1.0f), 0);
+            proc.processBlock (buf, midi);
+            if (block >= noteBlock)
+                for (int i = 0; i < 256; ++i)
+                    if (std::abs (buf.getSample (0, i)) > 0.02f)
+                        return (block - noteBlock) * 256 + i;
+        }
+        return -1;
+    }
+
+    void runTest() override
+    {
+        const auto dir = brainFolder();
+
+        beginTest ("Low latency reports the 512-sample FFT and nothing else, with a brain loaded");
+        {
+            CortexAudioProcessor proc (false);
+            auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+            set (cortex::ParamIDs::lowLatency, 1.0f);
+            set (cortex::ParamIDs::morphX, 0.0f);
+            set (cortex::ParamIDs::limiter, 0.0f);
+            set (cortex::ParamIDs::autoMute, 0.0f);
+            proc.setNonRealtime (true);
+            proc.prepareToPlay (rate, 512);
+            loadBrain (proc, dir);
+
+            // Impulse through the pure-A path.
+            juce::AudioBuffer<float> buf (2, 512);
+            juce::MidiBuffer midi;
+            int peakAt = -1;
+            float peak = 0.0f;
+            for (int block = 0; block < 40; ++block)
+            {
+                buf.clear();
+                if (block == 20)
+                    for (int ch = 0; ch < 2; ++ch)
+                        buf.setSample (ch, 0, 1.0f);
+                proc.processBlock (buf, midi);
+                for (int i = 0; i < 512; ++i)
+                    if (block >= 20 && std::abs (buf.getSample (0, i)) > peak)
+                    {
+                        peak = std::abs (buf.getSample (0, i));
+                        peakAt = (block - 20) * 512 + i;
+                    }
+            }
+            expectEquals (proc.getAlignedLatencySamples(), 512);
+            expectEquals (peakAt, 512);
+        }
+
+        beginTest ("Instrument: note-on to sound is far shorter in low latency");
+        {
+            const int normal = noteToSound (false, dir);
+            const int low = noteToSound (true, dir);
+            logMessage ("  note-on to sound: normal " + juce::String (normal) + " samples ("
+                        + juce::String (normal / rate * 1000.0, 1) + " ms), low latency " + juce::String (low)
+                        + " samples (" + juce::String (low / rate * 1000.0, 1) + " ms)");
+            expectGreaterThan (low, 0);
+            expectLessThan (low, 640);           // ~ the 512-sample FFT
+            expectGreaterThan (normal, low * 4);
+        }
+
+        dir.deleteRecursively();
+    }
+};
+
+static LowLatencyTests lowLatencyTests;

@@ -114,6 +114,7 @@ private:
         std::atomic<float>* gateThresh = nullptr;
         std::atomic<float>* autoMute = nullptr;
         std::atomic<float>* autoMuteMs = nullptr;
+        std::atomic<float>* lowLatency = nullptr;
         std::atomic<float>* matchTimbre = nullptr;
         std::atomic<float>* matchPitch = nullptr;
         std::atomic<float>* envTransplant = nullptr;

@@ -46,6 +46,17 @@ public:
     // A target block must be complete, then searched, before it can play.
     int getLatencySamples() const noexcept { return blockSize + searchDelay; }
 
+    // Low latency: give the search worker only a moment before each grain is
+    // due (it is woken immediately and usually answers in well under 1 ms;
+    // a late answer just starts the grain late).
+    // Gaps (no grain playing yet, e.g. the start of a phrase) are filled with
+    // the input itself, so a morph towards B doesn't swallow the attack.
+    void setLowLatency (bool shouldBeLow) noexcept
+    {
+        searchDelay = shouldBeLow ? lowLatencySearchDelay : normalSearchDelay;
+        fillGaps = shouldBeLow;
+    }
+
     // Most recently started brain block, for the UI (-1 before the first).
     int getLastChosenBlock() const noexcept { return lastChosen.load (std::memory_order_relaxed); }
 
@@ -95,7 +106,10 @@ private:
     SearchMode mode = SearchMode::basic;
     bool blocking = false;
 
-    int blockSize = 0, hop = 0, searchDelay = 0;
+    int blockSize = 0, hop = 0, searchDelay = 0, normalSearchDelay = 0;
+    static constexpr int lowLatencySearchDelay = 128;
+    bool fillGaps = false;
+    float gapGain = 0.0f, gapGainStep = 0.0f;
     float outputGain = 1.0f;
 
     std::vector<float> targetRing, targetBlock, windowedTarget;

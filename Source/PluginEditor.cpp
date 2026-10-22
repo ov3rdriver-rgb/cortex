@@ -53,7 +53,7 @@ CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
 
     // Parameter tabs. Every parameter lives on exactly one tab.
     const auto tabColour = colours::panel;
-    juce::StringArray morphIds { phaseMode, fftSize, cutoffA, cutoffB, cornerGainTL, cornerGainBR };
+    juce::StringArray morphIds { lowLatency, phaseMode, fftSize, cutoffA, cutoffB, cornerGainTL, cornerGainBR };
     if (! p.isInstrument())
         morphIds.insert (0, bSource);
     tabs.addTab ("Morph", tabColour, new cortex::ui::ParamPanel (p.apvts, morphIds), true);

@@ -31,6 +31,7 @@ namespace cortex::ParamIDs
     inline constexpr auto gateThresh    = "gateThresh";
     inline constexpr auto autoMute      = "autoMute";
     inline constexpr auto autoMuteMs    = "autoMuteMs";
+    inline constexpr auto lowLatency    = "lowLatency";
 
     // Cortex Instrument only.
     inline constexpr auto oscWave       = "oscWave";
@@ -44,6 +45,7 @@ namespace cortex
     // Index -> FFT size for the fftSize choice parameter.
     inline constexpr int fftSizes[] { 512, 1024, 2048, 4096 };
     inline constexpr int defaultFftSizeIndex = 2;
+    inline constexpr int lowLatencyFftSize = 512;
 
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool instrument);
 }

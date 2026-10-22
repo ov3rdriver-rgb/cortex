@@ -18,6 +18,9 @@ namespace
 
     // Most a brain grain is boosted to match the input's level (+24 dB).
     constexpr float maxLevelMatchGain = 16.0f;
+
+    // Below this a grain is treated as silent for gap filling (-60 dB).
+    constexpr float audibleGrainGain = 0.001f;
 }
 
 Renderer::Renderer (std::shared_ptr<const Brain> b) : brain (std::move (b))
@@ -25,7 +28,8 @@ Renderer::Renderer (std::shared_ptr<const Brain> b) : brain (std::move (b))
     jassert (brain != nullptr);
     blockSize = brain->settings.blockSize;
     hop = brain->settings.hop();
-    searchDelay = juce::jmax (hop, minSearchDelay);
+    normalSearchDelay = searchDelay = juce::jmax (hop, minSearchDelay);
+    gapGainStep = (float) (1.0 / (0.005 * brain->settings.sampleRate));   // 5 ms fades
 
     analyser.prepare (blockSize, hop, brain->settings.sampleRate);
     search.prepare (*brain);
@@ -78,10 +82,13 @@ float Renderer::processSample (float target) noexcept
     startDueVoices();
 
     float out = 0.0f;
+    bool anyVoice = false;
     for (auto& v : voices)
     {
         if (v.pcm == nullptr)
             continue;
+        // Grains level-matched to silence don't count: they'd leave a gap.
+        anyVoice = anyVoice || v.gain > audibleGrainGain;
         out += v.gain * v.pcm[v.position];
         if (++v.position >= blockSize)
         {
@@ -99,7 +106,11 @@ float Renderer::processSample (float target) noexcept
     if (++samplesSeen >= blockSize && (samplesSeen - blockSize) % hop == 0)
         onTargetBlockComplete();
 
-    return out * outputGain;
+    const float gapTarget = fillGaps && ! anyVoice ? 1.0f : 0.0f;
+    gapGain = gapGain < gapTarget ? juce::jmin (gapTarget, gapGain + gapGainStep)
+                                  : juce::jmax (gapTarget, gapGain - gapGainStep);
+
+    return out * outputGain + gapGain * target;
 }
 
 void Renderer::onTargetBlockComplete() noexcept

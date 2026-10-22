@@ -1,0 +1,3 @@
+[submodule "third_party/samplebrain"]
+	path = third_party/samplebrain
+	url = https://github.com/fxbeaulieu/SampleBrain

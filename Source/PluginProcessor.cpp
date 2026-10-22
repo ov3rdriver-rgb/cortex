@@ -355,6 +355,8 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     }
 
     playingBlock.store (brainRenderer != nullptr ? brainRenderer->getLastChosenBlock() : -1, std::memory_order_relaxed);
+    if (numChannels > 0)
+        morphSnapshots.publish (engines[(size_t) activeSlot][0].morph.getSnapshot());
 
     if (params.limiter->load() > 0.5f && numChannels > 0)
     {

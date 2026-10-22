@@ -8,6 +8,7 @@
 #include "brain/Renderer.h"
 #include "dsp/CepstralMorph.h"
 #include "dsp/STFT.h"
+#include "dsp/SnapshotExchange.h"
 #include "synth/MonoSynth.h"
 
 #ifndef JucePlugin_IsSynth
@@ -74,6 +75,9 @@ public:
     };
     BrainStatus getBrainStatus() const;
     std::shared_ptr<const cortex::brain::Brain> getBrain() const;
+
+    // Latest morph frame (left channel) for the editor's displays.
+    bool readMorphSnapshot (cortex::dsp::MorphSnapshot& out) const { return morphSnapshots.read (out); }
     juce::Array<juce::File> getBrainFiles() const { return brainFiles; }
 
 private:
@@ -166,6 +170,7 @@ private:
     cortex::brain::BrainBuilder builder;
     cortex::RealtimeExchange<cortex::brain::Renderer> renderer;
     std::atomic<int> playingBlock { -1 };
+    cortex::SnapshotExchange<cortex::dsp::MorphSnapshot> morphSnapshots;
     std::atomic<bool> rebuildRequested { false };
     juce::uint32 rebuildDueMs = 0;
     cortex::brain::BrainSettings builtSettings;

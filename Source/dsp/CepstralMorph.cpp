@@ -45,6 +45,13 @@ void CepstralMorph::advanceSmoothing() noexcept
 void CepstralMorph::processFrame (const float* frameA, const float* frameB, float* frameOut)
 {
     advanceSmoothing();
+    snapshot.cutoffA = current.cutoffA;
+    snapshot.cutoffB = current.cutoffB;
+    snapshot.x = current.x;
+    snapshot.y = current.y;
+    snapshot.fftSize = fft.size();
+    snapshot.sampleRate = sampleRate;
+    snapshot.valid = true;
 
     const int n = fft.size();
     const int half = n / 2;
@@ -72,6 +79,13 @@ void CepstralMorph::processFrame (const float* frameA, const float* frameB, floa
         const float env = lerp (wA * ca, wB * cb, x);
         const float det = lerp ((1.0f - wA) * ca, (1.0f - wB) * cb, y);
         scratch[(size_t) k] = { env + det, 0.0f };
+
+        if (k < MorphSnapshot::numCoeffs)
+        {
+            snapshot.cepsA[(size_t) k] = ca;
+            snapshot.cepsB[(size_t) k] = cb;
+            snapshot.cepsOut[(size_t) k] = env + det;
+        }
     }
 
     // 6. Back to log magnitude.

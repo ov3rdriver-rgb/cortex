@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Cortex VERSION 0.6.0 LANGUAGES C CXX)
+project(Cortex VERSION 0.7.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -46,6 +46,12 @@ set(CORTEX_DSP_SOURCES
     ${PROJECT_SOURCE_DIR}/Source/state/BrainCache.cpp
     ${PROJECT_SOURCE_DIR}/Source/synth/MonoSynth.cpp)
 
+set(CORTEX_UI_SOURCES
+    ${PROJECT_SOURCE_DIR}/Source/ui/XYPad.cpp
+    ${PROJECT_SOURCE_DIR}/Source/ui/CepstrumView.cpp
+    ${PROJECT_SOURCE_DIR}/Source/ui/BrainMap.cpp
+    ${PROJECT_SOURCE_DIR}/Source/ui/ParamPanel.cpp)
+
 # Both plugins are built from the same sources; the processor picks effect or
 # instrument behaviour from JucePlugin_IsSynth.
 # Company name, website, bundle ID and manufacturer code are intentionally
@@ -63,7 +69,8 @@ function(cortex_add_plugin target)
         Source/PluginProcessor.cpp
         Source/PluginEditor.cpp
         Source/Parameters.cpp
-        ${CORTEX_DSP_SOURCES})
+        ${CORTEX_DSP_SOURCES}
+        ${CORTEX_UI_SOURCES})
 
     target_include_directories(${target} PRIVATE Source "${PROJECT_BINARY_DIR}/generated")
 

@@ -1,16 +1,29 @@
 #include "PluginEditor.h"
+#include "Parameters.h"
 #include "Version.h"
 
 namespace
 {
-    constexpr int brainPanelHeight = 76;
+    constexpr int headerHeight = 54;
+    constexpr int footerHeight = 24;
+    constexpr int gap = 8;
 }
 
 CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), generic (p)
+    : AudioProcessorEditor (&p), processor (p),
+      xyPad (p.apvts), cepstrumView (p.apvts)
 {
-    brainLabel.setJustificationType (juce::Justification::centredLeft);
+    setLookAndFeel (&lookAndFeel);
+    using namespace cortex::ParamIDs;
+    namespace colours = cortex::ui::colours;
+
+    title.setText (p.isInstrument() ? "CORTEX INSTRUMENT" : "CORTEX", juce::dontSendNotification);
+    title.setFont (juce::FontOptions (20.0f, juce::Font::bold));
+    title.setColour (juce::Label::textColourId, colours::text);
+    addAndMakeVisible (title);
+
     brainLabel.setFont (juce::FontOptions (13.0f));
+    brainLabel.setColour (juce::Label::textColourId, colours::text);
     addAndMakeVisible (brainLabel);
     addAndMakeVisible (progressBar);
 
@@ -33,60 +46,103 @@ CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
     for (auto* b : { &chooseButton, &rebuildButton, &clearButton })
         addAndMakeVisible (*b);
 
-    addAndMakeVisible (generic);
+    addAndMakeVisible (xyPad);
+    addAndMakeVisible (cepstrumView);
+    addAndMakeVisible (brainMap);
+    addAndMakeVisible (soundList);
 
-    credits.setText ("Cortex - AGPL-3.0. Brain engine from Samplebrain (Then Try This / Aphex Twin). "
-                     "Cepstral morph concept: Alexander Panos.",
+    // Parameter tabs. Every parameter lives on exactly one tab.
+    const auto tabColour = colours::panel;
+    juce::StringArray morphIds { phaseMode, fftSize, cutoffA, cutoffB, cornerGainTL, cornerGainBR };
+    if (! p.isInstrument())
+        morphIds.insert (0, bSource);
+    tabs.addTab ("Morph", tabColour, new cortex::ui::ParamPanel (p.apvts, morphIds), true);
+    tabs.addTab ("Brain", tabColour, new cortex::ui::ParamPanel (p.apvts, { matchTimbre, matchPitch, envTransplant, searchMode,
+                                                                            novelty, boredom, stickyness, blockSize, overlap }), true);
+    if (p.isInstrument())
+        tabs.addTab ("Synth", tabColour, new cortex::ui::ParamPanel (p.apvts, { oscWave, oscGlide, ampAttack, ampRelease }), true);
+    tabs.addTab ("Output", tabColour, new cortex::ui::ParamPanel (p.apvts, { dryWet, outGain, limiter, gateOn, gateThresh,
+                                                                             autoMute, autoMuteMs }), true);
+    tabs.setTabBarDepth (26);
+    tabs.setOutline (0);
+    addAndMakeVisible (tabs);
+
+    credits.setText ("AGPL-3.0. Brain engine from Samplebrain (Then Try This / Aphex Twin). Cepstral morph concept: Alexander Panos.",
                      juce::dontSendNotification);
-    credits.setFont (juce::FontOptions (12.0f));
-    credits.setJustificationType (juce::Justification::centred);
+    credits.setFont (juce::FontOptions (11.0f));
+    credits.setColour (juce::Label::textColourId, colours::dim);
     addAndMakeVisible (credits);
 
     versionLabel.setText ("v" CORTEX_VERSION_STRING " (" CORTEX_GIT_HASH ")", juce::dontSendNotification);
-    versionLabel.setFont (juce::FontOptions (12.0f));
+    versionLabel.setFont (juce::FontOptions (11.0f));
     versionLabel.setJustificationType (juce::Justification::centredRight);
-    versionLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.6f));
+    versionLabel.setColour (juce::Label::textColourId, colours::dim);
     addAndMakeVisible (versionLabel);
 
     setResizable (true, true);
-    setSize (560, 720);
+    setResizeLimits (900, 620, 2400, 1600);
+    setSize (1040, 700);
     timerCallback();
-    startTimerHz (10);
+    startTimerHz (30);
 }
 
-juce::Rectangle<int> CortexAudioProcessorEditor::brainArea() const
+CortexAudioProcessorEditor::~CortexAudioProcessorEditor()
 {
-    return getLocalBounds().removeFromTop (brainPanelHeight).reduced (8, 6);
+    setLookAndFeel (nullptr);
 }
 
 void CortexAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
+    g.fillAll (cortex::ui::colours::background);
+}
 
-    const auto area = brainArea().toFloat();
-    g.setColour (juce::Colours::white.withAlpha (dragHighlight ? 0.18f : 0.06f));
-    g.fillRoundedRectangle (area, 6.0f);
-    g.setColour (juce::Colours::white.withAlpha (dragHighlight ? 0.8f : 0.2f));
-    g.drawRoundedRectangle (area, 6.0f, dragHighlight ? 2.0f : 1.0f);
+void CortexAudioProcessorEditor::paintOverChildren (juce::Graphics& g)
+{
+    if (! dragHighlight)
+        return;
+    g.setColour (cortex::ui::colours::b.withAlpha (0.12f));
+    g.fillRect (getLocalBounds());
+    g.setColour (cortex::ui::colours::b);
+    g.drawRect (getLocalBounds(), 3);
+    g.setFont (juce::FontOptions (22.0f));
+    g.drawText ("Drop to build a brain", getLocalBounds(), juce::Justification::centred);
 }
 
 void CortexAudioProcessorEditor::resized()
 {
-    auto area = getLocalBounds();
-    auto brain = area.removeFromTop (brainPanelHeight).reduced (16, 12);
+    auto area = getLocalBounds().reduced (gap);
 
-    auto buttons = brain.removeFromRight (230);
-    chooseButton.setBounds (buttons.removeFromLeft (74).reduced (2, 8));
-    rebuildButton.setBounds (buttons.removeFromLeft (80).reduced (2, 8));
-    clearButton.setBounds (buttons.reduced (2, 8));
+    auto header = area.removeFromTop (headerHeight - gap);
+    title.setBounds (header.removeFromLeft (220));
+    auto buttons = header.removeFromRight (250);
+    chooseButton.setBounds (buttons.removeFromLeft (80).reduced (3, 8));
+    rebuildButton.setBounds (buttons.removeFromLeft (85).reduced (3, 8));
+    clearButton.setBounds (buttons.reduced (3, 8));
+    header.reduce (12, 4);
+    brainLabel.setBounds (header.removeFromTop (header.getHeight() / 2));
+    progressBar.setBounds (header.reduced (0, 3));
 
-    brainLabel.setBounds (brain.removeFromTop (brain.getHeight() / 2));
-    progressBar.setBounds (brain.reduced (0, 3));
-
-    auto footer = area.removeFromBottom (28);
-    versionLabel.setBounds (footer.removeFromRight (110).withTrimmedRight (8));
+    auto footer = area.removeFromBottom (footerHeight);
+    versionLabel.setBounds (footer.removeFromRight (140));
     credits.setBounds (footer);
-    generic.setBounds (area);
+    area.removeFromBottom (gap / 2);
+
+    // Left column: square XY pad, cepstrum view below it.
+    const int cepstrumHeight = 150;
+    const int padSize = juce::jmin (area.getHeight() - cepstrumHeight - gap, area.getWidth() / 2);
+    auto left = area.removeFromLeft (padSize);
+    xyPad.setBounds (left.removeFromTop (padSize));
+    left.removeFromTop (gap);
+    cepstrumView.setBounds (left);
+    area.removeFromLeft (gap);
+
+    // Right column: brain map + sound list, parameter tabs below.
+    auto tabArea = area.removeFromBottom (juce::jmax (190, area.getHeight() * 2 / 5));
+    tabs.setBounds (tabArea);
+    area.removeFromBottom (gap);
+    soundList.setBounds (area.removeFromRight (juce::jmin (240, area.getWidth() / 3)));
+    area.removeFromRight (gap);
+    brainMap.setBounds (area);
 }
 
 void CortexAudioProcessorEditor::filesDropped (const juce::StringArray& files, int, int)
@@ -98,7 +154,7 @@ void CortexAudioProcessorEditor::filesDropped (const juce::StringArray& files, i
 void CortexAudioProcessorEditor::setDragHighlight (bool shouldHighlight)
 {
     dragHighlight = shouldHighlight;
-    repaint (brainArea());
+    repaint();
 }
 
 void CortexAudioProcessorEditor::timerCallback()
@@ -109,13 +165,25 @@ void CortexAudioProcessorEditor::timerCallback()
     if (s.building)
         text = "Building brain: " + s.message;
     else if (s.numBlocks > 0)
-        text = "Brain: " + juce::String (s.numBlocks) + " blocks, " + juce::String (s.numSounds) + " sounds"
-             + (s.playingBlock >= 0 ? "  |  playing block " + juce::String (s.playingBlock) : juce::String());
+        text = "Brain: " + juce::String (s.numBlocks) + " blocks from " + juce::String (s.numSounds) + " sounds";
     else
-        text = "Drop a folder of samples here to build a brain";
+        text = "Drop a folder of samples anywhere on this window to build a brain";
 
     brainLabel.setText (text, juce::dontSendNotification);
-    progress = s.building ? (double) s.progress : (s.numBlocks > 0 ? 1.0 : 0.0);
+    progress = s.building ? (double) s.progress : 0.0;
+    progressBar.setVisible (s.building);
     rebuildButton.setEnabled (! processor.getBrainFiles().isEmpty());
     clearButton.setEnabled (s.numBlocks > 0 || s.building);
+
+    const auto brain = processor.getBrain();
+    brainMap.setBrain (brain);
+    soundList.setBrain (brain);
+    brainMap.setPlayingBlock (s.playingBlock);
+
+    cortex::dsp::MorphSnapshot snapshot;
+    if (processor.readMorphSnapshot (snapshot))
+    {
+        xyPad.setSnapshot (snapshot);
+        cepstrumView.setSnapshot (snapshot);
+    }
 }

@@ -11,7 +11,9 @@ target_sources(CortexTests PRIVATE
     DiagTests.cpp
     RealtimeTests.cpp
     InstrumentTests.cpp
-    ${CORTEX_DSP_SOURCES})
+    UiTests.cpp
+    ${CORTEX_DSP_SOURCES}
+    ${CORTEX_UI_SOURCES})
 
 target_include_directories(CortexTests PRIVATE ${PROJECT_SOURCE_DIR}/Source "${PROJECT_BINARY_DIR}/generated")
 

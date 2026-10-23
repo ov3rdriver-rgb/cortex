@@ -14,7 +14,7 @@ enum class Waveform
     sine
 };
 
-// The instrument's input A: one oscillator, played monophonically from MIDI.
+// The instrument's Input source: one oscillator, played monophonically from MIDI.
 // Last-note priority; a note played while another is held glides to it without
 // retriggering the envelope (legato), releasing it returns to the previous held
 // note. Realtime-safe after prepare().

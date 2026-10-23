@@ -9,7 +9,7 @@
 namespace cortex::dsp
 {
 // Quefrency cutoff as a performance control (BRIEF.md §4 idea 7): an LFO and
-// an envelope follower on input A, summed into a cutoff offset in bins.
+// an envelope follower on the Input, summed into a cutoff offset in bins per source.
 // Block-rate; the morph's per-frame smoothing keeps sweeps click-free.
 // Realtime-safe.
 class CutoffModulator

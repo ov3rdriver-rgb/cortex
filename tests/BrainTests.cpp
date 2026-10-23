@@ -468,7 +468,7 @@ public:
         dir.createDirectory();
         writeWav (dir.getChildFile ("brain.wav"), testSignal (96000, 5), brainRate);
 
-        beginTest ("Brain feeds input B and its file list survives save/restore");
+        beginTest ("A loaded brain plays and its file list survives save/restore");
 
         CortexAudioProcessor proc;
         proc.prepareToPlay (brainRate, 512);

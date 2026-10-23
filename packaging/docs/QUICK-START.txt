@@ -1,0 +1,85 @@
+CORTEX {{VERSION}} - QUICK START
+==========================
+
+1. THE CORTEX WINDOW
+--------------------
+LEFT COLUMN      Brain 1 (orange).
+RIGHT COLUMN     Brain 2 (violet).
+CENTRE, TOP      Two triangles: "Envelope" and "Detail".
+CENTRE, MIDDLE   The spectral envelopes of the sources.
+CENTRE, BOTTOM   The cepstrum and the cutoff lines.
+BOTTOM, LEFT     The Input panel (turquoise).
+BOTTOM, RIGHT    Tabs: "Search", "Mod" and "Output".
+
+Each triangle has one source at each corner:
+ - Brain 1 is at the top.
+ - Brain 2 is at the bottom left.
+ - Input is at the bottom right.
+
+
+2. MAKE A FIRST SOUND (EFFECT)
+------------------------------
+ 1. Put Cortex on an audio track that has a sound.
+ 2. Open the Cortex window.
+ 3. Drag a folder of samples onto the Brain 1 column.
+ 4. Wait until the column shows the number of blocks.
+    NOTE: A large folder can take some minutes the first time.
+    Cortex then keeps the analysis in a cache.
+ 5. Play the track.
+ 6. Drag the dot in the Envelope triangle to different positions.
+ 7. Listen to the change in the colour of the sound.
+
+With the default settings, the envelope comes from Brain 1 and the
+detail comes from the Input. Thus, the sound has the notes of the
+track and the colour of the samples in Brain 1.
+
+
+3. MAKE A FIRST SOUND (INSTRUMENT)
+----------------------------------
+ 1. Put Cortex Instrument on an instrument track.
+ 2. Open the Cortex window.
+ 3. Drag a folder of samples onto the Brain 1 column.
+ 4. Wait until the column shows the number of blocks.
+ 5. Play MIDI notes.
+ 6. Drag the dot in the Envelope triangle.
+
+
+4. USE TWO BRAINS
+-----------------
+ 1. Drag a folder of samples onto the Brain 1 column.
+ 2. Drag a different folder onto the Brain 2 column.
+ 3. In the Envelope triangle, drag the dot towards Brain 2.
+ 4. In the Detail triangle, drag the dot towards Brain 1.
+ 5. Play the Input.
+
+Example: put music in Brain 1 and drum breaks in Brain 2. The result
+has the notes and texture of the music and the colour of the drums.
+
+Each corner shows a percentage. This is the part of the mix that
+comes from that source.
+
+NOTE: If a brain is empty, its corner shows 0%. The Input then
+gives that part of the mix.
+
+
+5. OTHER CONTROLS
+-----------------
+LINK                 When "Link" is on, the Detail triangle follows
+                     the Envelope triangle.
+CUTOFF LINES         Drag a line in the cepstrum to change where the
+                     envelope of that source stops and the detail
+                     starts.
+SEARCH, CHAOS        Increase Chaos to make the brains change blocks
+                     more frequently.
+SEARCH, MEMORY       Increase Memory to make the brains play blocks
+                     in the order of their samples.
+SEARCH, MATCH TIMBRE Increase to make the brains match the colour of
+                     the Input.
+SEARCH, MATCH PITCH  Increase to make the brains match the notes of
+                     the Input.
+OUTPUT, LOW LATENCY  Set to "on" when you play live. The delay
+                     decreases from approximately 85 ms to
+                     approximately 11 ms.
+
+To set a triangle back to its default position, double-click the
+triangle.

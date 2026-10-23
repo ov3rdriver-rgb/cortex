@@ -1,0 +1,53 @@
+CORTEX {{VERSION}} - HOW TO SEND A REPORT
+===================================
+
+Send your reports to the person who gave you this package.
+
+
+1. BEFORE YOU SEND A REPORT
+---------------------------
+ 1. Read KNOWN-ISSUES.txt.
+ 2. Make sure that Cortex shows "v{{VERSION}} ({{HASH}})" at the top right
+    of its window.
+
+
+2. PROBLEM REPORT
+-----------------
+Give this data in each problem report:
+
+ 1. The version that Cortex shows.
+ 2. The plug-in: Cortex (effect) or Cortex Instrument.
+ 3. The format: VST3 or stand-alone.
+ 4. Your DAW and its version.
+ 5. Your version of Windows.
+ 6. The sample rate and the buffer size of your audio device.
+ 7. The approximate number of blocks in each brain.
+ 8. The steps that cause the problem. Write one action in each step.
+ 9. What you expected.
+10. What occurred.
+
+If possible, also send:
+ - A screenshot of the Cortex window.
+ - A short audio recording of the problem.
+
+Example of steps:
+  1. Put Cortex on a drum track.
+  2. Load a folder of 40 piano samples into Brain 1.
+  3. Set Low Latency to "on".
+  4. Play the track.
+  Result: The sound stops after 2 seconds.
+
+
+3. IF THE DAW STOPS (CRASH)
+---------------------------
+ 1. Write down what you did immediately before the crash.
+ 2. If the DAW makes a crash report, keep the report.
+ 3. Send the report and the steps.
+
+
+4. GENERAL COMMENTS
+-------------------
+We also want your comments. For example:
+ - Sounds that you like.
+ - Controls that are difficult to understand.
+ - Functions that you want.

@@ -6,3 +6,4 @@ build-*/
 *.user
 .DS_Store
 CMakeUserPresets.json
+dist/

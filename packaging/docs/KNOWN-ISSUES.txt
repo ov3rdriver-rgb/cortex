@@ -1,0 +1,55 @@
+CORTEX {{VERSION}} - KNOWN ISSUES
+===========================
+
+Do not send reports about these issues. We know about them.
+
+
+1. TESTS NOT DONE
+-----------------
+ - We did not test Cortex in Ableton Live, Logic Pro or Reaper.
+   Please tell us how Cortex works in your DAW.
+ - This package does not contain a version for macOS.
+
+
+2. SOUND
+--------
+ - When you move a dot in a triangle, the volume can change.
+   Use "Output Gain" in the Output tab to adjust the volume.
+ - With Low Latency on, each note starts with the sound of the Input.
+   The colour of the brains comes approximately 20 ms later.
+ - With Low Latency on, low notes can sound rough.
+ - If the Input is a sidechain, and the Envelope or Detail triangle
+   uses Brain 2, the sidechain and Brain 2 are not aligned in time.
+
+
+3. BRAINS
+---------
+ - A large folder of samples takes time to analyse. A folder with
+   150,000 blocks can take several minutes. Cortex shows the progress
+   in the brain column.
+ - When you change "Block Size" or "Block Overlap", Cortex analyses
+   the brains again.
+ - The brain map can look full with very large brains.
+
+
+4. PROJECTS
+-----------
+ - Projects that you saved with a version before 1.0.0 open with the
+   morph controls at their default positions. The brain folders load
+   correctly.
+ - The delay of Cortex changes when you load a brain or change the FFT
+   size. Some DAWs only adjust to the new delay when you stop and
+   start playback.
+
+
+5. WINDOW
+---------
+ - The minimum size of the window is 1120 x 760 pixels. On a small
+   screen, the window can be larger than the screen.
+
+
+6. INSTALLATION
+---------------
+ - The programs do not have a digital signature. Windows can show a
+   warning when you start a stand-alone program. Refer to INSTALL.txt,
+   section 3.

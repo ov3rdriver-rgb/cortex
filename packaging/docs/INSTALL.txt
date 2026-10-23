@@ -1,0 +1,63 @@
+CORTEX {{VERSION}} - INSTALLATION
+===========================
+
+1. INSTALL THE VST3 PLUG-INS
+----------------------------
+CAUTION: CLOSE YOUR DAW BEFORE YOU DO THIS PROCEDURE. IF THE DAW IS
+OPEN, WINDOWS CANNOT REPLACE A PLUG-IN THAT THE DAW USES.
+
+ 1. Close your DAW.
+ 2. Open the VST3 folder in this package.
+ 3. Select "Cortex.vst3" and "Cortex Instrument.vst3".
+ 4. Copy the two items.
+ 5. Open this folder:
+      C:\Program Files\Common Files\VST3
+ 6. Paste the two items into the folder.
+ 7. If Windows asks for administrator permission, click "Continue".
+ 8. If Windows asks to replace items, click "Replace".
+ 9. Start your DAW.
+10. Tell the DAW to scan for new plug-ins. Refer to the manual of
+    your DAW.
+11. Find "Cortex" in the list of effects.
+12. Find "Cortex Instrument" in the list of instruments.
+
+
+2. MAKE SURE THAT THE CORRECT VERSION IS INSTALLED
+--------------------------------------------------
+ 1. Put Cortex on a track.
+ 2. Open the Cortex window.
+ 3. Look at the top right corner of the window.
+ 4. Make sure that the text is "v{{VERSION}} ({{HASH}})".
+
+If the text is different, your DAW uses an older copy of Cortex.
+Do the procedure in section 1 again.
+
+
+3. USE THE STAND-ALONE PROGRAMS
+-------------------------------
+You can use Cortex without a DAW.
+
+ 1. Open the Standalone folder in this package.
+ 2. Copy the folder to a location on your computer.
+ 3. Double-click "Cortex.exe" or "Cortex Instrument.exe".
+ 4. If Windows shows "Windows protected your PC", click "More info".
+ 5. Click "Run anyway".
+ 6. Click "Options".
+ 7. Select your audio device.
+ 8. For Cortex Instrument, select your MIDI input device.
+
+NOTE: Windows shows the warning in step 4 because the programs do
+not have a digital signature.
+
+
+4. REMOVE CORTEX
+----------------
+ 1. Close your DAW.
+ 2. Open this folder:
+      C:\Program Files\Common Files\VST3
+ 3. Delete "Cortex.vst3" and "Cortex Instrument.vst3".
+ 4. Delete the stand-alone programs, if you copied them.
+
+Cortex keeps a cache of analysed brains in this folder:
+      %APPDATA%\Cortex\BrainCache
+You can delete this folder. The cache uses a maximum of 3 GB.

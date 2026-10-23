@@ -57,9 +57,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
     auto freeze = [] (const char* id, const char* name) { return std::make_unique<Bool> (pid (id), name, false); };
     layout.add (cutoff (cutoffIn, "Input Cutoff"), cutoff (cutoffB1, "Brain 1 Cutoff"), cutoff (cutoffB2, "Brain 2 Cutoff"),
                 formant (formantIn, "Input Formant"), formant (formantB1, "Brain 1 Formant"), formant (formantB2, "Brain 2 Formant"),
-                freeze (freezeEnvIn, "Input Freeze Envelope"), freeze (freezeDetIn, "Input Freeze Detail"),
-                freeze (freezeEnvB1, "Brain 1 Freeze Envelope"), freeze (freezeDetB1, "Brain 1 Freeze Detail"),
-                freeze (freezeEnvB2, "Brain 2 Freeze Envelope"), freeze (freezeDetB2, "Brain 2 Freeze Detail"));
+                freeze (freezeEnvIn, "Input Freeze Env"), freeze (freezeDetIn, "Input Freeze Detail"),
+                freeze (freezeEnvB1, "Brain 1 Freeze Env"), freeze (freezeDetB1, "Brain 1 Freeze Detail"),
+                freeze (freezeEnvB2, "Brain 2 Freeze Env"), freeze (freezeDetB2, "Brain 2 Freeze Detail"));
 
     // Cutoff modulation
     layout.add (std::make_unique<Float> (pid (lfoRate), "LFO Rate", juce::NormalisableRange<float> (0.01f, 20.0f, 0.0f, 0.3f), 1.0f,

@@ -3,22 +3,26 @@
 
 namespace cortex::ui
 {
+using namespace cortex::dsp;
+
 namespace
 {
     constexpr float maxQuefrency = 200.0f;   // the cutoff parameters' range
 }
 
 CepstrumView::CepstrumView (juce::AudioProcessorValueTreeState& state)
-    : cutoffAParam (*state.getParameter (cortex::ParamIDs::cutoffIn)),
-      cutoffBParam (*state.getParameter (cortex::ParamIDs::cutoffB1)),
-      cutoffAAttachment (cutoffAParam, [this] (float v) { cutoffA = v; repaint(); }),
-      cutoffBAttachment (cutoffBParam, [this] (float v) { cutoffB = v; repaint(); })
 {
-    cutoffAAttachment.sendInitialUpdate();
-    cutoffBAttachment.sendInitialUpdate();
+    const char* ids[] { cortex::ParamIDs::cutoffIn, cortex::ParamIDs::cutoffB1, cortex::ParamIDs::cutoffB2 };
+    for (int s = 0; s < numSources; ++s)
+    {
+        auto& c = cutoffs[(size_t) s];
+        c.param = state.getParameter (ids[s]);
+        c.attachment = std::make_unique<juce::ParameterAttachment> (*c.param, [this, s] (float v) { cutoffs[(size_t) s].value = v; repaint(); });
+        c.attachment->sendInitialUpdate();
+    }
 }
 
-void CepstrumView::setSnapshot (const cortex::dsp::MorphSnapshot& s)
+void CepstrumView::setSnapshot (const MorphSnapshot& s)
 {
     snapshot = s;
     repaint();
@@ -26,7 +30,7 @@ void CepstrumView::setSnapshot (const cortex::dsp::MorphSnapshot& s)
 
 juce::Rectangle<float> CepstrumView::plotArea() const
 {
-    return getLocalBounds().toFloat().reduced (10.0f).withTrimmedTop (14.0f).withTrimmedBottom (12.0f);
+    return getLocalBounds().toFloat().reduced (12.0f, 8.0f).withTrimmedTop (16.0f).withTrimmedBottom (12.0f);
 }
 
 float CepstrumView::xForQuefrency (float q) const
@@ -48,8 +52,8 @@ void CepstrumView::paint (juce::Graphics& g)
 
     g.setFont (juce::FontOptions (11.0f));
     g.setColour (colours::dim);
-    g.drawText ("cepstrum   |   left of a line: envelope, right: detail",
-                getLocalBounds().reduced (12, 4).removeFromTop (14), juce::Justification::centredLeft);
+    g.drawText ("cepstrum: drag a line to set that source's envelope / detail split",
+                getLocalBounds().reduced (12, 6).removeFromTop (14), juce::Justification::centredLeft);
     g.drawText ("quefrency 0-200 bins", getLocalBounds().reduced (12, 2).removeFromBottom (12), juce::Justification::centredRight);
 
     g.setColour (colours::outline);
@@ -58,85 +62,91 @@ void CepstrumView::paint (juce::Graphics& g)
     if (snapshot.valid)
     {
         // Skip c0 (overall level); scale to the largest remaining coefficient.
-        const int numQ = juce::jmin ((int) maxQuefrency, cortex::dsp::MorphSnapshot::numCoeffs);
+        const int numQ = juce::jmin ((int) maxQuefrency, MorphSnapshot::numCoeffs);
         float peak = 1.0e-6f;
-        for (int q = 1; q < numQ; ++q)
-            peak = juce::jmax (peak, std::abs (snapshot.ceps[cortex::dsp::input][(size_t) q]), std::abs (snapshot.ceps[cortex::dsp::brain1][(size_t) q]));
+        for (int s = 0; s < numSources; ++s)
+            if (snapshot.used[(size_t) s])
+                for (int q = 1; q < numQ; ++q)
+                    peak = juce::jmax (peak, std::abs (snapshot.ceps[(size_t) s][(size_t) q]));
 
-        auto plot = [&] (const std::array<float, cortex::dsp::MorphSnapshot::numCoeffs>& c, juce::Colour colour)
+        for (int s = numSources - 1; s >= 0; --s)
         {
+            if (! snapshot.used[(size_t) s])
+                continue;
             juce::Path p;
             for (int q = 1; q < numQ; ++q)
             {
                 const float px = xForQuefrency ((float) q);
-                const float py = area.getCentreY() - area.getHeight() * 0.48f * c[(size_t) q] / peak;
+                const float py = area.getCentreY() - area.getHeight() * 0.48f * snapshot.ceps[(size_t) s][(size_t) q] / peak;
                 if (q == 1) p.startNewSubPath (px, py);
                 else        p.lineTo (px, py);
             }
-            g.setColour (colour.withAlpha (0.8f));
-            g.strokePath (p, juce::PathStrokeType (1.3f));
-        };
-        plot (snapshot.ceps[cortex::dsp::brain1], colours::b);
-        plot (snapshot.ceps[cortex::dsp::input], colours::a);
+            g.setColour (colours::forSource (s).withAlpha (0.75f));
+            g.strokePath (p, juce::PathStrokeType (1.2f));
+        }
     }
 
-    auto drawCutoff = [&] (float q, juce::Colour colour, const char* label, bool labelBelow)
+    for (int s = 0; s < numSources; ++s)
     {
+        const float q = cutoffs[(size_t) s].value;
         const float px = xForQuefrency (q);
+        const auto colour = colours::forSource (s);
         g.setColour (colour);
         g.drawLine (px, area.getY(), px, area.getBottom(), 2.0f);
         g.setFont (juce::FontOptions (11.0f));
-        const auto text = juce::String (label) + " " + juce::String (juce::roundToInt (q));
-        const auto box = juce::Rectangle<float> (px + 4.0f, labelBelow ? area.getBottom() - 14.0f : area.getY(), 60.0f, 14.0f);
-        g.drawText (text, box.toNearestInt(), juce::Justification::centredLeft);
-    };
-    drawCutoff (cutoffA, colours::a, "Input", false);
-    drawCutoff (cutoffB, colours::b, "Brain 1", true);
+        const auto label = juce::String (colours::sourceName (s)) + " " + juce::String (juce::roundToInt (q));
+        g.drawText (label, juce::Rectangle<float> (px + 4.0f, area.getY() + (float) s * 14.0f, 90.0f, 14.0f).toNearestInt(),
+                    juce::Justification::centredLeft);
 
-    // Where the cutoffs actually are right now (they move under modulation).
-    if (snapshot.valid)
-        for (auto [q, colour] : { std::pair { snapshot.cutoff[cortex::dsp::input], colours::a }, std::pair { snapshot.cutoff[cortex::dsp::brain1], colours::b } })
-            if (std::abs (q - (colour == colours::a ? cutoffA : cutoffB)) > 0.5f)
-            {
-                const float px = xForQuefrency (q);
-                g.setColour (colour.withAlpha (0.55f));
-                const float dashes[] { 4.0f, 3.0f };
-                g.drawDashedLine ({ px, area.getY(), px, area.getBottom() }, dashes, 2, 1.5f);
-            }
+        // Where the cutoff actually is right now (it moves under modulation).
+        if (snapshot.valid && std::abs (snapshot.cutoff[(size_t) s] - q) > 0.5f)
+        {
+            const float live = xForQuefrency (snapshot.cutoff[(size_t) s]);
+            g.setColour (colour.withAlpha (0.55f));
+            const float dashes[] { 4.0f, 3.0f };
+            g.drawDashedLine ({ live, area.getY(), live, area.getBottom() }, dashes, 2, 1.5f);
+        }
+    }
 }
 
-juce::ParameterAttachment* CepstrumView::cutoffNear (float px)
+int CepstrumView::cutoffNear (float px) const
 {
-    const float da = std::abs (px - xForQuefrency (cutoffA));
-    const float db = std::abs (px - xForQuefrency (cutoffB));
-    if (juce::jmin (da, db) > 8.0f)
-        return nullptr;
-    return da <= db ? &cutoffAAttachment : &cutoffBAttachment;
+    int best = -1;
+    float bestDistance = 8.0f;
+    for (int s = 0; s < numSources; ++s)
+    {
+        const float d = std::abs (px - xForQuefrency (cutoffs[(size_t) s].value));
+        if (d < bestDistance)
+        {
+            bestDistance = d;
+            best = s;
+        }
+    }
+    return best;
 }
 
 void CepstrumView::mouseMove (const juce::MouseEvent& e)
 {
-    setMouseCursor (cutoffNear (e.position.x) != nullptr ? juce::MouseCursor::LeftRightResizeCursor
-                                                         : juce::MouseCursor::NormalCursor);
+    setMouseCursor (cutoffNear (e.position.x) >= 0 ? juce::MouseCursor::LeftRightResizeCursor : juce::MouseCursor::NormalCursor);
 }
 
 void CepstrumView::mouseDown (const juce::MouseEvent& e)
 {
     dragging = cutoffNear (e.position.x);
-    if (dragging != nullptr)
-        dragging->beginGesture();
+    if (dragging >= 0)
+        cutoffs[(size_t) dragging].attachment->beginGesture();
 }
 
 void CepstrumView::mouseDrag (const juce::MouseEvent& e)
 {
-    if (dragging != nullptr)
-        dragging->setValueAsPartOfGesture (juce::jlimit (4.0f, maxQuefrency, quefrencyForX (e.position.x)));
+    if (dragging >= 0)
+        cutoffs[(size_t) dragging].attachment->setValueAsPartOfGesture (juce::jlimit (4.0f, maxQuefrency, quefrencyForX (e.position.x)));
 }
 
 void CepstrumView::mouseUp (const juce::MouseEvent&)
 {
-    if (dragging != nullptr)
-        dragging->endGesture();
-    dragging = nullptr;
+    if (dragging >= 0)
+        cutoffs[(size_t) dragging].attachment->endGesture();
+    dragging = -1;
 }
 } // namespace cortex::ui

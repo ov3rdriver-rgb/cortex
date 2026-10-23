@@ -60,7 +60,7 @@ public:
 
     void runTest() override
     {
-        const auto dir = makeBrainFolder (77);
+        const auto dir = makeBrainFolder (77), dir2 = makeBrainFolder (91);
         const auto outDir = juce::File (juce::SystemStats::getEnvironmentVariable ("CORTEX_DIAG_OUT",
                                             juce::File::getSpecialLocation (juce::File::tempDirectory).getFullPathName()));
 
@@ -70,22 +70,24 @@ public:
 
             CortexAudioProcessor proc (instrument);
             auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
-            set (cortex::ParamIDs::envX, 0.65f);
-            set (cortex::ParamIDs::envY, 0.6f);
+            set (cortex::ParamIDs::envX, 0.45f);    // envelope: mostly Brain 1, some Brain 2 and Input
+            set (cortex::ParamIDs::envY, 0.55f);
             set (cortex::ParamIDs::cutoffB1, 40.0f);
+            set (cortex::ParamIDs::cutoffB2, 60.0f);
             proc.setNonRealtime (true);
             proc.prepareToPlay (48000.0, 512);
-            proc.loadBrainFrom ({ dir.getFullPathName() });
-            for (int i = 0; i < 600 && proc.getBrain() == nullptr; ++i)
+            proc.loadBrainFrom ({ dir.getFullPathName() }, 0);
+            proc.loadBrainFrom ({ dir2.getFullPathName() }, 1);
+            for (int i = 0; i < 600 && (proc.getBrain (0) == nullptr || proc.getBrain (1) == nullptr); ++i)
                 juce::Thread::sleep (50);
-            expect (proc.getBrain() != nullptr);
+            expect (proc.getBrain (0) != nullptr && proc.getBrain (1) != nullptr);
             runAudio (proc, 200);
 
             std::unique_ptr<juce::AudioProcessorEditor> editor (proc.createEditor());
             auto* cortexEditor = dynamic_cast<CortexAudioProcessorEditor*> (editor.get());
             expect (cortexEditor != nullptr);
 
-            for (auto [w, h] : { std::pair { 900, 620 }, std::pair { 1600, 1000 }, std::pair { 1040, 700 } })
+            for (auto [w, h] : { std::pair { 1120, 760 }, std::pair { 1700, 1100 }, std::pair { 1280, 820 } })
                 editor->setSize (w, h);
 
             cortexEditor->refresh();
@@ -121,6 +123,7 @@ public:
         }
 
         dir.deleteRecursively();
+        dir2.deleteRecursively();
     }
 };
 

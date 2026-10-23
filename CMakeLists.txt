@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Cortex VERSION 0.9.0 LANGUAGES C CXX)
+project(Cortex VERSION 0.10.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,7 +48,9 @@ set(CORTEX_DSP_SOURCES
     ${PROJECT_SOURCE_DIR}/Source/synth/MonoSynth.cpp)
 
 set(CORTEX_UI_SOURCES
-    ${PROJECT_SOURCE_DIR}/Source/ui/XYPad.cpp
+    ${PROJECT_SOURCE_DIR}/Source/ui/TrianglePad.cpp
+    ${PROJECT_SOURCE_DIR}/Source/ui/EnvelopeView.cpp
+    ${PROJECT_SOURCE_DIR}/Source/ui/BrainColumn.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/CepstrumView.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/BrainMap.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/ParamPanel.cpp)

@@ -4,12 +4,13 @@ namespace cortex::ui
 {
 namespace
 {
-    constexpr int cellWidth = 84;
     constexpr int labelHeight = 16;
     constexpr int maxKnobHeight = 92;
 }
 
-ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::StringArray& ids)
+ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::StringArray& ids,
+                        const juce::String& stripPrefix, int width)
+    : cellWidth (width)
 {
     for (const auto& id : ids)
     {
@@ -18,7 +19,10 @@ ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::S
             continue;
 
         auto c = std::make_unique<Control>();
-        c->label.setText (param->getName (24), juce::dontSendNotification);
+        auto name = param->getName (40);
+        if (stripPrefix.isNotEmpty() && name.startsWith (stripPrefix))
+            name = name.substring (stripPrefix.length());
+        c->label.setText (name, juce::dontSendNotification);
         c->label.setJustificationType (juce::Justification::centred);
         c->label.setFont (juce::FontOptions (11.5f));
         c->label.setColour (juce::Label::textColourId, colours::dim);
@@ -44,6 +48,18 @@ ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::S
             c->slider->setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
             c->slider->setColour (juce::Slider::textBoxBackgroundColourId, colours::background);
             c->sliderAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (state, id, *c->slider);
+
+            // The attachment shows the parameter's own text (full precision for
+            // plain floats); keep continuous values to two decimals, with the unit.
+            if (dynamic_cast<juce::AudioParameterInt*> (param) == nullptr)
+            {
+                const auto unit = param->getLabel();
+                c->slider->textFromValueFunction = [unit] (double v)
+                {
+                    return juce::String (v, 2) + (unit.isNotEmpty() ? " " + unit : juce::String());
+                };
+                c->slider->updateText();
+            }
             addAndMakeVisible (*c->slider);
         }
 

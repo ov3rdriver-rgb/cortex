@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "dsp/Cepstrum.h"
+#include "dsp/STFT.h"
 
 namespace cortex::ui
 {
@@ -13,9 +14,20 @@ namespace colours
     inline const juce::Colour outline    { 0xff2b303b };
     inline const juce::Colour text       { 0xffd9dee8 };
     inline const juce::Colour dim        { 0xff7b8496 };
-    inline const juce::Colour a          { 0xff4fd1c5 };   // input A
-    inline const juce::Colour b          { 0xfff6ad55 };   // input B / the brain
+    inline const juce::Colour a          { 0xff4fd1c5 };   // the Input
+    inline const juce::Colour b          { 0xfff6ad55 };   // Brain 1
+    inline const juce::Colour brain2     { 0xffb794f4 };   // Brain 2
     inline const juce::Colour result     { 0xfff687b3 };   // the morph
+
+    inline juce::Colour forSource (int source)
+    {
+        return source == cortex::dsp::input ? a : source == cortex::dsp::brain1 ? b : brain2;
+    }
+
+    inline const char* sourceName (int source)
+    {
+        return source == cortex::dsp::input ? "Input" : source == cortex::dsp::brain1 ? "Brain 1" : "Brain 2";
+    }
 }
 
 class CortexLookAndFeel final : public juce::LookAndFeel_V4

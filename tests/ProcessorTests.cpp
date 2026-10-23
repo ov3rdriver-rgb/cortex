@@ -11,14 +11,15 @@ public:
         CortexAudioProcessor proc;
 
         beginTest ("All brief parameters exist");
-        for (auto* id : { "morphX", "morphY", "cutoffA", "cutoffB", "phaseMode", "fftSize", "bSource",
+        for (auto* id : { "envX", "envY", "detailX", "detailY", "linkTriangles", "cutoffIn", "cutoffB1", "cutoffB2",
+                          "formantIn", "formantB1", "formantB2", "phaseMode", "fftSize", "inputSource",
                           "matchTimbre", "matchPitch", "envTransplant", "blockSize", "overlap",
-                          "novelty", "boredom", "stickyness", "searchMode", "cornerGainTL", "cornerGainBR",
+                          "novelty", "boredom", "stickyness", "searchMode",
                           "dryWet", "outGain", "limiter", "gateOn", "gateThresh", "autoMute", "autoMuteMs" })
             expect (proc.apvts.getParameter (id) != nullptr, juce::String ("missing ") + id);
 
         beginTest ("Cutoff defaults to 25 bins");
-        expectEquals ((int) proc.apvts.getRawParameterValue (cortex::ParamIDs::cutoffA)->load(), 25);
+        expectEquals ((int) proc.apvts.getRawParameterValue (cortex::ParamIDs::cutoffIn)->load(), 25);
 
         beginTest ("Sidechain bus present");
         expectEquals (proc.getBusCount (true), 2);
@@ -33,14 +34,14 @@ public:
         }
 
         beginTest ("State round-trips");
-        auto* x = proc.apvts.getParameter (cortex::ParamIDs::morphX);
+        auto* x = proc.apvts.getParameter (cortex::ParamIDs::envX);
         x->setValueNotifyingHost (0.7f);
         juce::MemoryBlock state;
         proc.getStateInformation (state);
 
         CortexAudioProcessor other;
         other.setStateInformation (state.getData(), (int) state.getSize());
-        expectWithinAbsoluteError (other.apvts.getParameter (cortex::ParamIDs::morphX)->getValue(), 0.7f, 1e-4f);
+        expectWithinAbsoluteError (other.apvts.getParameter (cortex::ParamIDs::envX)->getValue(), 0.7f, 1e-4f);
         expectEquals (other.getLatencySamples(), 4096);
 
         beginTest ("Silence in, silence out, no NaN");

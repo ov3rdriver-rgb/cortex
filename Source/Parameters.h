@@ -6,13 +6,31 @@
 // persisted in host sessions.
 namespace cortex::ParamIDs
 {
-    inline constexpr auto morphX        = "morphX";
-    inline constexpr auto morphY        = "morphY";
-    inline constexpr auto cutoffA       = "cutoffA";
-    inline constexpr auto cutoffB       = "cutoffB";
+    // The two morph triangles (corners: Brain 1 top, Brain 2 bottom-left,
+    // Input bottom-right), each as an x/y position.
+    inline constexpr auto envX          = "envX";
+    inline constexpr auto envY          = "envY";
+    inline constexpr auto detailX       = "detailX";
+    inline constexpr auto detailY       = "detailY";
+    inline constexpr auto linkTriangles = "linkTriangles";
+
+    // Per source: Input, Brain 1, Brain 2.
+    inline constexpr auto cutoffIn      = "cutoffIn";
+    inline constexpr auto cutoffB1      = "cutoffB1";
+    inline constexpr auto cutoffB2      = "cutoffB2";
+    inline constexpr auto formantIn     = "formantIn";
+    inline constexpr auto formantB1     = "formantB1";
+    inline constexpr auto formantB2     = "formantB2";
+    inline constexpr auto freezeEnvIn   = "freezeEnvIn";
+    inline constexpr auto freezeDetIn   = "freezeDetIn";
+    inline constexpr auto freezeEnvB1   = "freezeEnvB1";
+    inline constexpr auto freezeDetB1   = "freezeDetB1";
+    inline constexpr auto freezeEnvB2   = "freezeEnvB2";
+    inline constexpr auto freezeDetB2   = "freezeDetB2";
+
     inline constexpr auto phaseMode     = "phaseMode";
     inline constexpr auto fftSize       = "fftSize";
-    inline constexpr auto bSource       = "bSource";
+    inline constexpr auto inputSource   = "inputSource";   // effect only: Track / Sidechain
     inline constexpr auto matchTimbre   = "matchTimbre";
     inline constexpr auto matchPitch    = "matchPitch";
     inline constexpr auto envTransplant = "envTransplant";
@@ -22,8 +40,6 @@ namespace cortex::ParamIDs
     inline constexpr auto boredom       = "boredom";
     inline constexpr auto stickyness    = "stickyness";
     inline constexpr auto searchMode    = "searchMode";
-    inline constexpr auto cornerGainTL  = "cornerGainTL";
-    inline constexpr auto cornerGainBR  = "cornerGainBR";
     inline constexpr auto dryWet        = "dryWet";
     inline constexpr auto outGain       = "outGain";
     inline constexpr auto limiter       = "limiter";
@@ -32,16 +48,9 @@ namespace cortex::ParamIDs
     inline constexpr auto autoMute      = "autoMute";
     inline constexpr auto autoMuteMs    = "autoMuteMs";
     inline constexpr auto lowLatency    = "lowLatency";
-    inline constexpr auto aSource       = "aSource";
-    inline constexpr auto freezeEnvA    = "freezeEnvA";
-    inline constexpr auto freezeDetailA = "freezeDetailA";
-    inline constexpr auto freezeEnvB    = "freezeEnvB";
-    inline constexpr auto freezeDetailB = "freezeDetailB";
     inline constexpr auto cepstralGlide = "cepstralGlide";
     inline constexpr auto chaos         = "chaos";
     inline constexpr auto memory        = "memory";
-    inline constexpr auto formantA      = "formantA";
-    inline constexpr auto formantB      = "formantB";
     inline constexpr auto lfoRate       = "lfoRate";
     inline constexpr auto lfoDepth      = "lfoDepth";
     inline constexpr auto lfoShape      = "lfoShape";

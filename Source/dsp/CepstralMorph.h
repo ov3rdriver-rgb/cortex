@@ -2,45 +2,55 @@
 
 #include "Cepstrum.h"
 #include "PhaseBlend.h"
+#include "STFT.h"
 
 #include <array>
 #include <vector>
 
 namespace cortex::dsp
 {
+template <typename T>
+using PerSource = std::array<T, numSources>;
+
 struct MorphParams
 {
-    float x = 0.0f;           // envelope A -> B
-    float y = 0.0f;           // detail A -> B
-    float cutoffA = 25.0f;    // lifter cutoff quefrency (bins)
-    float cutoffB = 25.0f;
-    PhaseMode phaseMode = PhaseMode::fromA;
-    float cornerGainTLdB = 0.0f;  // A envelope + B detail
-    float cornerGainBRdB = 0.0f;  // B envelope + A detail
+    // How much each source contributes to the output's spectral envelope
+    // (formants, timbre) and to its detail (pitch, harmonics, texture).
+    // Each set sums to 1; the defaults are pure input.
+    PerSource<float> envWeights { 1.0f, 0.0f, 0.0f };
+    PerSource<float> detailWeights { 1.0f, 0.0f, 0.0f };
 
-    // Cepstral freeze (BRIEF.md §4 idea 6): hold a part of an input at the
+    PerSource<float> cutoff { 25.0f, 25.0f, 25.0f };   // lifter cutoff quefrency (bins)
+    PhaseSource phase = PhaseSource::followDetail;
+
+    // Cepstral freeze (BRIEF.md §4 idea 6): hold a part of a source at the
     // cepstrum it had when the freeze was switched on, while the rest moves.
-    bool freezeEnvA = false, freezeDetailA = false, freezeEnvB = false, freezeDetailB = false;
+    PerSource<bool> freezeEnv {}, freezeDetail {};
 
-    // Formant shift (BRIEF.md §4 idea 5): move each input's formants by this
-    // many semitones without changing its pitch.
-    float formantA = 0.0f, formantB = 0.0f;
+    // Formant shift (BRIEF.md §4 idea 5), semitones, without changing pitch.
+    PerSource<float> formant {};
 };
 
 // What the UI shows of the last processed frame: the low-quefrency cepstra of
-// A, B and the morphed result, plus the settings they were made with.
+// each source and of the morphed result, plus the settings they were made with.
 struct MorphSnapshot
 {
     static constexpr int numCoeffs = 256;
-    std::array<float, numCoeffs> cepsA {}, cepsB {}, cepsOut {};
-    float cutoffA = 25.0f, cutoffB = 25.0f, x = 0.0f, y = 0.0f;
+    PerSource<std::array<float, numCoeffs>> ceps {};
+    std::array<float, numCoeffs> cepsOut {};
+    PerSource<float> cutoff {}, envWeights {}, detailWeights {};
+    PerSource<bool> used {};
     int fftSize = 2048;
     double sampleRate = 48000.0;
     bool valid = false;
 };
 
-// The A/B cepstral morph core (BRIEF.md §3), one channel. Works on windowed
-// time-domain frames handed over by STFT.
+// The cepstral morph core (BRIEF.md §3) for three sources, one channel.
+// Works on windowed time-domain frames handed over by STFT. Each source is
+// liftered into envelope and detail at its own cutoff; the output envelope is
+// the envelope-weighted sum of the sources' envelopes, the output detail the
+// detail-weighted sum of their details. A source with no weight (and not
+// supplying the phase) is skipped, so it costs nothing.
 class CepstralMorph
 {
 public:
@@ -54,13 +64,14 @@ public:
     void snapToTargets() noexcept { current = target; }
     const MorphParams& getCurrent() const noexcept { return current; }
 
-    void processFrame (const float* frameA, const float* frameB, float* frameOut);
+    void processFrame (const STFT::Frames& frames, float* frameOut);
 
     // Filled in by every processFrame() (a few KB copy, no allocation).
     const MorphSnapshot& getSnapshot() const noexcept { return snapshot; }
 
 private:
     void advanceSmoothing() noexcept;
+    bool isUsed (int source) const noexcept;
 
     // Shifts the formants of `spectrum` (N bins, in place) by `factor` along
     // frequency, keeping phase and harmonic structure. The envelope is a
@@ -87,10 +98,11 @@ private:
         }
         float value (bool on, float live, int k) const noexcept { return on ? held[(size_t) k] : live; }
     };
-    Freeze freezeEnvA, freezeDetailA, freezeEnvB, freezeDetailB;
+    PerSource<Freeze> freezeEnv, freezeDetail;
 
     FFTBank fft;
-    std::vector<Complex> timeBuf, specA, specB, cepsA, cepsB, scratch;
+    std::vector<Complex> timeBuf, scratch, output;
+    PerSource<std::vector<Complex>> spectra, cepstra;
     std::vector<Complex> teCeps, teSpec;
     std::vector<float> teTarget, teEnvelope;
     MorphParams target, current;

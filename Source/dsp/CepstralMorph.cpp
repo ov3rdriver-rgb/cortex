@@ -1,5 +1,4 @@
 #include "CepstralMorph.h"
-#include "STFT.h"
 
 namespace cortex::dsp
 {
@@ -11,19 +10,25 @@ namespace
     constexpr float maxFormantBoostNepers = 2.763f;
     constexpr float maxFormantCutNepers = -6.908f;
 
-    float lerp (float a, float b, float t) noexcept { return a + t * (b - a); }
+    // Below this a weight counts as zero (the source can be skipped).
+    constexpr float unusedWeight = 1.0e-4f;
 }
 
 void CepstralMorph::prepare (double newSampleRate)
 {
     sampleRate = newSampleRate;
     fft.prepare();
-    for (auto* v : { &timeBuf, &specA, &specB, &cepsA, &cepsB, &scratch, &teCeps, &teSpec })
+    for (auto* v : { &timeBuf, &scratch, &output, &teCeps, &teSpec })
         v->assign ((size_t) maxFftSize, {});
+    for (int s = 0; s < numSources; ++s)
+    {
+        spectra[(size_t) s].assign ((size_t) maxFftSize, {});
+        cepstra[(size_t) s].assign ((size_t) maxFftSize, {});
+        freezeEnv[(size_t) s].held.assign ((size_t) maxFftSize, 0.0f);
+        freezeDetail[(size_t) s].held.assign ((size_t) maxFftSize, 0.0f);
+    }
     teTarget.assign ((size_t) (maxFftSize / 2 + 1), 0.0f);
     teEnvelope.assign ((size_t) (maxFftSize / 2 + 1), 0.0f);
-    for (auto* f : { &freezeEnvA, &freezeDetailA, &freezeEnvB, &freezeDetailB })
-        f->held.assign ((size_t) maxFftSize, 0.0f);
     setOrder (11);
     snapToTargets();
 }
@@ -32,8 +37,8 @@ void CepstralMorph::setOrder (int order)
 {
     fft.setOrder (order);
     // Held cepstra belong to the old size; recapture on the next frame.
-    for (auto* f : { &freezeEnvA, &freezeDetailA, &freezeEnvB, &freezeDetailB })
-        f->captured = false;
+    for (int s = 0; s < numSources; ++s)
+        freezeEnv[(size_t) s].captured = freezeDetail[(size_t) s].captured = false;
     const double hopSeconds = (double) (fft.size() / STFT::overlap) / sampleRate;
     smoothCoeff = (float) std::exp (-hopSeconds / smoothingSeconds);
     snapToTargets();
@@ -44,19 +49,30 @@ void CepstralMorph::advanceSmoothing() noexcept
     const float a = smoothCoeff;
     auto glide = [a] (float& c, float t) { c = t + a * (c - t); };
 
-    glide (current.x, target.x);
-    glide (current.y, target.y);
-    glide (current.cutoffA, target.cutoffA);
-    glide (current.cutoffB, target.cutoffB);
-    glide (current.cornerGainTLdB, target.cornerGainTLdB);
-    glide (current.cornerGainBRdB, target.cornerGainBRdB);
-    glide (current.formantA, target.formantA);
-    glide (current.formantB, target.formantB);
-    current.phaseMode = target.phaseMode;
-    current.freezeEnvA = target.freezeEnvA;
-    current.freezeDetailA = target.freezeDetailA;
-    current.freezeEnvB = target.freezeEnvB;
-    current.freezeDetailB = target.freezeDetailB;
+    for (int s = 0; s < numSources; ++s)
+    {
+        const auto i = (size_t) s;
+        glide (current.envWeights[i], target.envWeights[i]);
+        glide (current.detailWeights[i], target.detailWeights[i]);
+        glide (current.cutoff[i], target.cutoff[i]);
+        glide (current.formant[i], target.formant[i]);
+        // Snap weights that have glided to (almost) nothing, so a source that
+        // was faded out stops costing FFTs.
+        if (target.envWeights[i] == 0.0f && current.envWeights[i] < unusedWeight)
+            current.envWeights[i] = 0.0f;
+        if (target.detailWeights[i] == 0.0f && current.detailWeights[i] < unusedWeight)
+            current.detailWeights[i] = 0.0f;
+    }
+    current.phase = target.phase;
+    current.freezeEnv = target.freezeEnv;
+    current.freezeDetail = target.freezeDetail;
+}
+
+bool CepstralMorph::isUsed (int s) const noexcept
+{
+    const auto i = (size_t) s;
+    return current.envWeights[i] > 0.0f || current.detailWeights[i] > 0.0f
+        || (current.phase != PhaseSource::followDetail && (int) current.phase - 1 == s);
 }
 
 void CepstralMorph::shiftFormants (std::vector<Complex>& spectrum, float cutoff, float factor) noexcept
@@ -111,82 +127,69 @@ void CepstralMorph::shiftFormants (std::vector<Complex>& spectrum, float cutoff,
     }
 }
 
-void CepstralMorph::processFrame (const float* frameA, const float* frameB, float* frameOut)
+void CepstralMorph::processFrame (const STFT::Frames& frames, float* frameOut)
 {
     advanceSmoothing();
-    snapshot.cutoffA = current.cutoffA;
-    snapshot.cutoffB = current.cutoffB;
-    snapshot.x = current.x;
-    snapshot.y = current.y;
-    snapshot.fftSize = fft.size();
-    snapshot.sampleRate = sampleRate;
-    snapshot.valid = true;
 
     const int n = fft.size();
     const int half = n / 2;
-    const float x = current.x, y = current.y;
 
-    // 1. Spectra of both inputs.
-    for (int i = 0; i < n; ++i) timeBuf[(size_t) i] = { frameA[i], 0.0f };
-    fft.forward (timeBuf.data(), specA.data());
-    for (int i = 0; i < n; ++i) timeBuf[(size_t) i] = { frameB[i], 0.0f };
-    fft.forward (timeBuf.data(), specB.data());
+    PerSource<bool> used {};
+    for (int s = 0; s < numSources; ++s)
+        used[(size_t) s] = isUsed (s);
 
-    // Formant shift, applied to the input spectra before anything else.
-    if (std::abs (current.formantA) > 0.01f)
-        shiftFormants (specA, current.cutoffA, std::exp2 (current.formantA / 12.0f));
-    if (std::abs (current.formantB) > 0.01f)
-        shiftFormants (specB, current.cutoffB, std::exp2 (current.formantB / 12.0f));
+    // 1-3. Spectrum (formant-shifted if asked) and real cepstrum of each used source.
+    for (int s = 0; s < numSources; ++s)
+    {
+        if (! used[(size_t) s])
+            continue;
+        auto& spec = spectra[(size_t) s];
+        for (int i = 0; i < n; ++i)
+            timeBuf[(size_t) i] = { frames[(size_t) s][i], 0.0f };
+        fft.forward (timeBuf.data(), spec.data());
 
-    // 2-3. Real cepstra.
-    Cepstrum::realCepstrum (fft, specA.data(), scratch.data(), cepsA.data());
-    Cepstrum::realCepstrum (fft, specB.data(), scratch.data(), cepsB.data());
+        if (std::abs (current.formant[(size_t) s]) > 0.01f)
+            shiftFormants (spec, current.cutoff[(size_t) s], std::exp2 (current.formant[(size_t) s] / 12.0f));
 
-    freezeEnvA.update (current.freezeEnvA, cepsA, n);
-    freezeDetailA.update (current.freezeDetailA, cepsA, n);
-    freezeEnvB.update (current.freezeEnvB, cepsB, n);
-    freezeDetailB.update (current.freezeDetailB, cepsB, n);
+        Cepstrum::realCepstrum (fft, spec.data(), scratch.data(), cepstra[(size_t) s].data());
+        freezeEnv[(size_t) s].update (current.freezeEnv[(size_t) s], cepstra[(size_t) s], n);
+        freezeDetail[(size_t) s].update (current.freezeDetail[(size_t) s], cepstra[(size_t) s], n);
+    }
 
-    // 4-5. Lifter each input into envelope/detail and crossfade the parts separately.
+    // 4-5. Lifter each source into envelope/detail at its own cutoff and sum
+    // the parts with their own weights.
     for (int k = 0; k < n; ++k)
     {
         const int q = k <= half ? k : n - k;
-        const float wA = Cepstrum::envelopeWeight (q, current.cutoffA);
-        const float wB = Cepstrum::envelopeWeight (q, current.cutoffB);
-        const float ca = cepsA[(size_t) k].real();
-        const float cb = cepsB[(size_t) k].real();
-
-        const float envA = freezeEnvA.value (current.freezeEnvA, ca, k);
-        const float detA = freezeDetailA.value (current.freezeDetailA, ca, k);
-        const float envB = freezeEnvB.value (current.freezeEnvB, cb, k);
-        const float detB = freezeDetailB.value (current.freezeDetailB, cb, k);
-
-        const float env = lerp (wA * envA, wB * envB, x);
-        const float det = lerp ((1.0f - wA) * detA, (1.0f - wB) * detB, y);
-        scratch[(size_t) k] = { env + det, 0.0f };
-
-        if (k < MorphSnapshot::numCoeffs)
+        float env = 0.0f, det = 0.0f;
+        for (int s = 0; s < numSources; ++s)
         {
-            snapshot.cepsA[(size_t) k] = ca;
-            snapshot.cepsB[(size_t) k] = cb;
-            snapshot.cepsOut[(size_t) k] = env + det;
+            const auto i = (size_t) s;
+            if (! used[i])
+                continue;
+            const float c = cepstra[i][(size_t) k].real();
+            const float w = Cepstrum::envelopeWeight (q, current.cutoff[i]);
+            env += current.envWeights[i] * w * freezeEnv[i].value (current.freezeEnv[i], c, k);
+            det += current.detailWeights[i] * (1.0f - w) * freezeDetail[i].value (current.freezeDetail[i], c, k);
+            if (k < MorphSnapshot::numCoeffs)
+                snapshot.ceps[i][(size_t) k] = c;
         }
+        scratch[(size_t) k] = { env + det, 0.0f };
+        if (k < MorphSnapshot::numCoeffs)
+            snapshot.cepsOut[(size_t) k] = env + det;
     }
 
     // 6. Back to log magnitude.
-    fft.forward (scratch.data(), cepsA.data());   // cepsA now holds L'
-
-    // Off-diagonal corner trims, bilinear over the pad so pure corners are untouched.
-    const float cornerDb = current.cornerGainTLdB * (1.0f - x) * y
-                         + current.cornerGainBRdB * x * (1.0f - y);
-    const float gain = juce::Decibels::decibelsToGain (cornerDb, -200.0f);
+    fft.forward (scratch.data(), output.data());
 
     // 7-8. Phase, polar -> cartesian, Hermitian-symmetric spectrum, IFFT.
+    PerSource<float> phases {};
     for (int k = 0; k <= half; ++k)
     {
-        const float mag = juce::jmax (0.0f, std::exp (cepsA[(size_t) k].real()) - Cepstrum::epsilon) * gain;
-        const float ph = blendPhase (std::arg (specA[(size_t) k]), std::arg (specB[(size_t) k]), current.phaseMode, y);
-        scratch[(size_t) k] = std::polar (mag, ph);
+        for (int s = 0; s < numSources; ++s)
+            phases[(size_t) s] = used[(size_t) s] ? std::arg (spectra[(size_t) s][(size_t) k]) : 0.0f;
+        const float mag = juce::jmax (0.0f, std::exp (output[(size_t) k].real()) - Cepstrum::epsilon);
+        scratch[(size_t) k] = std::polar (mag, blendPhase (phases, current.detailWeights, current.phase));
     }
     for (int k = 1; k < half; ++k)
         scratch[(size_t) (n - k)] = std::conj (scratch[(size_t) k]);
@@ -194,5 +197,13 @@ void CepstralMorph::processFrame (const float* frameA, const float* frameB, floa
     fft.inverse (scratch.data(), timeBuf.data());
     for (int i = 0; i < n; ++i)
         frameOut[i] = timeBuf[(size_t) i].real();
+
+    snapshot.cutoff = current.cutoff;
+    snapshot.envWeights = current.envWeights;
+    snapshot.detailWeights = current.detailWeights;
+    snapshot.used = used;
+    snapshot.fftSize = n;
+    snapshot.sampleRate = sampleRate;
+    snapshot.valid = true;
 }
 } // namespace cortex::dsp

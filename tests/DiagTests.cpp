@@ -13,9 +13,11 @@ public:
     {
         CortexAudioProcessor proc;
         auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
-        set ("bSource", brain ? 1.0f : 0.0f);
-        set ("morphX", x);
-        set ("morphY", y);
+        // x / y move the envelope / detail along the Input -> Brain 1 edge.
+        set ("envX", 1.0f - 0.5f * x);
+        set ("envY", x);
+        set ("detailX", 1.0f - 0.5f * y);
+        set ("detailY", y);
         set ("novelty", novelty);
         proc.prepareToPlay (44100.0, 512);
         if (brain)

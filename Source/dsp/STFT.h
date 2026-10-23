@@ -2,12 +2,17 @@
 
 #include "Cepstrum.h"
 
+#include <array>
 #include <vector>
 
 namespace cortex::dsp
 {
-// Two-input, one-output overlap-add framework (BRIEF.md §2). Hann analysis and
-// synthesis windows, overlap 8 (hop = N/8). Latency is exactly N samples.
+// The morph's sources (BRIEF.md §3, extended to three): the live input and two brains.
+inline constexpr int numSources = 3;
+enum Source { input = 0, brain1 = 1, brain2 = 2 };
+
+// Multi-input, one-output overlap-add framework (BRIEF.md §2). Hann analysis
+// and synthesis windows, overlap 8 (hop = N/8). Latency is exactly N samples.
 //
 // Every hop, the frame callback receives the last N samples of each input
 // (analysis-windowed) and fills an N-sample output frame, which is then
@@ -16,6 +21,7 @@ class STFT
 {
 public:
     static constexpr int overlap = 8;
+    using Frames = std::array<const float*, numSources>;
 
     // Allocates for the largest FFT size. Not realtime-safe.
     void prepare();
@@ -30,12 +36,12 @@ public:
     // overlap-add tail drains and the output falls to silence.
     void setSkipFrames (bool shouldSkip) noexcept { skipFrames = shouldSkip; }
 
-    // FrameFn: void (const float* frameA, const float* frameB, float* frameOut)
+    // FrameFn: void (const Frames& frames, float* frameOut)
     template <typename FrameFn>
-    float processSample (float a, float b, FrameFn&& onFrame)
+    float processSample (const std::array<float, numSources>& in, FrameFn&& onFrame)
     {
-        inA[(size_t) pos] = a;
-        inB[(size_t) pos] = b;
+        for (int s = 0; s < numSources; ++s)
+            inputs[(size_t) s][(size_t) pos] = in[(size_t) s];
         const float y = outAcc[(size_t) pos];
         outAcc[(size_t) pos] = 0.0f;
 
@@ -48,7 +54,7 @@ public:
             if (! skipFrames)
             {
                 gatherFrames();
-                onFrame (frameA.data(), frameB.data(), frameOut.data());
+                onFrame (framePointers, frameOut.data());
                 overlapAdd();
             }
         }
@@ -60,7 +66,9 @@ private:
     void gatherFrames() noexcept;
     void overlapAdd() noexcept;
 
-    std::vector<float> inA, inB, outAcc, frameA, frameB, frameOut;
+    std::array<std::vector<float>, numSources> inputs, frames;
+    Frames framePointers {};
+    std::vector<float> outAcc, frameOut;
     std::array<std::vector<float>, maxFftOrder - minFftOrder + 1> windows;
     std::array<float, maxFftOrder - minFftOrder + 1> olaScales {};
     const float* window = nullptr;

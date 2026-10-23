@@ -4,8 +4,14 @@ namespace cortex::dsp
 {
 void STFT::prepare()
 {
-    for (auto* v : { &inA, &inB, &outAcc, &frameA, &frameB, &frameOut })
-        v->assign ((size_t) maxFftSize, 0.0f);
+    for (int s = 0; s < numSources; ++s)
+    {
+        inputs[(size_t) s].assign ((size_t) maxFftSize, 0.0f);
+        frames[(size_t) s].assign ((size_t) maxFftSize, 0.0f);
+        framePointers[(size_t) s] = frames[(size_t) s].data();
+    }
+    outAcc.assign ((size_t) maxFftSize, 0.0f);
+    frameOut.assign ((size_t) maxFftSize, 0.0f);
 
     for (int o = minFftOrder; o <= maxFftOrder; ++o)
     {
@@ -39,8 +45,9 @@ void STFT::setOrder (int order)
 
 void STFT::reset()
 {
-    for (auto* v : { &inA, &inB, &outAcc })
-        std::fill (v->begin(), v->end(), 0.0f);
+    for (auto& v : inputs)
+        std::fill (v.begin(), v.end(), 0.0f);
+    std::fill (outAcc.begin(), outAcc.end(), 0.0f);
     pos = 0;
     hopCounter = 0;
 }
@@ -48,12 +55,16 @@ void STFT::reset()
 void STFT::gatherFrames() noexcept
 {
     // pos now points at the oldest sample in the ring.
-    for (int i = 0, idx = pos; i < n; ++i)
+    for (int s = 0; s < numSources; ++s)
     {
-        frameA[(size_t) i] = inA[(size_t) idx] * window[i];
-        frameB[(size_t) i] = inB[(size_t) idx] * window[i];
-        if (++idx == n)
-            idx = 0;
+        const auto& in = inputs[(size_t) s];
+        auto& frame = frames[(size_t) s];
+        for (int i = 0, idx = pos; i < n; ++i)
+        {
+            frame[(size_t) i] = in[(size_t) idx] * window[i];
+            if (++idx == n)
+                idx = 0;
+        }
     }
 }
 

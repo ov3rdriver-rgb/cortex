@@ -1,4 +1,5 @@
 #include "Parameters.h"
+#include "dsp/Triangle.h"
 
 namespace cortex
 {
@@ -28,33 +29,37 @@ namespace
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool instrument)
 {
     using namespace ParamIDs;
+    using namespace cortex::dsp;
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    // Cepstral morph
-    layout.add (unit (morphX, "Morph Envelope", 1.0f),
-                unit (morphY, "Morph Detail", 0.0f),
-                std::make_unique<Int> (pid (cutoffA), "Cutoff Quefrency A", 4, 200, 25),
-                std::make_unique<Int> (pid (cutoffB), "Cutoff Quefrency B", 4, 200, 25),
-                std::make_unique<Choice> (pid (phaseMode), "Phase Mode",
-                                          juce::StringArray { "Phase A", "Phase B", "Interpolate", "Follow Detail" }, 0),
+    // Three-source cepstral morph. Defaults: the envelope from Brain 1, the
+    // detail (pitch) from your input - the brain's timbre on your notes.
+    layout.add (unit (envX, "Envelope X", triangleCorner[brain1Corner].x),
+                unit (envY, "Envelope Y", triangleCorner[brain1Corner].y),
+                unit (detailX, "Detail X", triangleCorner[inputCorner].x),
+                unit (detailY, "Detail Y", triangleCorner[inputCorner].y),
+                std::make_unique<Bool> (pid (linkTriangles), "Link Triangles", false),
+                std::make_unique<Choice> (pid (phaseMode), "Phase",
+                                          juce::StringArray { "Follow Detail", "Input", "Brain 1", "Brain 2" }, 0),
                 std::make_unique<Choice> (pid (fftSize), "FFT Size",
                                           juce::StringArray { "512", "1024", "2048", "4096" }, defaultFftSizeIndex),
-                std::make_unique<Bool> (pid (lowLatency), "Low Latency", false),
-                std::make_unique<Choice> (pid (aSource), "A Source", juce::StringArray { "Input", "Brain 2" }, 0),
-                std::make_unique<Choice> (pid (bSource), "B Source",
-                                          juce::StringArray { "Sidechain", "Brain" }, 1));
+                std::make_unique<Bool> (pid (lowLatency), "Low Latency", false));
+    if (! instrument)
+        layout.add (std::make_unique<Choice> (pid (inputSource), "Input", juce::StringArray { "Track", "Sidechain" }, 0));
 
-    // Cepstral freeze
-    layout.add (std::make_unique<Bool> (pid (freezeEnvA), "Freeze A Envelope", false),
-                std::make_unique<Bool> (pid (freezeDetailA), "Freeze A Detail", false),
-                std::make_unique<Bool> (pid (freezeEnvB), "Freeze B Envelope", false),
-                std::make_unique<Bool> (pid (freezeDetailB), "Freeze B Detail", false));
-
-    // Formant shift
-    layout.add (std::make_unique<Float> (pid (formantA), "Formant A", juce::NormalisableRange<float> (-24.0f, 24.0f, 0.01f), 0.0f,
-                                         juce::AudioParameterFloatAttributes().withLabel ("st")),
-                std::make_unique<Float> (pid (formantB), "Formant B", juce::NormalisableRange<float> (-24.0f, 24.0f, 0.01f), 0.0f,
-                                         juce::AudioParameterFloatAttributes().withLabel ("st")));
+    // Per-source envelope/detail split, formant shift and freeze.
+    auto cutoff = [] (const char* id, const char* name) { return std::make_unique<Int> (pid (id), name, 4, 200, 25); };
+    auto formant = [] (const char* id, const char* name)
+    {
+        return std::make_unique<Float> (pid (id), name, juce::NormalisableRange<float> (-24.0f, 24.0f, 0.01f), 0.0f,
+                                        juce::AudioParameterFloatAttributes().withLabel ("st"));
+    };
+    auto freeze = [] (const char* id, const char* name) { return std::make_unique<Bool> (pid (id), name, false); };
+    layout.add (cutoff (cutoffIn, "Input Cutoff"), cutoff (cutoffB1, "Brain 1 Cutoff"), cutoff (cutoffB2, "Brain 2 Cutoff"),
+                formant (formantIn, "Input Formant"), formant (formantB1, "Brain 1 Formant"), formant (formantB2, "Brain 2 Formant"),
+                freeze (freezeEnvIn, "Input Freeze Envelope"), freeze (freezeDetIn, "Input Freeze Detail"),
+                freeze (freezeEnvB1, "Brain 1 Freeze Envelope"), freeze (freezeDetB1, "Brain 1 Freeze Detail"),
+                freeze (freezeEnvB2, "Brain 2 Freeze Envelope"), freeze (freezeDetB2, "Brain 2 Freeze Detail"));
 
     // Cutoff modulation
     layout.add (std::make_unique<Float> (pid (lfoRate), "LFO Rate", juce::NormalisableRange<float> (0.01f, 20.0f, 0.0f, 0.3f), 1.0f,
@@ -63,7 +68,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                                          juce::AudioParameterFloatAttributes().withLabel ("bins")),
                 std::make_unique<Choice> (pid (lfoShape), "LFO Shape",
                                           juce::StringArray { "Sine", "Triangle", "Saw", "Square", "Sample & Hold" }, 0),
-                std::make_unique<Choice> (pid (lfoTarget), "LFO Target", juce::StringArray { "Cutoff A", "Cutoff B", "Both" }, 2),
+                std::make_unique<Choice> (pid (lfoTarget), "LFO Target", juce::StringArray { "Input", "Brain 1", "Brain 2", "All" }, 3),
                 std::make_unique<Float> (pid (envDepth), "Env Follow Depth", juce::NormalisableRange<float> (-100.0f, 100.0f), 0.0f,
                                          juce::AudioParameterFloatAttributes().withLabel ("bins")),
                 std::make_unique<Float> (pid (envAttack), "Env Attack", juce::NormalisableRange<float> (0.1f, 1000.0f, 0.0f, 0.4f), 10.0f,
@@ -87,9 +92,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                                           juce::StringArray { "Basic", "Rev", "Synaptic", "Synaptic Slide" }, 0));
 
     // Output / utility
-    layout.add (decibels (cornerGainTL, "Corner Gain TL", -24.0f, 12.0f, 0.0f),
-                decibels (cornerGainBR, "Corner Gain BR", -24.0f, 12.0f, 0.0f),
-                unit (dryWet, "Dry/Wet", 1.0f),
+    layout.add (unit (dryWet, "Dry/Wet", 1.0f),
                 decibels (outGain, "Output Gain", -24.0f, 12.0f, 0.0f),
                 std::make_unique<Bool> (pid (limiter), "Limiter", true),
                 std::make_unique<Bool> (pid (gateOn), "Gate", false),

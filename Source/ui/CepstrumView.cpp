@@ -9,8 +9,8 @@ namespace
 }
 
 CepstrumView::CepstrumView (juce::AudioProcessorValueTreeState& state)
-    : cutoffAParam (*state.getParameter (cortex::ParamIDs::cutoffA)),
-      cutoffBParam (*state.getParameter (cortex::ParamIDs::cutoffB)),
+    : cutoffAParam (*state.getParameter (cortex::ParamIDs::cutoffIn)),
+      cutoffBParam (*state.getParameter (cortex::ParamIDs::cutoffB1)),
       cutoffAAttachment (cutoffAParam, [this] (float v) { cutoffA = v; repaint(); }),
       cutoffBAttachment (cutoffBParam, [this] (float v) { cutoffB = v; repaint(); })
 {
@@ -61,7 +61,7 @@ void CepstrumView::paint (juce::Graphics& g)
         const int numQ = juce::jmin ((int) maxQuefrency, cortex::dsp::MorphSnapshot::numCoeffs);
         float peak = 1.0e-6f;
         for (int q = 1; q < numQ; ++q)
-            peak = juce::jmax (peak, std::abs (snapshot.cepsA[(size_t) q]), std::abs (snapshot.cepsB[(size_t) q]));
+            peak = juce::jmax (peak, std::abs (snapshot.ceps[cortex::dsp::input][(size_t) q]), std::abs (snapshot.ceps[cortex::dsp::brain1][(size_t) q]));
 
         auto plot = [&] (const std::array<float, cortex::dsp::MorphSnapshot::numCoeffs>& c, juce::Colour colour)
         {
@@ -76,8 +76,8 @@ void CepstrumView::paint (juce::Graphics& g)
             g.setColour (colour.withAlpha (0.8f));
             g.strokePath (p, juce::PathStrokeType (1.3f));
         };
-        plot (snapshot.cepsB, colours::b);
-        plot (snapshot.cepsA, colours::a);
+        plot (snapshot.ceps[cortex::dsp::brain1], colours::b);
+        plot (snapshot.ceps[cortex::dsp::input], colours::a);
     }
 
     auto drawCutoff = [&] (float q, juce::Colour colour, const char* label, bool labelBelow)
@@ -90,12 +90,12 @@ void CepstrumView::paint (juce::Graphics& g)
         const auto box = juce::Rectangle<float> (px + 4.0f, labelBelow ? area.getBottom() - 14.0f : area.getY(), 60.0f, 14.0f);
         g.drawText (text, box.toNearestInt(), juce::Justification::centredLeft);
     };
-    drawCutoff (cutoffA, colours::a, "A", false);
-    drawCutoff (cutoffB, colours::b, "B", true);
+    drawCutoff (cutoffA, colours::a, "Input", false);
+    drawCutoff (cutoffB, colours::b, "Brain 1", true);
 
     // Where the cutoffs actually are right now (they move under modulation).
     if (snapshot.valid)
-        for (auto [q, colour] : { std::pair { snapshot.cutoffA, colours::a }, std::pair { snapshot.cutoffB, colours::b } })
+        for (auto [q, colour] : { std::pair { snapshot.cutoff[cortex::dsp::input], colours::a }, std::pair { snapshot.cutoff[cortex::dsp::brain1], colours::b } })
             if (std::abs (q - (colour == colours::a ? cutoffA : cutoffB)) > 0.5f)
             {
                 const float px = xForQuefrency (q);

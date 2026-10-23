@@ -1,16 +1,25 @@
 #pragma once
 
+#include "STFT.h"
+
+#include <array>
+
 namespace cortex::dsp
 {
-// BRIEF.md §3 step 7. Values match the phaseMode parameter's choice index.
-enum class PhaseMode
+// BRIEF.md §3 step 7, for three sources. Values match the phaseMode
+// parameter's choice index.
+enum class PhaseSource
 {
-    fromA = 0,
-    fromB,
-    interpolate,   // shortest-arc lerp A -> B, weighted by morph Y
-    followDetail   // A when Y < 0.5, B above, crossfaded around the middle
+    followDetail = 0,   // the sources' phases weighted by their detail weights
+    input,
+    brain1,
+    brain2
 };
 
-// Returns the output phase for one bin. `y` is the detail morph amount (0..1).
-float blendPhase (float phaseA, float phaseB, PhaseMode mode, float y) noexcept;
+// Output phase for one bin. followDetail takes the angle of the sum of each
+// source's unit phasor weighted by its detail weight squared: a pure source
+// gives exactly its own phase, and between sources the dominant one leads.
+float blendPhase (const std::array<float, numSources>& phases,
+                  const std::array<float, numSources>& detailWeights,
+                  PhaseSource) noexcept;
 } // namespace cortex::dsp

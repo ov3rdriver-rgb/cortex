@@ -63,9 +63,12 @@ CutoffModulator::Offsets CutoffModulator::process (const Settings& s, const floa
     const float lfoOffset = s.lfoDepth * lfoValue;
     const float envOffset = s.envDepth * envLevel;
 
-    Offsets o;
-    o.a = envOffset + (s.target != Target::b ? lfoOffset : 0.0f);
-    o.b = envOffset + (s.target != Target::a ? lfoOffset : 0.0f);
+    Offsets o {};
+    for (int src = 0; src < numSources; ++src)
+    {
+        const bool targeted = s.target == Target::all || (int) s.target == src;
+        o[(size_t) src] = envOffset + (targeted ? lfoOffset : 0.0f);
+    }
     return o;
 }
 } // namespace cortex::dsp

@@ -12,7 +12,10 @@ namespace cortex::ui
 class ParamPanel final : public juce::Component
 {
 public:
-    ParamPanel (juce::AudioProcessorValueTreeState&, const juce::StringArray& ids);
+    // `stripPrefix` is removed from labels (e.g. "Brain 1 " inside the Brain 1
+    // column); `cellWidth` sets how wide each control is.
+    ParamPanel (juce::AudioProcessorValueTreeState&, const juce::StringArray& ids,
+                const juce::String& stripPrefix = {}, int cellWidth = 84);
 
     void resized() override;
 
@@ -29,5 +32,6 @@ private:
     };
 
     std::vector<std::unique_ptr<Control>> controls;
+    int cellWidth = 84;
 };
 } // namespace cortex::ui

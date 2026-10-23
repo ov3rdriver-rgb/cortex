@@ -7,8 +7,10 @@
 
 namespace cortex::ui
 {
-// The real cepstra of A and B by quefrency, with each input's lifter cutoff as
-// a line you can drag. Left of a cutoff is that input's envelope, right its detail.
+// The real cepstra of each source in play, by quefrency, with each source's
+// lifter cutoff as a line you can drag. Left of a source's line is its
+// envelope, right of it its detail. Dashed lines show where the cutoffs
+// actually are while modulation moves them.
 class CepstrumView final : public juce::Component
 {
 public:
@@ -26,14 +28,16 @@ private:
     juce::Rectangle<float> plotArea() const;
     float xForQuefrency (float q) const;
     float quefrencyForX (float px) const;
-    juce::ParameterAttachment* cutoffNear (float px);
+    int cutoffNear (float px) const;   // source index, or -1
 
-    juce::RangedAudioParameter& cutoffAParam;
-    juce::RangedAudioParameter& cutoffBParam;
-    juce::ParameterAttachment cutoffAAttachment, cutoffBAttachment;
-    float cutoffA = 25.0f, cutoffB = 25.0f;
-
-    juce::ParameterAttachment* dragging = nullptr;
+    struct Cutoff
+    {
+        juce::RangedAudioParameter* param = nullptr;
+        std::unique_ptr<juce::ParameterAttachment> attachment;
+        float value = 25.0f;
+    };
+    std::array<Cutoff, cortex::dsp::numSources> cutoffs;
+    int dragging = -1;
     cortex::dsp::MorphSnapshot snapshot;
 };
 } // namespace cortex::ui

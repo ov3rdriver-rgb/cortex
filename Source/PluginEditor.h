@@ -1,18 +1,19 @@
 #pragma once
 
 #include "PluginProcessor.h"
-#include "ui/BrainMap.h"
+#include "ui/BrainColumn.h"
 #include "ui/CepstrumView.h"
+#include "ui/EnvelopeView.h"
 #include "ui/ParamPanel.h"
 #include "ui/Theme.h"
-#include "ui/XYPad.h"
+#include "ui/TrianglePad.h"
 
 // Layout:
-//   header      title, brain status + progress, Load / Rebuild / Clear
-//   left        XY pad (with live envelopes), cepstrum view under it
-//   right       brain map, sound list, parameter tabs
-//   footer      credits, version
-// The whole window is a drop target for sample folders.
+//   header       title, Rebuild, version
+//   left/right   Brain 1 / Brain 2 columns (status, load, map, sounds, their settings)
+//   centre       Envelope and Detail triangles (+ Link), live envelopes, cepstrum
+//   bottom       Input panel (synth or track/sidechain + its settings), tabs
+// Files dropped on a brain column load into that brain; anywhere else, Brain 1.
 class CortexAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                          public juce::FileDragAndDropTarget,
                                          private juce::Timer
@@ -22,12 +23,9 @@ public:
     ~CortexAudioProcessorEditor() override;
 
     void paint (juce::Graphics&) override;
-    void paintOverChildren (juce::Graphics&) override;
     void resized() override;
 
     bool isInterestedInFileDrag (const juce::StringArray&) override { return true; }
-    void fileDragEnter (const juce::StringArray&, int, int) override { setDragHighlight (true); }
-    void fileDragExit (const juce::StringArray&) override { setDragHighlight (false); }
     void filesDropped (const juce::StringArray& files, int, int) override;
 
     // Pull the latest audio-thread state now (the timer does this 30x a second).
@@ -35,30 +33,23 @@ public:
 
 private:
     void timerCallback() override;
-    void setDragHighlight (bool);
 
     CortexAudioProcessor& processor;
     cortex::ui::CortexLookAndFeel lookAndFeel;
 
-    void chooseBrainFiles (int brain);
-    juce::String statusText (int brain) const;
+    juce::Label title, versionLabel, credits;
+    juce::TextButton rebuildButton { "Rebuild brains" };
 
-    juce::Label title, brainLabel, brain2Label;
-    double progress = 0.0;
-    juce::ProgressBar progressBar { progress };
-    juce::TextButton chooseButton { "Load..." }, rebuildButton { "Rebuild" }, clearButton { "Clear" };
-    juce::TextButton choose2Button { "Load 2..." }, clear2Button { "Clear 2" };
-    juce::ComboBox viewBrain;   // which brain the map, sound list and drops refer to
-    std::unique_ptr<juce::FileChooser> chooser;
-    bool dragHighlight = false;
+    cortex::ui::BrainColumn brain1Column, brain2Column;
+    cortex::ui::TrianglePad envelopeTriangle, detailTriangle;
+    juce::ToggleButton linkToggle { "Link: detail follows envelope" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> linkAttachment;
+    cortex::ui::EnvelopeView envelopes;
+    cortex::ui::CepstrumView cepstrum;
 
-    cortex::ui::XYPad xyPad;
-    cortex::ui::CepstrumView cepstrumView;
-    cortex::ui::BrainMap brainMap;
-    cortex::ui::SoundList soundList;
+    juce::Label inputTitle;
+    cortex::ui::ParamPanel inputPanel;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
-
-    juce::Label credits, versionLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CortexAudioProcessorEditor)
 };

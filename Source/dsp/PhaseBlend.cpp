@@ -1,41 +1,36 @@
 #include "PhaseBlend.h"
 
 #include <cmath>
-#include <numbers>
 
 namespace cortex::dsp
 {
-namespace
-{
-    constexpr float twoPi = 2.0f * std::numbers::pi_v<float>;
-
-    float shortestArcLerp (float a, float b, float t) noexcept
-    {
-        float d = b - a;
-        d -= twoPi * std::round (d / twoPi);
-        return a + t * d;
-    }
-
-    // Width of the A/B crossfade zone around y = 0.5 in followDetail mode.
-    constexpr float followZoneLo = 0.4f;
-    constexpr float followZoneHi = 0.6f;
-}
-
-float blendPhase (float phaseA, float phaseB, PhaseMode mode, float y) noexcept
+float blendPhase (const std::array<float, numSources>& phases,
+                  const std::array<float, numSources>& detailWeights,
+                  PhaseSource mode) noexcept
 {
     switch (mode)
     {
-        case PhaseMode::fromA:       return phaseA;
-        case PhaseMode::fromB:       return phaseB;
-        case PhaseMode::interpolate: return shortestArcLerp (phaseA, phaseB, y);
-        case PhaseMode::followDetail:
-        {
-            if (y <= followZoneLo) return phaseA;
-            if (y >= followZoneHi) return phaseB;
-            const float t = (y - followZoneLo) / (followZoneHi - followZoneLo);
-            return shortestArcLerp (phaseA, phaseB, t * t * (3.0f - 2.0f * t));
-        }
+        case PhaseSource::input:  return phases[input];
+        case PhaseSource::brain1: return phases[brain1];
+        case PhaseSource::brain2: return phases[brain2];
+        case PhaseSource::followDetail: break;
     }
-    return phaseA;
+
+    float re = 0.0f, im = 0.0f;
+    int strongest = input;
+    for (int s = 0; s < numSources; ++s)
+    {
+        const float w = detailWeights[(size_t) s] * detailWeights[(size_t) s];
+        re += w * std::cos (phases[(size_t) s]);
+        im += w * std::sin (phases[(size_t) s]);
+        if (detailWeights[(size_t) s] > detailWeights[(size_t) strongest])
+            strongest = s;
+    }
+
+    // Phasors that cancel (equal weights, opposite phases): fall back to the
+    // strongest source rather than an arbitrary angle.
+    if (re * re + im * im < 1.0e-12f)
+        return phases[(size_t) strongest];
+    return std::atan2 (im, re);
 }
 } // namespace cortex::dsp

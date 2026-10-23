@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "Parameters.h"
+#include "TestHelpers.h"
 #include "synth/MonoSynth.h"
 
 #include <cmath>
@@ -283,7 +284,7 @@ public:
             CortexAudioProcessor proc (false);
             auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
             set (cortex::ParamIDs::lowLatency, 1.0f);
-            set (cortex::ParamIDs::morphX, 0.0f);
+            cortex::test::setPureSource (proc.apvts, cortex::dsp::Source::input);
             set (cortex::ParamIDs::limiter, 0.0f);
             set (cortex::ParamIDs::autoMute, 0.0f);
             proc.setNonRealtime (true);

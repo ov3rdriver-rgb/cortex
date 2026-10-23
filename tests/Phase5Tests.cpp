@@ -1,6 +1,7 @@
 // Phase 5 (BRIEF.md §4 ideas 4-9) feature tests.
 
 #include "dsp/CepstralMorph.h"
+#include "TestHelpers.h"
 
 #include <juce_dsp/juce_dsp.h>
 
@@ -93,7 +94,7 @@ public:
             for (const auto& f : frames)
             {
                 std::vector<float> out ((size_t) frameSize);
-                m.processFrame (f.data(), silence.data(), out.data());
+                cortex::test::processAB (m, f.data(), silence.data(), out.data());
                 outs.push_back (out);
             }
             return outs;
@@ -102,7 +103,7 @@ public:
         beginTest ("Freezing all of A holds its magnitude spectrum while the input changes");
         {
             MorphParams p;
-            p.freezeEnvA = p.freezeDetailA = true;
+            p.freezeEnv[input] = p.freezeDetail[input] = true;
             const auto outs = run (p, { a1, a2 });
             const float held = maxAbsDiff (logMagnitude (outs[0]), logMagnitude (outs[1]));
             logMessage ("  frozen: max log-magnitude change " + juce::String (held, 5));
@@ -115,7 +116,7 @@ public:
         beginTest ("Freezing A's envelope holds the envelope, detail keeps following the input");
         {
             MorphParams p;
-            p.freezeEnvA = true;
+            p.freezeEnv[input] = true;
             const auto outs = run (p, { a1, a2 });
             const auto envBefore = lowCepstrum (outs[0], 18);   // well inside the 25-bin cutoff
             const auto envAfter = lowCepstrum (outs[1], 18);
@@ -134,19 +135,19 @@ public:
             m.prepare (48000.0);
             m.setOrder (order);
             MorphParams p;
-            p.freezeEnvA = p.freezeDetailA = true;
+            p.freezeEnv[input] = p.freezeDetail[input] = true;
             m.setTargets (p);
             m.snapToTargets();
             std::vector<float> o1 ((size_t) frameSize), o2 ((size_t) frameSize), ref ((size_t) frameSize);
-            m.processFrame (a1.data(), silence.data(), o1.data());
-            p.freezeEnvA = p.freezeDetailA = false;
+            cortex::test::processAB (m, a1.data(), silence.data(), o1.data());
+            p.freezeEnv[input] = p.freezeDetail[input] = false;
             m.setTargets (p);
-            m.processFrame (a2.data(), silence.data(), o2.data());
+            cortex::test::processAB (m, a2.data(), silence.data(), o2.data());
 
             CepstralMorph plain;
             plain.prepare (48000.0);
             plain.setOrder (order);
-            plain.processFrame (a2.data(), silence.data(), ref.data());
+            cortex::test::processAB (plain, a2.data(), silence.data(), ref.data());
             expectLessThan (maxAbsDiff (logMagnitude (o2), logMagnitude (ref)), 1.0e-3f);
         }
     }
@@ -184,11 +185,11 @@ public:
             for (int b = 0; b < 100; ++b)   // 1 s = 2 cycles
             {
                 const auto o = m.process (s, nullptr, block);
-                lo = std::min (lo, o.a);
-                hi = std::max (hi, o.a);
-                if (b > 0 && (o.a > 0.0f) != (last > 0.0f))
+                lo = std::min (lo, o[input]);
+                hi = std::max (hi, o[input]);
+                if (b > 0 && (o[input] > 0.0f) != (last > 0.0f))
                     ++signChanges;
-                last = o.a;
+                last = o[input];
             }
             expectGreaterOrEqual (lo, -30.0f);
             expectLessOrEqual (hi, 30.0f);
@@ -208,10 +209,10 @@ public:
             s.lfoDepth = 10.0f;
             s.shape = Mod::Shape::sampleAndHold;
             int changes = 0;
-            float last = m.process (s, nullptr, block).a;
+            float last = m.process (s, nullptr, block)[input];
             for (int b = 1; b < 100; ++b)
             {
-                const float v = m.process (s, nullptr, block).a;
+                const float v = m.process (s, nullptr, block)[input];
                 if (std::abs (v - last) > 1.0e-6f)
                     ++changes;
                 last = v;
@@ -224,16 +225,18 @@ public:
             Mod::Settings s;
             s.lfoDepth = 20.0f;
             s.shape = Mod::Shape::square;   // +1 at phase 0
-            for (auto [target, wantA, wantB] : { std::tuple { Mod::Target::a, true, false },
-                                                 std::tuple { Mod::Target::b, false, true },
-                                                 std::tuple { Mod::Target::both, true, true } })
+            for (auto [target, wantIn, wantB1, wantB2] : { std::tuple { Mod::Target::input, true, false, false },
+                                                           std::tuple { Mod::Target::brain1, false, true, false },
+                                                           std::tuple { Mod::Target::brain2, false, false, true },
+                                                           std::tuple { Mod::Target::all, true, true, true } })
             {
                 Mod m;
                 m.prepare (rate);
                 s.target = target;
                 const auto o = m.process (s, nullptr, block);
-                expectEquals (o.a, wantA ? 20.0f : 0.0f);
-                expectEquals (o.b, wantB ? 20.0f : 0.0f);
+                expectEquals (o[input], wantIn ? 20.0f : 0.0f);
+                expectEquals (o[brain1], wantB1 ? 20.0f : 0.0f);
+                expectEquals (o[brain2], wantB2 ? 20.0f : 0.0f);
             }
         }
 
@@ -252,23 +255,22 @@ public:
             Mod::Offsets o;
             for (int b = 0; b < 20; ++b)
                 o = m.process (s, loud.data(), block);
-            logMessage ("  loud: offset " + juce::String (o.a, 1) + " bins (level " + juce::String (m.getEnvelopeLevel(), 2) + ")");
-            expectLessThan (o.a, -36.0f);
+            logMessage ("  loud: offset " + juce::String (o[input], 1) + " bins (level " + juce::String (m.getEnvelopeLevel(), 2) + ")");
+            expectLessThan (o[input], -36.0f);
 
             for (int b = 0; b < 100; ++b)
                 o = m.process (s, quiet.data(), block);
-            logMessage ("  after 1 s of silence: offset " + juce::String (o.a, 2) + " bins");
-            expectWithinAbsoluteError (o.a, 0.0f, 0.5f);
+            logMessage ("  after 1 s of silence: offset " + juce::String (o[input], 2) + " bins");
+            expectWithinAbsoluteError (o[input], 0.0f, 0.5f);
         }
 
         beginTest ("In the plugin the live cutoff actually moves");
         {
             CortexAudioProcessor proc (false);
             auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
-            set (cortex::ParamIDs::bSource, 0.0f);
             set (cortex::ParamIDs::lfoDepth, 40.0f);
             set (cortex::ParamIDs::lfoRate, 4.0f);
-            set (cortex::ParamIDs::cutoffA, 60.0f);
+            set (cortex::ParamIDs::cutoffIn, 60.0f);
             proc.prepareToPlay (rate, 512);
 
             juce::AudioBuffer<float> buf (4, 512);
@@ -284,8 +286,8 @@ public:
                 cortex::dsp::MorphSnapshot snap;
                 if (b > 20 && proc.readMorphSnapshot (snap))
                 {
-                    lo = std::min (lo, snap.cutoffA);
-                    hi = std::max (hi, snap.cutoffA);
+                    lo = std::min (lo, snap.cutoff[input]);
+                    hi = std::max (hi, snap.cutoff[input]);
                 }
             }
             logMessage ("  live cutoff A swept " + juce::String (lo, 1) + " .. " + juce::String (hi, 1) + " (base 60, depth 40)");
@@ -339,11 +341,11 @@ public:
             m.prepare (48000.0);
             m.setOrder (order);
             MorphParams p;
-            p.formantA = semitones;
+            p.formant[input] = semitones;
             m.setTargets (p);
             m.snapToTargets();
             std::vector<float> out ((size_t) frameSize);
-            m.processFrame (voice.data(), silence.data(), out.data());
+            cortex::test::processAB (m, voice.data(), silence.data(), out.data());
             return out;
         };
 
@@ -364,7 +366,7 @@ public:
             plain.prepare (48000.0);
             plain.setOrder (order);
             std::vector<float> b ((size_t) frameSize);
-            plain.processFrame (voice.data(), silence.data(), b.data());
+            cortex::test::processAB (plain, voice.data(), silence.data(), b.data());
             expect (a == b);
         }
     }
@@ -601,14 +603,13 @@ public:
         int latency = 0;
     };
 
-    Render render (const juce::File& brain1, const juce::File& brain2, float aSource, float xy, float phase)
+    // Renders with both triangles (and the phase) on one source.
+    Render render (const juce::File& brain1, const juce::File& brain2, Source pure)
     {
         CortexAudioProcessor proc (false);
         auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
-        set (cortex::ParamIDs::aSource, aSource);
-        set (cortex::ParamIDs::morphX, xy);
-        set (cortex::ParamIDs::morphY, xy);
-        set (cortex::ParamIDs::phaseMode, phase);
+        cortex::test::setPureSource (proc.apvts, pure);
+        set (cortex::ParamIDs::phaseMode, (float) pure + 1.0f);
         set (cortex::ParamIDs::novelty, 0.0f);
         set (cortex::ParamIDs::limiter, 0.0f);
         set (cortex::ParamIDs::autoMute, 0.0f);
@@ -660,20 +661,20 @@ public:
         }
         const auto dir1 = writeFolder ("dark", dark), dir2 = writeFolder ("bright", bright);
 
-        beginTest ("A Source = Brain 2: the pad morphs between the two brains");
+        beginTest ("Each brain's corner plays that brain");
         {
-            const auto pureA = render (dir1, dir2, 1.0f, 0.0f, 0.0f);   // (0,0), phase A -> Brain 2
-            const auto pureB = render (dir1, dir2, 1.0f, 1.0f, 1.0f);   // (1,1), phase B -> Brain 1
-            logMessage ("  centroid: pure A (Brain 2, bright) " + juce::String (pureA.centroid, 0)
-                        + " Hz, pure B (Brain 1, dark) " + juce::String (pureB.centroid, 0) + " Hz");
-            expectGreaterThan (pureA.centroid, pureB.centroid * 4.0);
-            expectEquals (pureA.latency, 2048 + 1000 + 1024, "FFT + one brain's latency, not two");
+            const auto pure2 = render (dir1, dir2, Source::brain2);
+            const auto pure1 = render (dir1, dir2, Source::brain1);
+            logMessage ("  centroid: Brain 2 corner (bright) " + juce::String (pure2.centroid, 0)
+                        + " Hz, Brain 1 corner (dark) " + juce::String (pure1.centroid, 0) + " Hz");
+            expectGreaterThan (pure2.centroid, pure1.centroid * 4.0);
+            expectEquals (pure2.latency, 2048 + 1000 + 1024, "FFT + one brain's latency, not two");
         }
 
-        beginTest ("A Source = Brain 2 with no Brain 2 loaded: A stays the live input");
+        beginTest ("A corner whose brain isn't loaded plays the Input instead");
         {
-            const auto fallback = render (dir1, {}, 1.0f, 0.0f, 0.0f);
-            const auto input = render (dir1, {}, 0.0f, 0.0f, 0.0f);
+            const auto fallback = render (dir1, {}, Source::brain2);
+            const auto input = render (dir1, {}, Source::input);
             logMessage ("  centroid with no Brain 2: " + juce::String (fallback.centroid, 0) + " Hz (input path " + juce::String (input.centroid, 0) + " Hz)");
             expectWithinAbsoluteError (fallback.centroid, input.centroid, input.centroid * 0.02);
         }

@@ -56,14 +56,16 @@ CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
 
     // Parameter tabs. Every parameter lives on exactly one tab.
     const auto tabColour = colours::panel;
-    juce::StringArray morphIds { lowLatency, phaseMode, fftSize, cutoffA, cutoffB, formantA, formantB, cornerGainTL, cornerGainBR };
+    juce::StringArray morphIds { envX, envY, detailX, detailY, linkTriangles, phaseMode, fftSize, lowLatency };
     if (! p.isInstrument())
-        morphIds.insert (0, bSource);
-    morphIds.insert (0, aSource);
+        morphIds.insert (0, inputSource);
     tabs.addTab ("Morph", tabColour, new cortex::ui::ParamPanel (p.apvts, morphIds), true);
+    tabs.addTab ("Sources", tabColour, new cortex::ui::ParamPanel (p.apvts, { cutoffIn, cutoffB1, cutoffB2,
+                                                                              formantIn, formantB1, formantB2 }), true);
     tabs.addTab ("Mod", tabColour, new cortex::ui::ParamPanel (p.apvts, { lfoRate, lfoDepth, lfoShape, lfoTarget,
                                                                           envDepth, envAttack, envRelease }), true);
-    tabs.addTab ("Freeze", tabColour, new cortex::ui::ParamPanel (p.apvts, { freezeEnvA, freezeDetailA, freezeEnvB, freezeDetailB }), true);
+    tabs.addTab ("Freeze", tabColour, new cortex::ui::ParamPanel (p.apvts, { freezeEnvIn, freezeDetIn, freezeEnvB1, freezeDetB1,
+                                                                             freezeEnvB2, freezeDetB2 }), true);
     tabs.addTab ("Brain", tabColour, new cortex::ui::ParamPanel (p.apvts, { chaos, memory, cepstralGlide, matchTimbre, matchPitch, envTransplant, searchMode,
                                                                             novelty, boredom, stickyness, blockSize, overlap }), true);
     if (p.isInstrument())
@@ -191,7 +193,7 @@ juce::String CortexAudioProcessorEditor::statusText (int brain) const
     if (s.numBlocks > 0)
         return name + ": " + juce::String (s.numBlocks) + " blocks from " + juce::String (s.numSounds) + " sounds";
     return brain == 0 ? "Brain 1: drop a folder of samples anywhere on this window"
-                      : "Brain 2: optional - load one and set A Source to Brain 2 to morph between two brains";
+                      : "Brain 2: drop or load a second folder to morph between two brains";
 }
 
 void CortexAudioProcessorEditor::setDragHighlight (bool shouldHighlight)

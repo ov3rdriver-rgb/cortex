@@ -1,12 +1,13 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Parameters.h"
+#include "dsp/Triangle.h"
 #include "state/BrainCache.h"
 
 namespace
 {
-    // Plugin state keeps a reference to the brain (file list + cache path),
-    // never raw audio. Populated in Phase 2.
+    // Plugin state keeps a reference to each brain (its source files), never
+    // raw audio; the analysis comes back from the .cortexbrain cache.
     const juce::Identifier brainStateIds[] { "Brain", "Brain2" };
     const juce::Identifier sourceId { "Source" };
     const juce::Identifier pathId { "path" };
@@ -14,6 +15,9 @@ namespace
     constexpr double dcBlockHz = 5.0;
     constexpr double rampSeconds = 0.01;
     constexpr double crossfadeSeconds = 0.03;
+
+    using cortex::dsp::Source;
+    namespace id = cortex::ParamIDs;
 }
 
 juce::AudioProcessor::BusesProperties CortexAudioProcessor::busesFor (bool isInstrument)
@@ -40,59 +44,59 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
 
     auto get = [this] (const char* id) { return apvts.getRawParameterValue (id); };
 
-    params.morphX = get (cortex::ParamIDs::morphX);
-    params.morphY = get (cortex::ParamIDs::morphY);
-    params.cutoffA = get (cortex::ParamIDs::cutoffA);
-    params.cutoffB = get (cortex::ParamIDs::cutoffB);
-    params.phaseMode = get (cortex::ParamIDs::phaseMode);
-    params.fftSize = get (cortex::ParamIDs::fftSize);
-    params.bSource = get (cortex::ParamIDs::bSource);
-    params.cornerGainTL = get (cortex::ParamIDs::cornerGainTL);
-    params.cornerGainBR = get (cortex::ParamIDs::cornerGainBR);
-    params.dryWet = get (cortex::ParamIDs::dryWet);
-    params.outGain = get (cortex::ParamIDs::outGain);
-    params.limiter = get (cortex::ParamIDs::limiter);
-    params.gateOn = get (cortex::ParamIDs::gateOn);
-    params.gateThresh = get (cortex::ParamIDs::gateThresh);
-    params.autoMute = get (cortex::ParamIDs::autoMute);
-    params.autoMuteMs = get (cortex::ParamIDs::autoMuteMs);
-    params.lowLatency = get (cortex::ParamIDs::lowLatency);
-    params.aSource = get (cortex::ParamIDs::aSource);
-    params.freezeEnvA = get (cortex::ParamIDs::freezeEnvA);
-    params.freezeDetailA = get (cortex::ParamIDs::freezeDetailA);
-    params.freezeEnvB = get (cortex::ParamIDs::freezeEnvB);
-    params.freezeDetailB = get (cortex::ParamIDs::freezeDetailB);
-    params.chaos = get (cortex::ParamIDs::chaos);
-    params.cepstralGlide = get (cortex::ParamIDs::cepstralGlide);
-    params.memory = get (cortex::ParamIDs::memory);
-    params.formantA = get (cortex::ParamIDs::formantA);
-    params.formantB = get (cortex::ParamIDs::formantB);
-    params.lfoRate = get (cortex::ParamIDs::lfoRate);
-    params.lfoDepth = get (cortex::ParamIDs::lfoDepth);
-    params.lfoShape = get (cortex::ParamIDs::lfoShape);
-    params.lfoTarget = get (cortex::ParamIDs::lfoTarget);
-    params.envDepth = get (cortex::ParamIDs::envDepth);
-    params.envAttack = get (cortex::ParamIDs::envAttack);
-    params.envRelease = get (cortex::ParamIDs::envRelease);
-    params.matchTimbre = get (cortex::ParamIDs::matchTimbre);
-    params.matchPitch = get (cortex::ParamIDs::matchPitch);
-    params.envTransplant = get (cortex::ParamIDs::envTransplant);
-    params.blockSize = get (cortex::ParamIDs::blockSize);
-    params.overlap = get (cortex::ParamIDs::overlap);
-    params.novelty = get (cortex::ParamIDs::novelty);
-    params.boredom = get (cortex::ParamIDs::boredom);
-    params.stickyness = get (cortex::ParamIDs::stickyness);
-    params.searchMode = get (cortex::ParamIDs::searchMode);
+    params.envX = get (id::envX);
+    params.envY = get (id::envY);
+    params.detailX = get (id::detailX);
+    params.detailY = get (id::detailY);
+    params.linkTriangles = get (id::linkTriangles);
+    params.phaseMode = get (id::phaseMode);
+    params.fftSize = get (id::fftSize);
+    params.lowLatency = get (id::lowLatency);
+    if (! instrument)
+        params.inputSource = get (id::inputSource);
+    params.cutoff = { get (id::cutoffIn), get (id::cutoffB1), get (id::cutoffB2) };
+    params.formant = { get (id::formantIn), get (id::formantB1), get (id::formantB2) };
+    params.freezeEnv = { get (id::freezeEnvIn), get (id::freezeEnvB1), get (id::freezeEnvB2) };
+    params.freezeDetail = { get (id::freezeDetIn), get (id::freezeDetB1), get (id::freezeDetB2) };
+
+    params.dryWet = get (id::dryWet);
+    params.outGain = get (id::outGain);
+    params.limiter = get (id::limiter);
+    params.gateOn = get (id::gateOn);
+    params.gateThresh = get (id::gateThresh);
+    params.autoMute = get (id::autoMute);
+    params.autoMuteMs = get (id::autoMuteMs);
+
+    params.chaos = get (id::chaos);
+    params.cepstralGlide = get (id::cepstralGlide);
+    params.memory = get (id::memory);
+    params.lfoRate = get (id::lfoRate);
+    params.lfoDepth = get (id::lfoDepth);
+    params.lfoShape = get (id::lfoShape);
+    params.lfoTarget = get (id::lfoTarget);
+    params.envDepth = get (id::envDepth);
+    params.envAttack = get (id::envAttack);
+    params.envRelease = get (id::envRelease);
+    params.matchTimbre = get (id::matchTimbre);
+    params.matchPitch = get (id::matchPitch);
+    params.envTransplant = get (id::envTransplant);
+    params.blockSize = get (id::blockSize);
+    params.overlap = get (id::overlap);
+    params.novelty = get (id::novelty);
+    params.boredom = get (id::boredom);
+    params.stickyness = get (id::stickyness);
+    params.searchMode = get (id::searchMode);
+
     if (instrument)
     {
-        params.oscWave = get (cortex::ParamIDs::oscWave);
-        params.oscGlide = get (cortex::ParamIDs::oscGlide);
-        params.ampAttack = get (cortex::ParamIDs::ampAttack);
-        params.ampRelease = get (cortex::ParamIDs::ampRelease);
+        params.oscWave = get (id::oscWave);
+        params.oscGlide = get (id::oscGlide);
+        params.ampAttack = get (id::ampAttack);
+        params.ampRelease = get (id::ampRelease);
     }
 
-    for (auto* id : { cortex::ParamIDs::fftSize, cortex::ParamIDs::blockSize, cortex::ParamIDs::overlap, cortex::ParamIDs::lowLatency })
-        apvts.addParameterListener (id, this);
+    for (auto* param : { id::fftSize, id::blockSize, id::overlap, id::lowLatency })
+        apvts.addParameterListener (param, this);
     updateLatency();
     startTimerHz (10);
 }
@@ -102,8 +106,8 @@ CortexAudioProcessor::~CortexAudioProcessor()
     stopTimer();
     for (auto& s : slots)
         s.builder->cancel();
-    for (auto* id : { cortex::ParamIDs::fftSize, cortex::ParamIDs::blockSize, cortex::ParamIDs::overlap, cortex::ParamIDs::lowLatency })
-        apvts.removeParameterListener (id, this);
+    for (auto* param : { id::fftSize, id::blockSize, id::overlap, id::lowLatency })
+        apvts.removeParameterListener (param, this);
 }
 
 int CortexAudioProcessor::currentFftSize() const
@@ -130,19 +134,19 @@ void CortexAudioProcessor::parameterChanged (const juce::String& parameterID, fl
 cortex::dsp::MorphParams CortexAudioProcessor::readMorphParams() const
 {
     cortex::dsp::MorphParams p;
-    p.x = params.morphX->load();
-    p.y = params.morphY->load();
-    p.cutoffA = params.cutoffA->load();
-    p.cutoffB = params.cutoffB->load();
-    p.phaseMode = (cortex::dsp::PhaseMode) juce::jlimit (0, 3, (int) params.phaseMode->load());
-    p.cornerGainTLdB = params.cornerGainTL->load();
-    p.cornerGainBRdB = params.cornerGainBR->load();
-    p.freezeEnvA = params.freezeEnvA->load() > 0.5f;
-    p.freezeDetailA = params.freezeDetailA->load() > 0.5f;
-    p.freezeEnvB = params.freezeEnvB->load() > 0.5f;
-    p.freezeDetailB = params.freezeDetailB->load() > 0.5f;
-    p.formantA = params.formantA->load();
-    p.formantB = params.formantB->load();
+    p.envWeights = cortex::dsp::triangleWeights (params.envX->load(), params.envY->load());
+    p.detailWeights = params.linkTriangles->load() > 0.5f
+                          ? p.envWeights
+                          : cortex::dsp::triangleWeights (params.detailX->load(), params.detailY->load());
+    p.phase = (cortex::dsp::PhaseSource) juce::jlimit (0, 3, (int) params.phaseMode->load());
+    for (int s = 0; s < numSources; ++s)
+    {
+        const auto i = (size_t) s;
+        p.cutoff[i] = params.cutoff[i]->load();
+        p.formant[i] = params.formant[i]->load();
+        p.freezeEnv[i] = params.freezeEnv[i]->load() > 0.5f;
+        p.freezeDetail[i] = params.freezeDetail[i]->load() > 0.5f;
+    }
     return p;
 }
 
@@ -160,8 +164,11 @@ void CortexAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
         }
 
     for (int ch = 0; ch < maxChannels; ++ch)
-        for (auto* h : { &historyA, &historyB, &historyDry })
-            (*h)[(size_t) ch].assign ((size_t) historySize, 0.0f);
+    {
+        for (auto& h : history)
+            h[(size_t) ch].assign ((size_t) historySize, 0.0f);
+        historyDry[(size_t) ch].assign ((size_t) historySize, 0.0f);
+    }
     historyPos = 0;
     fadeRemaining = 0;
     fadeLength = juce::roundToInt (crossfadeSeconds * sampleRate);
@@ -171,10 +178,9 @@ void CortexAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     limiter.setThreshold (-0.3f);
     limiter.setRelease (50.0f);
 
-    for (auto* s : { &gateGainA, &gateGainB, &wetMix, &outGain })
+    for (auto* s : { &gateGain, &wetMix, &outGain })
         s->reset (sampleRate, rampSeconds);
-    gateGainA.setCurrentAndTargetValue (1.0f);
-    gateGainB.setCurrentAndTargetValue (1.0f);
+    gateGain.setCurrentAndTargetValue (1.0f);
     wetMix.setCurrentAndTargetValue (params.dryWet->load());
     outGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (params.outGain->load()));
 
@@ -184,7 +190,7 @@ void CortexAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     silentSamples = 0;
     activeOrder = -1;   // forces an engine setup on the first block
     activeBrainDelay = previousBrainDelay = 0;
-    activeADelay = previousADelay = 0;
+    activeDelays = previousDelays = {};
 
     // Brains are built at the host rate; a new rate needs a rebuild (usually a cache hit).
     {
@@ -227,7 +233,8 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     for (int ch = getTotalNumInputChannels(); ch < getTotalNumOutputChannels(); ++ch)
         buffer.clear (ch, 0, numSamples);
 
-    // Instrument: A is the MIDI-played oscillator, written where an effect's input would be.
+    // Instrument: the Input source is the MIDI-played oscillator, written where
+    // an effect's input would be (so it is also the dry signal).
     if (instrument && numChannels > 0)
     {
         monoSynth.setWaveform ((cortex::synth::Waveform) juce::jlimit (0, 3, (int) params.oscWave->load()));
@@ -238,99 +245,100 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);
     }
 
-    // Input B: the sidechain, or Brain 1 rendering a match for the live input.
-    // Input A: the live input, or Brain 2's match for it (4-corner brain).
-    auto* brainRenderer = slots[0].renderer.acquire();
-    auto* brain2Renderer = slots[1].renderer.acquire();
-    const bool useBrain = instrument || params.bSource->load() >= 0.5f;   // the instrument has no sidechain
-    const auto searchParams = readSearchParams();
+    // Effect: the Input source is the track, or the sidechain if chosen (and
+    // connected). The dry signal is always the track.
+    std::array<const float*, maxChannels> input {};
+    for (int ch = 0; ch < numChannels; ++ch)
+        input[(size_t) ch] = buffer.getReadPointer (ch);
+    if (! instrument && params.inputSource->load() >= 0.5f)
+    {
+        const auto* scBus = getBus (true, 1);
+        const int scChannels = scBus != nullptr && scBus->isEnabled() ? scBus->getNumberOfChannels() : 0;
+        if (scChannels > 0)
+            for (int ch = 0; ch < numChannels; ++ch)
+                input[(size_t) ch] = buffer.getReadPointer (getChannelIndexInProcessBlockBuffer (true, 1, juce::jmin (ch, scChannels - 1)));
+    }
+
+    // Brains: each renders its best match for the live input.
+    std::array<cortex::brain::Renderer*, numBrains> brains { slots[0].renderer.acquire(), slots[1].renderer.acquire() };
     const auto searchMode = (cortex::brain::SearchMode) juce::jlimit (0, 3, (int) params.searchMode->load());
-    for (auto* r : { brainRenderer, brain2Renderer })
-        if (r != nullptr)
+    const bool lowLatency = params.lowLatency->load() > 0.5f;
+    for (int b = 0; b < numBrains; ++b)
+        if (auto* r = brains[(size_t) b])
         {
             r->setBlocking (isNonRealtime());
-            r->setSearch (searchParams, searchMode);
+            r->setSearch (readSearchParams (b), searchMode);
+            r->setLowLatency (lowLatency);
         }
-    if (! useBrain)
-        brainRenderer = nullptr;
-    if (params.aSource->load() < 0.5f)
-        brain2Renderer = nullptr;   // without Brain 2 loaded, A stays the live input
 
-    // With B on Brain but no brain loaded yet, stay transparent rather than
-    // morphing towards silence.
+    // Morph settings. A brain that isn't loaded has nothing to give: its share
+    // of each triangle goes back to the Input, so an empty corner is transparent.
     auto morphParams = readMorphParams();
-    if (useBrain && brainRenderer == nullptr)
-        morphParams.x = morphParams.y = 0.0f;
+    for (auto* weights : { &morphParams.envWeights, &morphParams.detailWeights })
+        for (int b = 0; b < numBrains; ++b)
+            if (brains[(size_t) b] == nullptr)
+            {
+                (*weights)[Source::input] += (*weights)[(size_t) (Source::brain1 + b)];
+                (*weights)[(size_t) (Source::brain1 + b)] = 0.0f;
+            }
+    // ...and phase pinned to a missing brain follows the detail instead.
+    for (int b = 0; b < numBrains; ++b)
+        if (brains[(size_t) b] == nullptr && (int) morphParams.phase == (int) cortex::dsp::PhaseSource::brain1 + b)
+            morphParams.phase = cortex::dsp::PhaseSource::followDetail;
 
-    // Cutoff modulation: LFO + envelope follower on A (left channel).
+    // Cutoff modulation: LFO + envelope follower on the Input.
     {
         cortex::dsp::CutoffModulator::Settings mod;
         mod.lfoRateHz = params.lfoRate->load();
         mod.lfoDepth = params.lfoDepth->load();
         mod.shape = (cortex::dsp::CutoffModulator::Shape) juce::jlimit (0, 4, (int) params.lfoShape->load());
-        mod.target = (cortex::dsp::CutoffModulator::Target) juce::jlimit (0, 2, (int) params.lfoTarget->load());
+        mod.target = (cortex::dsp::CutoffModulator::Target) juce::jlimit (0, 3, (int) params.lfoTarget->load());
         mod.envDepth = params.envDepth->load();
         mod.envAttackMs = params.envAttack->load();
         mod.envReleaseMs = params.envRelease->load();
-        const auto offsets = cutoffModulator.process (mod, numChannels > 0 ? buffer.getReadPointer (0) : nullptr, numSamples);
-        morphParams.cutoffA = juce::jlimit (4.0f, 200.0f, morphParams.cutoffA + offsets.a);
-        morphParams.cutoffB = juce::jlimit (4.0f, 200.0f, morphParams.cutoffB + offsets.b);
+        const auto offsets = cutoffModulator.process (mod, numChannels > 0 ? input[0] : nullptr, numSamples);
+        for (int s = 0; s < numSources; ++s)
+            morphParams.cutoff[(size_t) s] = juce::jlimit (4.0f, 200.0f, morphParams.cutoff[(size_t) s] + offsets[(size_t) s]);
     }
 
-    // The brain answers one block (plus search time) late, so A is delayed by the
-    // same amount to line the two up. A change of FFT size or of that delay
-    // crossfades to a freshly primed engine. A change that arrives mid-crossfade
-    // waits for the next block after it.
-    // Low latency: smallest FFT, and A is not held back for the brain - your
-    // note/attack comes straight through and the brain's timbre follows a
-    // grain behind. Total latency is then just the 512-sample FFT.
-    const bool lowLatency = params.lowLatency->load() > 0.5f;
-    for (auto* r : { brainRenderer, brain2Renderer })
-        if (r != nullptr)
-            r->setLowLatency (lowLatency);
+    // Alignment. A brain answers a block (plus search time) after the input it
+    // matched, so everything is lined up with the latest loaded brain: the
+    // Input waits the full brain latency, each brain only for any difference.
+    // Low latency: smallest FFT and nothing waits - your playing comes straight
+    // through and the brains' timbre follows a grain behind.
     const int order = lowLatency ? cortex::dsp::minFftOrder
                                  : cortex::dsp::minFftOrder + juce::jlimit (0, 3, (int) params.fftSize->load());
-    // Everything lines up with the latest brain; A from Brain 2 is already that
-    // late itself, so it only waits for any difference.
-    const int latencyB = brainRenderer != nullptr && ! lowLatency ? brainRenderer->getLatencySamples() : 0;
-    const int latencyA = brain2Renderer != nullptr && ! lowLatency ? brain2Renderer->getLatencySamples() : 0;
-    const int brainDelay = juce::jmax (latencyA, latencyB);
-    const int aDelay = brainDelay - latencyA;
-    if ((order != activeOrder || brainDelay != activeBrainDelay || aDelay != activeADelay) && fadeRemaining == 0)
-        switchEngine (order, brainDelay, aDelay, morphParams);
+    PerSourceInt latency {};
+    for (int b = 0; b < numBrains; ++b)
+        if (brains[(size_t) b] != nullptr && ! lowLatency)
+            latency[(size_t) (Source::brain1 + b)] = brains[(size_t) b]->getLatencySamples();
+    const int brainDelay = juce::jmax (latency[Source::brain1], latency[Source::brain2]);
+    PerSourceInt delays {};
+    for (int s = 0; s < numSources; ++s)
+        delays[(size_t) s] = brainDelay - latency[(size_t) s];
+
+    // A change of FFT size or alignment crossfades to a freshly primed engine;
+    // one that arrives mid-crossfade waits for the next block after it.
+    if ((order != activeOrder || brainDelay != activeBrainDelay || delays != activeDelays) && fadeRemaining == 0)
+        switchEngine (order, brainDelay, delays, morphParams);
 
     for (auto& slot : engines)
         for (auto& e : slot)
             e.morph.setTargets (morphParams);
 
-    std::array<const float*, maxChannels> sidechain {};
-    const auto* scBus = getBus (true, 1);
-    const int scChannels = scBus != nullptr && scBus->isEnabled() ? scBus->getNumberOfChannels() : 0;
-    if (! useBrain && scChannels > 0)
-        for (int ch = 0; ch < maxChannels; ++ch)
-            sidechain[(size_t) ch] = buffer.getReadPointer (getChannelIndexInProcessBlockBuffer (true, 1, juce::jmin (ch, scChannels - 1)));
-
-    // Gate and auto-mute, decided per block from peak levels.
-    float peakA = 0.0f, peakB = 0.0f;
+    // Gate and auto-mute, from the Input's level (the brains follow it).
+    float peak = 0.0f;
     for (int ch = 0; ch < numChannels; ++ch)
-    {
-        peakA = juce::jmax (peakA, buffer.getMagnitude (ch, 0, numSamples));
-        if (sidechain[(size_t) ch] != nullptr)
-            peakB = juce::jmax (peakB, juce::FloatVectorOperations::findMaximum (sidechain[(size_t) ch], numSamples),
-                                -juce::FloatVectorOperations::findMinimum (sidechain[(size_t) ch], numSamples));
-    }
-    if (brainRenderer != nullptr)
-        peakB = peakA;   // the brain only sounds while it has input to follow
+        peak = juce::jmax (peak, juce::FloatVectorOperations::findMaximum (input[(size_t) ch], numSamples),
+                           -juce::FloatVectorOperations::findMinimum (input[(size_t) ch], numSamples));
 
     const float threshold = juce::Decibels::decibelsToGain (params.gateThresh->load());
-    const bool gateOn = params.gateOn->load() > 0.5f;
-    gateGainA.setTargetValue (gateOn && peakA < threshold ? 0.0f : 1.0f);
-    gateGainB.setTargetValue (gateOn && peakB < threshold ? 0.0f : 1.0f);
+    gateGain.setTargetValue (params.gateOn->load() > 0.5f && peak < threshold ? 0.0f : 1.0f);
 
     bool muted = false;
     if (params.autoMute->load() > 0.5f)
     {
-        silentSamples = (peakA < threshold && peakB < threshold) ? silentSamples + numSamples : 0;
+        silentSamples = peak < threshold ? silentSamples + numSamples : 0;
         muted = silentSamples > (int) (params.autoMuteMs->load() * 0.001 * currentSampleRate);
     }
     else
@@ -349,7 +357,6 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         out[(size_t) ch] = buffer.getWritePointer (ch);
 
     constexpr int historyMask = historySize - 1;
-    const int newDelay = activeADelay, oldDelay = previousADelay;
     const int newLatency = (1 << activeOrder) + activeBrainDelay;
     const int oldLatency = (1 << previousOrder) + previousBrainDelay;
     auto& active = engines[(size_t) activeSlot];
@@ -357,12 +364,11 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
     for (int i = 0; i < numSamples; ++i)
     {
-        const float ga = gateGainA.getNextValue();
-        const float gb = gateGainB.getNextValue();
+        const float gate = gateGain.getNextValue();
         const float wet = wetMix.getNextValue();
         const float og = outGain.getNextValue();
 
-        // Equal-power crossfade from the previous FFT size, if one is running.
+        // Equal-power crossfade from the previous engine setup, if one is running.
         float gainNew = 1.0f, gainOld = 0.0f;
         if (fadeRemaining > 0)
         {
@@ -371,46 +377,45 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             gainOld = std::cos (t * juce::MathConstants<float>::halfPi);
         }
 
-        // The brains are mono: each matches the mono mix of the live input and
+        // The brains are mono: each matches the mono mix of the Input and
         // feeds every channel.
-        float brainOut = 0.0f, brain2Out = 0.0f;
-        if (brainRenderer != nullptr || brain2Renderer != nullptr)
+        std::array<float, numBrains> brainOut {};
+        if (brains[0] != nullptr || brains[1] != nullptr)
         {
             float mono = 0.0f;
             for (int ch = 0; ch < numChannels; ++ch)
-                mono += out[(size_t) ch][i];
+                mono += input[(size_t) ch][i];
             mono /= (float) juce::jmax (1, numChannels);
-            if (brainRenderer != nullptr)
-                brainOut = brainRenderer->processSample (mono);
-            if (brain2Renderer != nullptr)
-                brain2Out = brain2Renderer->processSample (mono);
+            for (int b = 0; b < numBrains; ++b)
+                if (brains[(size_t) b] != nullptr)
+                    brainOut[(size_t) b] = brains[(size_t) b]->processSample (mono);
         }
 
         for (int ch = 0; ch < numChannels; ++ch)
         {
             const auto c = (size_t) ch;
-            const float a = out[c][i];
-            const float b = sidechain[c] != nullptr ? sidechain[c][i] : brainOut;
-            const float gatedA = (brain2Renderer != nullptr ? brain2Out : a) * ga, gatedB = b * gb;
+            const float dryNow = out[c][i];
 
-            historyA[c][(size_t) historyPos] = gatedA;
-            historyB[c][(size_t) historyPos] = gatedB;
-            historyDry[c][(size_t) historyPos] = a;
+            history[Source::input][c][(size_t) historyPos] = input[c][i] * gate;
+            history[Source::brain1][c][(size_t) historyPos] = brainOut[0];
+            history[Source::brain2][c][(size_t) historyPos] = brainOut[1];
+            historyDry[c][(size_t) historyPos] = dryNow;
 
-            // Each engine reads A at its own alignment delay.
-            auto runEngine = [&] (Engine& e, int delay)
+            // Each engine reads every source at its own alignment delay.
+            auto runEngine = [&] (Engine& e, const PerSourceInt& d)
             {
-                const float delayedA = historyA[c][(size_t) ((historyPos - delay) & historyMask)];
-                return e.stft.processSample (delayedA, gatedB, [&e] (const float* fa, const float* fb, float* fo)
-                                             { e.morph.processFrame (fa, fb, fo); });
+                std::array<float, numSources> in {};
+                for (int s = 0; s < numSources; ++s)
+                    in[(size_t) s] = history[(size_t) s][c][(size_t) ((historyPos - d[(size_t) s]) & historyMask)];
+                return e.stft.processSample (in, [&e] (const cortex::dsp::STFT::Frames& f, float* fo) { e.morph.processFrame (f, fo); });
             };
 
-            float w = runEngine (active[c], newDelay);
+            float w = runEngine (active[c], activeDelays);
             float dry = historyDry[c][(size_t) ((historyPos - newLatency) & historyMask)];
 
             if (fadeRemaining > 0)
             {
-                w = gainNew * w + gainOld * runEngine (fading[c], oldDelay);
+                w = gainNew * w + gainOld * runEngine (fading[c], previousDelays);
                 dry = gainNew * dry + gainOld * historyDry[c][(size_t) ((historyPos - oldLatency) & historyMask)];
             }
 
@@ -427,8 +432,9 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             --fadeRemaining;
     }
 
-    slots[0].playingBlock.store (brainRenderer != nullptr ? brainRenderer->getLastChosenBlock() : -1, std::memory_order_relaxed);
-    slots[1].playingBlock.store (brain2Renderer != nullptr ? brain2Renderer->getLastChosenBlock() : -1, std::memory_order_relaxed);
+    for (int b = 0; b < numBrains; ++b)
+        slots[(size_t) b].playingBlock.store (brains[(size_t) b] != nullptr ? brains[(size_t) b]->getLastChosenBlock() : -1,
+                                              std::memory_order_relaxed);
     if (numChannels > 0)
         morphSnapshots.publish (engines[(size_t) activeSlot][0].morph.getSnapshot());
 
@@ -439,35 +445,36 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     }
 }
 
-void CortexAudioProcessor::switchEngine (int newOrder, int newBrainDelay, int newADelay, const cortex::dsp::MorphParams& morphParams)
+void CortexAudioProcessor::switchEngine (int newOrder, int newBrainDelay, const PerSourceInt& newDelays,
+                                         const cortex::dsp::MorphParams& morphParams)
 {
     if (activeOrder < 0)
     {
         // First block after prepare: nothing to fade from.
-        primeEngine (activeSlot, newOrder, newADelay, morphParams);
+        primeEngine (activeSlot, newOrder, newDelays, morphParams);
         previousOrder = activeOrder = newOrder;
         previousBrainDelay = activeBrainDelay = newBrainDelay;
-        previousADelay = activeADelay = newADelay;
+        previousDelays = activeDelays = newDelays;
     }
     else
     {
         previousOrder = activeOrder;
         previousBrainDelay = activeBrainDelay;
-        previousADelay = activeADelay;
+        previousDelays = activeDelays;
         activeSlot = 1 - activeSlot;
-        primeEngine (activeSlot, newOrder, newADelay, morphParams);
+        primeEngine (activeSlot, newOrder, newDelays, morphParams);
         activeOrder = newOrder;
         activeBrainDelay = newBrainDelay;
-        activeADelay = newADelay;
+        activeDelays = newDelays;
         fadeRemaining = fadeLength;
     }
 
     reportedBrainDelay.store (newBrainDelay);
 }
 
-void CortexAudioProcessor::primeEngine (int slot, int order, int aDelay, const cortex::dsp::MorphParams& morphParams)
+void CortexAudioProcessor::primeEngine (int slot, int order, const PerSourceInt& delays, const cortex::dsp::MorphParams& morphParams)
 {
-    // Run the last 2N input samples (A at this engine's alignment delay) through
+    // Run the last 2N samples of each source (at its alignment delay) through
     // the new engine so its overlap-add buffer is already in steady state when
     // the crossfade starts. Costs 16 frames once per switch.
     constexpr int historyMask = historySize - 1;
@@ -481,14 +488,12 @@ void CortexAudioProcessor::primeEngine (int slot, int order, int aDelay, const c
         e.morph.setTargets (morphParams);
         e.morph.snapToTargets();
 
-        const auto& ha = historyA[(size_t) ch];
-        const auto& hb = historyB[(size_t) ch];
         for (int i = 2 * n; i > 0; --i)
         {
-            const auto idx = (size_t) ((historyPos - i) & historyMask);
-            const auto idxA = (size_t) ((historyPos - i - aDelay) & historyMask);
-            e.stft.processSample (ha[idxA], hb[idx], [&e] (const float* fa, const float* fb, float* fo)
-                                  { e.morph.processFrame (fa, fb, fo); });
+            std::array<float, numSources> in {};
+            for (int s = 0; s < numSources; ++s)
+                in[(size_t) s] = history[(size_t) s][(size_t) ch][(size_t) ((historyPos - i - delays[(size_t) s]) & historyMask)];
+            e.stft.processSample (in, [&e] (const cortex::dsp::STFT::Frames& f, float* fo) { e.morph.processFrame (f, fo); });
         }
     }
 }
@@ -501,8 +506,7 @@ juce::AudioProcessorEditor* CortexAudioProcessor::createEditor()
 void CortexAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
-    // Brains are stored by reference (source files); the analysis comes back
-    // from the .cortexbrain cache, which is keyed on those files and settings.
+
     for (int b = 0; b < numBrains; ++b)
     {
         state.removeChild (state.getChildWithName (brainStateIds[b]), nullptr);
@@ -559,13 +563,13 @@ cortex::brain::BrainSettings CortexAudioProcessor::currentBrainSettings() const
     return s;
 }
 
-cortex::brain::SearchParams CortexAudioProcessor::readSearchParams() const
+cortex::brain::SearchParams CortexAudioProcessor::readSearchParams (int brain) const
 {
     cortex::brain::SearchParams p;
     p.timbreWeight = params.matchTimbre->load();
     p.pitchWeight = params.matchPitch->load();
     p.envTransplant = params.envTransplant->load();
-    p.transplantCutoff = params.cutoffB->load();
+    p.transplantCutoff = params.cutoff[(size_t) (Source::brain1 + brain)]->load();
     p.cepstralGlide = params.cepstralGlide->load();
     return cortex::brain::applySearchKnobs (p, { params.novelty->load(), params.boredom->load(), params.stickyness->load() },
                                             params.chaos->load(), params.memory->load());

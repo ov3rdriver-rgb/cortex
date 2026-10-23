@@ -2,6 +2,7 @@
 #include "Parameters.h"
 #include "dsp/CepstralMorph.h"
 #include "dsp/STFT.h"
+#include "TestHelpers.h"
 
 #include <cmath>
 #include <vector>
@@ -26,8 +27,7 @@ std::vector<float> runMorph (const std::vector<float>& a, const std::vector<floa
 
     std::vector<float> out (a.size());
     for (size_t i = 0; i < a.size(); ++i)
-        out[i] = stft.processSample (a[i], b[i], [&] (const float* fa, const float* fb, float* fo)
-                                     { morph.processFrame (fa, fb, fo); });
+        out[i] = cortex::test::stftAB (stft, morph, a[i], b[i]);
     return out;
 }
 
@@ -145,15 +145,13 @@ public:
             const int n = 1 << order;
 
             beginTest ("XY (0,0), phase A reproduces A, N=" + juce::String (n));
-            MorphParams p;
-            p.phaseMode = PhaseMode::fromA;
+            auto p = cortex::test::abParams (0.0f, 0.0f, PhaseSource::input);
             const double dbA = nullDb (runMorph (a, b, p, order), a, n);
             logMessage ("  null A: " + juce::String (dbA, 1) + " dB");
             expectLessThan (dbA, -60.0);
 
             beginTest ("XY (1,1), phase B reproduces B, N=" + juce::String (n));
-            p.x = p.y = 1.0f;
-            p.phaseMode = PhaseMode::fromB;
+            p = cortex::test::abParams (1.0f, 1.0f, PhaseSource::brain1);
             const double dbB = nullDb (runMorph (a, b, p, order), b, n);
             logMessage ("  null B: " + juce::String (dbB, 1) + " dB");
             expectLessThan (dbB, -60.0);
@@ -175,10 +173,7 @@ public:
             const auto saw = sawtooth (len, f0);
             const auto pink = pinkNoise (len, 3);
 
-            MorphParams p;
-            p.x = 1.0f;
-            p.y = 0.0f;
-            p.phaseMode = PhaseMode::fromA;
+            const auto p = cortex::test::abParams (1.0f, 0.0f, PhaseSource::input);
             const auto out = runMorph (saw, pink, p, 11);
 
             const auto pa = powerSpectrum (saw, 4096);
@@ -199,13 +194,10 @@ public:
         beginTest ("Silence in: finite, silent, no denormals");
         {
             std::vector<float> zeros (len, 0.0f);
-            for (auto mode : { PhaseMode::fromA, PhaseMode::fromB, PhaseMode::interpolate, PhaseMode::followDetail })
+            for (auto mode : { PhaseSource::followDetail, PhaseSource::input, PhaseSource::brain1, PhaseSource::brain2 })
             {
-                MorphParams p;
-                p.x = 0.3f;
-                p.y = 0.7f;
-                p.phaseMode = mode;
-                p.cornerGainTLdB = 12.0f;
+                auto p = cortex::test::abParams (0.3f, 0.7f, mode);
+                p.envWeights = { 0.3f, 0.3f, 0.4f };   // all three sources in play
                 const auto out = runMorph (zeros, zeros, p, 11);
 
                 bool clean = true;
@@ -217,10 +209,7 @@ public:
 
         beginTest ("Mid-pad morph of noise stays finite and bounded");
         {
-            MorphParams p;
-            p.x = 0.5f;
-            p.y = 0.5f;
-            p.phaseMode = PhaseMode::interpolate;
+            const auto p = cortex::test::abParams (0.5f, 0.5f);
             const auto out = runMorph (a, b, p, 11);
             float peak = 0.0f;
             bool finite = true;

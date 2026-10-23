@@ -134,7 +134,8 @@ public:
         {
             // Parameter changes happen on the "host" thread between blocks.
             if (block % 100 == 50)  set ("fftSize", (float) ((block / 100) % 4));
-            if (block % 150 == 75)  set ("bSource", (block / 150) % 2 == 0 ? 0.0f : 1.0f);
+            if (block % 150 == 75)  set ("inputSource", (block / 150) % 2 == 0 ? 0.0f : 1.0f);
+            if (block % 90 == 45)   set ("envX", (float) (block % 7) / 7.0f);
             if (block % 120 == 60)  set ("searchMode", (float) ((block / 120) % 4));
             if (block == 300)       set ("phaseMode", 2.0f);
 

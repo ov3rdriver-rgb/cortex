@@ -70,9 +70,9 @@ public:
 
             CortexAudioProcessor proc (instrument);
             auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
-            set (cortex::ParamIDs::morphX, 0.65f);
-            set (cortex::ParamIDs::morphY, 0.3f);
-            set (cortex::ParamIDs::cutoffB, 40.0f);
+            set (cortex::ParamIDs::envX, 0.65f);
+            set (cortex::ParamIDs::envY, 0.6f);
+            set (cortex::ParamIDs::cutoffB1, 40.0f);
             proc.setNonRealtime (true);
             proc.prepareToPlay (48000.0, 512);
             proc.loadBrainFrom ({ dir.getFullPathName() });

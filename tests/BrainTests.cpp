@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "TestHelpers.h"
 #include "brain/BrainBuilder.h"
 #include "brain/Renderer.h"
 #include "state/BrainCache.h"
@@ -470,8 +471,6 @@ public:
         beginTest ("Brain feeds input B and its file list survives save/restore");
 
         CortexAudioProcessor proc;
-        auto* bSource = proc.apvts.getParameter ("bSource");
-        bSource->setValueNotifyingHost (1.0f);
         proc.prepareToPlay (brainRate, 512);
         proc.loadBrainFrom ({ dir.getFullPathName() });
 
@@ -546,19 +545,17 @@ public:
         const auto signal = testSignal ((size_t) brainRate * 4, 21);
         writeWav (dir.getChildFile ("brain.wav"), signal, brainRate);
 
-        struct Case { const char* name; float xy; float phase; };
-        for (auto c : { Case { "A path (pure A)", 0.0f, 0.0f }, Case { "B path (pure brain)", 1.0f, 1.0f } })
+        struct Case { const char* name; cortex::dsp::Source source; };
+        for (auto c : { Case { "Input corner", cortex::dsp::Source::input }, Case { "Brain 1 corner", cortex::dsp::Source::brain1 } })
         {
             beginTest (juce::String ("Output lines up with reported latency: ") + c.name);
 
             CortexAudioProcessor proc;
             auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
-            set ("bSource", 1.0f);
             set ("blockSize", 1024.0f);
             set ("overlap", 0.5f);
-            set ("morphX", c.xy);
-            set ("morphY", c.xy);
-            set ("phaseMode", c.phase);
+            cortex::test::setPureSource (proc.apvts, c.source);
+            set ("phaseMode", (float) c.source + 1.0f);
             set ("novelty", 0.0f);
             set ("dryWet", 1.0f);
             set ("limiter", 0.0f);

@@ -12,6 +12,7 @@ target_sources(CortexTests PRIVATE
     RealtimeTests.cpp
     InstrumentTests.cpp
     Phase5Tests.cpp
+    ThreeSourceTests.cpp
     UiTests.cpp
     ${CORTEX_DSP_SOURCES}
     ${CORTEX_UI_SOURCES})

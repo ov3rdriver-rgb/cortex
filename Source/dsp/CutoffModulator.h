@@ -2,6 +2,10 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
+#include "STFT.h"
+
+#include <array>
+
 namespace cortex::dsp
 {
 // Quefrency cutoff as a performance control (BRIEF.md §4 idea 7): an LFO and
@@ -12,23 +16,21 @@ class CutoffModulator
 {
 public:
     enum class Shape { sine = 0, triangle, saw, square, sampleAndHold };
-    enum class Target { a = 0, b, both };
+    enum class Target { input = 0, brain1, brain2, all };
 
     struct Settings
     {
         float lfoRateHz = 1.0f;
         float lfoDepth = 0.0f;       // bins, peak
         Shape shape = Shape::sine;
-        Target target = Target::both;
+        Target target = Target::all;
         float envDepth = 0.0f;       // bins at full level (can be negative)
         float envAttackMs = 10.0f;
         float envReleaseMs = 200.0f;
     };
 
-    struct Offsets
-    {
-        float a = 0.0f, b = 0.0f;
-    };
+    // Cutoff offset in bins for each source (indexed by dsp::Source).
+    using Offsets = std::array<float, numSources>;
 
     void prepare (double sampleRate);
     void reset();

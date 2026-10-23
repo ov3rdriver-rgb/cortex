@@ -12,8 +12,8 @@ namespace
 }
 
 XYPad::XYPad (juce::AudioProcessorValueTreeState& state)
-    : xParam (*state.getParameter (cortex::ParamIDs::morphX)),
-      yParam (*state.getParameter (cortex::ParamIDs::morphY)),
+    : xParam (*state.getParameter (cortex::ParamIDs::envX)),
+      yParam (*state.getParameter (cortex::ParamIDs::envY)),
       xAttachment (xParam, [this] (float v) { x = v; repaint(); }),
       yAttachment (yParam, [this] (float v) { y = v; repaint(); })
 {
@@ -56,12 +56,19 @@ void XYPad::paint (juce::Graphics& g)
         {
             const double hz = minHz * std::pow (maxHz / minHz, (double) i / (numPoints - 1));
             const double omega = juce::MathConstants<double>::twoPi * hz / snapshot.sampleRate;
-            const float ea = dbPerNeper * cepstralEnvelope (snapshot.cepsA.data(), (int) snapshot.cepsA.size(), snapshot.cutoffA, omega);
-            const float eb = dbPerNeper * cepstralEnvelope (snapshot.cepsB.data(), (int) snapshot.cepsB.size(), snapshot.cutoffB, omega);
-            curves[0][(size_t) i] = ea;
-            curves[1][(size_t) i] = eb;
-            curves[2][(size_t) i] = ea + snapshot.x * (eb - ea);   // the morph's envelope crossfade
-            top = juce::jmax (top, ea, eb);
+            using cortex::dsp::Source;
+            std::array<float, cortex::dsp::numSources> e {};
+            float result = 0.0f;
+            for (int s = 0; s < cortex::dsp::numSources; ++s)
+            {
+                e[(size_t) s] = dbPerNeper * cepstralEnvelope (snapshot.ceps[(size_t) s].data(), cortex::dsp::MorphSnapshot::numCoeffs,
+                                                               snapshot.cutoff[(size_t) s], omega);
+                result += snapshot.envWeights[(size_t) s] * e[(size_t) s];   // the morph's envelope blend
+            }
+            curves[0][(size_t) i] = e[Source::input];
+            curves[1][(size_t) i] = e[Source::brain1];
+            curves[2][(size_t) i] = result;
+            top = juce::jmax (top, e[Source::input], e[Source::brain1]);
         }
         top += 6.0f;
 
@@ -86,15 +93,14 @@ void XYPad::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (11.0f));
     g.setColour (colours::dim);
     const auto inner = area.reduced (6.0f).toNearestInt();
-    g.drawText ("A", inner, juce::Justification::bottomLeft);
-    g.drawText ("B", inner, juce::Justification::topRight);
-    g.drawText ("A envelope + B detail", inner, juce::Justification::topLeft);
-    g.drawText ("B envelope + A detail", inner, juce::Justification::bottomRight);
+    g.drawText ("Brain 2", inner, juce::Justification::bottomLeft);
+    g.drawText ("Brain 1", inner, juce::Justification::centredTop);
+    g.drawText ("Input", inner, juce::Justification::bottomRight);
 
     // Legend.
     auto legend = area.reduced (6.0f).removeFromBottom (14.0f).withTrimmedLeft (area.getWidth() * 0.25f)
                       .withWidth (area.getWidth() * 0.5f).toNearestInt();
-    const std::pair<const char*, juce::Colour> keys[] { { "A", colours::a }, { "B", colours::b }, { "result", colours::result } };
+    const std::pair<const char*, juce::Colour> keys[] { { "input", colours::a }, { "brain 1", colours::b }, { "result", colours::result } };
     const int keyWidth = legend.getWidth() / 3;
     for (auto& [name, colour] : keys)
     {
@@ -114,7 +120,7 @@ void XYPad::paint (juce::Graphics& g)
 
     g.setColour (colours::dim);
     g.setFont (juce::FontOptions (11.0f));
-    g.drawText ("envelope " + juce::String (x, 2) + "   detail " + juce::String (y, 2),
+    g.drawText ("envelope triangle  " + juce::String (x, 2) + ", " + juce::String (y, 2),
                 getLocalBounds().removeFromTop (22).withTrimmedRight (14), juce::Justification::centredRight);
 }
 

@@ -10,6 +10,13 @@ namespace
     constexpr float maxFormantBoostNepers = 2.763f;
     constexpr float maxFormantCutNepers = -6.908f;
 
+    // True-envelope iterations for formant shift: enough to climb onto the
+    // harmonic peaks (the formant tests check where formants land).
+    constexpr int trueEnvelopeIterations = 4;
+
+    // Formant gain curves are recomputed at least this often (in frames).
+    constexpr int formantUpdateFrames = 2;
+
     // Below this a weight counts as zero (the source can be skipped).
     constexpr float unusedWeight = 1.0e-4f;
 }
@@ -29,6 +36,9 @@ void CepstralMorph::prepare (double newSampleRate)
     }
     teTarget.assign ((size_t) (maxFftSize / 2 + 1), 0.0f);
     teEnvelope.assign ((size_t) (maxFftSize / 2 + 1), 0.0f);
+    teLifter.assign ((size_t) (maxFftSize / 2 + 1), 0.0f);
+    for (auto& c : formantCache)
+        c.gain.assign ((size_t) (maxFftSize / 2 + 1), 1.0f);
     setOrder (11);
     snapToTargets();
 }
@@ -39,6 +49,8 @@ void CepstralMorph::setOrder (int order)
     // Held cepstra belong to the old size; recapture on the next frame.
     for (int s = 0; s < numSources; ++s)
         freezeEnv[(size_t) s].captured = freezeDetail[(size_t) s].captured = false;
+    for (auto& c : formantCache)
+        c.valid = false;   // gain curves belong to the old size
     const double hopSeconds = (double) (fft.size() / STFT::overlap) / sampleRate;
     smoothCoeff = (float) std::exp (-hopSeconds / smoothingSeconds);
     snapToTargets();
@@ -75,17 +87,16 @@ bool CepstralMorph::isUsed (int s) const noexcept
         || (current.phase != PhaseSource::followDetail && (int) current.phase - 1 == s);
 }
 
-void CepstralMorph::shiftFormants (std::vector<Complex>& spectrum, float cutoff, float factor) noexcept
+void CepstralMorph::computeFormantGain (const std::vector<Complex>& spectrum, float cutoff, float factor, std::vector<float>& gain) noexcept
 {
-    // Iterations of the true-envelope estimate; it converges within a few dB
-    // of the harmonic peaks by about here.
-    constexpr int trueEnvelopeIterations = 8;
-
     const int n = fft.size();
     const int half = n / 2;
 
     for (int k = 0; k <= half; ++k)
+    {
         teTarget[(size_t) k] = std::log (std::abs (spectrum[(size_t) k]) + Cepstrum::epsilon);
+        teLifter[(size_t) k] = Cepstrum::envelopeWeight (k, cutoff);
+    }
 
     // True envelope: lifter, then raise the target to wherever the smooth
     // curve is above it, and repeat. The curve climbs onto the peaks.
@@ -95,7 +106,7 @@ void CepstralMorph::shiftFormants (std::vector<Complex>& spectrum, float cutoff,
             teSpec[(size_t) k] = { teTarget[(size_t) (k <= half ? k : n - k)], 0.0f };
         fft.inverse (teSpec.data(), teCeps.data());
         for (int k = 0; k < n; ++k)
-            teCeps[(size_t) k] *= Cepstrum::envelopeWeight (k <= half ? k : n - k, cutoff);
+            teCeps[(size_t) k] *= teLifter[(size_t) (k <= half ? k : n - k)];
         fft.forward (teCeps.data(), teSpec.data());
 
         for (int k = 0; k <= half; ++k)
@@ -120,10 +131,35 @@ void CepstralMorph::shiftFormants (std::vector<Complex>& spectrum, float cutoff,
         }
         // Bounded: where the envelope falls to the noise floor (above the last
         // harmonic, say) the raw difference would ask for absurd boosts.
-        const float gain = std::exp (juce::jlimit (maxFormantCutNepers, maxFormantBoostNepers, warped - teEnvelope[(size_t) k]));
-        spectrum[(size_t) k] *= gain;
+        gain[(size_t) k] = std::exp (juce::jlimit (maxFormantCutNepers, maxFormantBoostNepers, warped - teEnvelope[(size_t) k]));
+    }
+}
+
+void CepstralMorph::shiftFormants (int source, std::vector<Complex>& spectrum, float cutoff, float factor) noexcept
+{
+    // The gain curve is the expensive part (2 FFTs per envelope iteration).
+    // Frames are only a few ms apart, so reuse it for a couple of frames -
+    // unless the shift or the cutoff has moved, then recompute at once.
+    auto& cache = formantCache[(size_t) source];
+    const bool stale = ! cache.valid || cache.age >= formantUpdateFrames
+                    || std::abs (factor - cache.factor) > 1.0e-3f * factor || std::abs (cutoff - cache.cutoff) > 0.5f;
+    if (stale)
+    {
+        computeFormantGain (spectrum, cutoff, factor, cache.gain);
+        cache.valid = true;
+        cache.age = 0;
+        cache.factor = factor;
+        cache.cutoff = cutoff;
+    }
+    ++cache.age;
+
+    const int n = fft.size();
+    const int half = n / 2;
+    for (int k = 0; k <= half; ++k)
+    {
+        spectrum[(size_t) k] *= cache.gain[(size_t) k];
         if (k > 0 && k < half)
-            spectrum[(size_t) (n - k)] *= gain;
+            spectrum[(size_t) (n - k)] *= cache.gain[(size_t) k];
     }
 }
 
@@ -149,7 +185,9 @@ void CepstralMorph::processFrame (const STFT::Frames& frames, float* frameOut)
         fft.forward (timeBuf.data(), spec.data());
 
         if (std::abs (current.formant[(size_t) s]) > 0.01f)
-            shiftFormants (spec, current.cutoff[(size_t) s], std::exp2 (current.formant[(size_t) s] / 12.0f));
+            shiftFormants (s, spec, current.cutoff[(size_t) s], std::exp2 (current.formant[(size_t) s] / 12.0f));
+        else
+            formantCache[(size_t) s].valid = false;
 
         Cepstrum::realCepstrum (fft, spec.data(), scratch.data(), cepstra[(size_t) s].data());
         freezeEnv[(size_t) s].update (current.freezeEnv[(size_t) s], cepstra[(size_t) s], n);

@@ -77,7 +77,18 @@ private:
     // frequency, keeping phase and harmonic structure. The envelope is a
     // "true envelope" (iterated cepstral smoothing that rides the harmonic
     // peaks) at lifter `cutoff`, so harmonic sounds' formants actually move.
-    void shiftFormants (std::vector<Complex>& spectrum, float cutoff, float factor) noexcept;
+    void shiftFormants (int source, std::vector<Complex>& spectrum, float cutoff, float factor) noexcept;
+    void computeFormantGain (const std::vector<Complex>& spectrum, float cutoff, float factor, std::vector<float>& gain) noexcept;
+
+    // Each source's last formant gain curve, reused between recomputations.
+    struct FormantCache
+    {
+        std::vector<float> gain;
+        float factor = 0.0f, cutoff = 0.0f;
+        int age = 0;
+        bool valid = false;
+    };
+    PerSource<FormantCache> formantCache;
 
     // One frozen part: captured on the first frame after it is switched on.
     struct Freeze
@@ -104,7 +115,7 @@ private:
     std::vector<Complex> timeBuf, scratch, output;
     PerSource<std::vector<Complex>> spectra, cepstra;
     std::vector<Complex> teCeps, teSpec;
-    std::vector<float> teTarget, teEnvelope;
+    std::vector<float> teTarget, teEnvelope, teLifter;
     MorphParams target, current;
     double sampleRate = 48000.0;
     float smoothCoeff = 0.0f;

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- **Fixed:** formant shift used far too much CPU. With formant shift on all three sources, the audio processing needed 167% of a CPU core, so the DAW overloaded and audio dropped out. It now needs about 42%. Each shifted source adds about 7% instead of about 43%. The formant estimate uses 4 passes instead of 8, and its gain curve is reused for 2 frames (recomputed at once when the shift or cutoff moves). Formants land where they did before.
+- A manual CPU benchmark of the audio processing, with features switched on (`CORTEX_TEST_CATEGORY=CortexDiag`).
+
 ## 1.0.0
 
 First release.

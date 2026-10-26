@@ -143,3 +143,98 @@ public:
 };
 
 static SearchBench searchBench;
+
+#include "TestHelpers.h"
+#include "Parameters.h"
+
+// Manual benchmark: audio-callback cost of the plugin with features switched on.
+class CallbackBench final : public juce::UnitTest
+{
+public:
+    CallbackBench() : juce::UnitTest ("Callback bench", "CortexDiag") {}
+
+    static juce::File folder (int seed)
+    {
+        const auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("cortex-bench-" + juce::String (seed));
+        if (dir.isDirectory())
+            return dir;
+        dir.createDirectory();
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::AudioFormatWriter> w (wav.createWriterFor (new juce::FileOutputStream (dir.getChildFile ("b.wav")), 48000.0, 1, 24, {}, 0));
+        juce::AudioBuffer<float> a (1, 48000 * 20);
+        juce::Random rng (seed);
+        double phase = 0.0;
+        for (int i = 0; i < a.getNumSamples(); ++i)
+        {
+            phase += (100.0 + 400.0 * (0.5 + 0.5 * std::sin (i * 0.00003 * seed))) / 48000.0;
+            a.setSample (0, i, (float) (0.3 * (2.0 * (phase - std::floor (phase)) - 1.0)) + 0.1f * (rng.nextFloat() - 0.5f));
+        }
+        w->writeFromAudioSampleBuffer (a, 0, a.getNumSamples());
+        return dir;
+    }
+
+    double measure (const char* label, std::function<void (CortexAudioProcessor&)> setup, bool brains)
+    {
+        CortexAudioProcessor proc (false);
+        setup (proc);
+        proc.prepareToPlay (48000.0, 512);
+        if (brains)
+        {
+            proc.loadBrainFrom ({ folder (3).getFullPathName() }, 0);
+            proc.loadBrainFrom ({ folder (7).getFullPathName() }, 1);
+            for (int i = 0; i < 1200 && (proc.getBrain (0) == nullptr || proc.getBrain (1) == nullptr); ++i)
+                juce::Thread::sleep (50);
+        }
+        juce::AudioBuffer<float> buf (4, 512);
+        juce::MidiBuffer midi;
+        juce::Random rng (1);
+        auto run = [&] (int blocks)
+        {
+            for (int b = 0; b < blocks; ++b)
+            {
+                for (int ch = 0; ch < 4; ++ch)
+                    for (int i = 0; i < 512; ++i)
+                        buf.setSample (ch, i, 0.3f * (rng.nextFloat() - 0.5f));
+                proc.processBlock (buf, midi);
+            }
+        };
+        run (200);   // settle (engine switches, priming)
+        const int blocks = 2000;
+        const auto t0 = juce::Time::getMillisecondCounterHiRes();
+        run (blocks);
+        const double ms = juce::Time::getMillisecondCounterHiRes() - t0;
+        const double realtime = blocks * 512.0 / 48.0;   // ms of audio
+        const double load = 100.0 * ms / realtime;
+        std::printf ("  %-48s %5.1f%% of one core (%.3f ms per 512-sample block)\n", label, load, ms / blocks);
+        return load;
+    }
+
+    void runTest() override
+    {
+        beginTest ("callback cost");
+        using namespace cortex::ParamIDs;
+        auto setter = [] (std::initializer_list<std::pair<const char*, float>> values)
+        {
+            std::vector<std::pair<const char*, float>> v (values);
+            return [v] (CortexAudioProcessor& p)
+            {
+                for (auto [id, value] : v)
+                    if (auto* param = p.apvts.getParameter (id))
+                        param->setValueNotifyingHost (param->convertTo0to1 (value));
+            };
+        };
+
+        measure ("defaults, no brains", setter ({}), false);
+        measure ("defaults, two brains (envelope at Brain 1)", setter ({}), true);
+        measure ("triangles at the centre (all 3 sources)", setter ({ { envX, 0.5f }, { envY, 0.33f }, { detailX, 0.5f }, { detailY, 0.33f } }), true);
+        measure ("centre + formant shift on all 3", setter ({ { envX, 0.5f }, { envY, 0.33f }, { detailX, 0.5f }, { detailY, 0.33f },
+                                                            { formantIn, 5.0f }, { formantB1, -3.0f }, { formantB2, 7.0f } }), true);
+        measure ("centre + formant + FFT 4096", setter ({ { envX, 0.5f }, { envY, 0.33f }, { detailX, 0.5f }, { detailY, 0.33f },
+                                                         { formantIn, 5.0f }, { formantB1, -3.0f }, { formantB2, 7.0f }, { fftSize, 3.0f } }), true);
+        measure ("centre + transplant + glide", setter ({ { envX, 0.5f }, { envY, 0.33f }, { detailX, 0.5f }, { detailY, 0.33f },
+                                                         { envTransplant, 1.0f }, { cepstralGlide, 1.0f } }), true);
+        expect (true);
+    }
+};
+
+static CallbackBench callbackBench;

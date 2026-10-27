@@ -35,7 +35,8 @@ juce_add_binary_data(CortexFonts
     HEADER_NAME CortexFonts.h
     NAMESPACE CortexFonts
     SOURCES
-        Resources/fonts/Inter-Variable.ttf
+        Resources/fonts/Inter-Regular.ttf
+        Resources/fonts/Inter-SemiBold.ttf
         Resources/fonts/Barlow-Regular.ttf
         Resources/fonts/Barlow-SemiBold.ttf)
 set_target_properties(CortexFonts PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
@@ -66,7 +67,8 @@ set(CORTEX_UI_SOURCES
     ${PROJECT_SOURCE_DIR}/Source/ui/BrainMap.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/ParamPanel.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/MeterStrip.cpp
-    ${PROJECT_SOURCE_DIR}/Source/ui/MainView.cpp)
+    ${PROJECT_SOURCE_DIR}/Source/ui/MainView.cpp
+    ${PROJECT_SOURCE_DIR}/Source/ui/Theme.cpp)
 
 # Both plugins are built from the same sources; the processor picks effect or
 # instrument behaviour from JucePlugin_IsSynth.

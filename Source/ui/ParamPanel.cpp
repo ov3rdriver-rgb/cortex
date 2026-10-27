@@ -1,4 +1,5 @@
 #include "ParamPanel.h"
+#include "Tooltips.h"
 
 namespace cortex::ui
 {
@@ -74,6 +75,12 @@ ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::S
             }
             addAndMakeVisible (*c->slider);
         }
+
+        const auto tip = tips::forParam (id);
+        c->label.setTooltip (tip);
+        if (c->slider != nullptr) c->slider->setTooltip (tip);
+        if (c->combo != nullptr)  c->combo->setTooltip (tip);
+        if (c->toggle != nullptr) c->toggle->setTooltip (tip);
 
         controls.push_back (std::move (c));
     }

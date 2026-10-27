@@ -11,7 +11,8 @@ namespace cortex::ui
 // bottom-right. Drag the dot to set how much each source contributes (to the
 // envelope, or to the detail). The corners are tinted by their source's
 // colour, and each corner shows its current weight.
-class TrianglePad final : public juce::Component
+class TrianglePad final : public juce::Component,
+                          public juce::SettableTooltipClient
 {
 public:
     TrianglePad (juce::AudioProcessorValueTreeState&, const char* xParamId, const char* yParamId, juce::String title);

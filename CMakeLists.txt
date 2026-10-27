@@ -29,6 +29,18 @@ FetchContent_Declare(juce
     GIT_SHALLOW    ON)
 FetchContent_MakeAvailable(juce)
 
+# Embedded UI fonts (SIL Open Font License; see Resources/fonts), so both
+# themes look the same on every platform.
+juce_add_binary_data(CortexFonts
+    HEADER_NAME CortexFonts.h
+    NAMESPACE CortexFonts
+    SOURCES
+        Resources/fonts/Inter-Regular.ttf
+        Resources/fonts/Inter-SemiBold.ttf
+        Resources/fonts/Barlow-Regular.ttf
+        Resources/fonts/Barlow-SemiBold.ttf)
+set_target_properties(CortexFonts PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+
 set(CORTEX_FORMATS VST3 Standalone)
 if(APPLE)
     list(APPEND CORTEX_FORMATS AU)
@@ -55,7 +67,8 @@ set(CORTEX_UI_SOURCES
     ${PROJECT_SOURCE_DIR}/Source/ui/BrainMap.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/ParamPanel.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/MeterStrip.cpp
-    ${PROJECT_SOURCE_DIR}/Source/ui/MainView.cpp)
+    ${PROJECT_SOURCE_DIR}/Source/ui/MainView.cpp
+    ${PROJECT_SOURCE_DIR}/Source/ui/Theme.cpp)
 
 # Both plugins are built from the same sources; the processor picks effect or
 # instrument behaviour from JucePlugin_IsSynth.
@@ -87,6 +100,7 @@ function(cortex_add_plugin target)
 
     target_link_libraries(${target}
         PRIVATE
+            CortexFonts
             juce::juce_audio_utils
             juce::juce_dsp
         PUBLIC

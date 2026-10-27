@@ -6,7 +6,8 @@ namespace cortex::ui
 {
 // Input and output peak meters with a gate light: a quick answer to "is it
 // getting signal, and is anything coming out?". Fed from the editor timer.
-class MeterStrip final : public juce::Component
+class MeterStrip final : public juce::Component,
+                         public juce::SettableTooltipClient
 {
 public:
     void setLevels (float inputPeak, float outputPeak, bool gateOpen, bool gateEnabled);

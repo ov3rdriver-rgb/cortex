@@ -1,5 +1,6 @@
 #include "MainView.h"
 #include "Parameters.h"
+#include "Tooltips.h"
 #include "Version.h"
 
 namespace cortex::ui
@@ -83,6 +84,19 @@ MainView::MainView (CortexAudioProcessor& p)
     credits.setFont (fonts::ui (10.5f));
     credits.setColour (juce::Label::textColourId, colours::dim);
     addAndMakeVisible (credits);
+
+    versionLabel.setTooltip (tips::version);
+    rebuildButton.setTooltip (tips::rebuildButton);
+    meters.setTooltip (tips::meters);
+    envelopeTriangle.setTooltip (tips::envelopeTriangle);
+    detailTriangle.setTooltip (tips::detailTriangle);
+    linkToggle.setTooltip (tips::forParam (linkTriangles));
+    envelopes.setTooltip (tips::envelopeView);
+    cepstrum.setTooltip (tips::cepstrumView);
+    auto& bar = tabs.getTabbedButtonBar();
+    bar.getTabButton (0)->setTooltip (tips::searchTab);
+    bar.getTabButton (1)->setTooltip (tips::modTab);
+    bar.getTabButton (2)->setTooltip (tips::outputTab);
 
     refresh();
 }

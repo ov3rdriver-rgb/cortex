@@ -16,5 +16,10 @@ Cortex reimplements the mel filterbank and DCT itself so analysis is realtime-sa
 The cepstral envelope/detail morph is a reimplementation of the idea behind
 `ap_cepstral_morph.amxd` by **Alexander Panos**. No part of the original patch is included.
 
+## Fonts
+The editor embeds **Inter** (Copyright 2020 The Inter Project Authors, https://github.com/rsms/inter)
+and **Barlow** (Copyright 2017 The Barlow Project Authors, https://github.com/jpt/barlow),
+both under the SIL Open Font License 1.1 (`Resources/fonts/*-OFL.txt`).
+
 ## JUCE
 Built with **JUCE** (https://juce.com), used under its AGPLv3 licensing option.

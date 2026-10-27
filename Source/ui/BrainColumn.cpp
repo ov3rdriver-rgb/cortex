@@ -1,6 +1,7 @@
 #include "BrainColumn.h"
 #include "Parameters.h"
 #include "PluginProcessor.h"
+#include "Tooltips.h"
 
 namespace cortex::ui
 {
@@ -43,6 +44,12 @@ BrainColumn::BrainColumn (CortexAudioProcessor& p, int brainIndex)
     addAndMakeVisible (map);
     addAndMakeVisible (sounds);
     addAndMakeVisible (settings);
+
+    status.setTooltip (tips::status);
+    loadButton.setTooltip (tips::loadButton);
+    clearButton.setTooltip (tips::clearButton);
+    map.setTooltip (tips::brainMap);
+    sounds.setTooltip (tips::soundList);
     refresh();
 }
 

@@ -27,6 +27,7 @@ target_compile_definitions(CortexTests PRIVATE
 
 target_link_libraries(CortexTests
     PRIVATE
+        CortexFonts
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC

@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "ui/Tooltips.h"
 #include "Parameters.h"
 
 namespace
@@ -110,6 +111,30 @@ public:
             logMessage ("  wrote " + file.getFullPathName());
 
             editor.reset();
+        }
+
+        beginTest ("Every parameter has a tooltip, and tooltips render inside the editor");
+        {
+            CortexAudioProcessor proc;
+            for (auto* p : proc.getParameters())
+                if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
+                    expect (cortex::ui::tips::forParam (withId->paramID).isNotEmpty(), "no tooltip for " + withId->paramID);
+            CortexAudioProcessor instrument (true);
+            for (auto* p : instrument.getParameters())
+                if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
+                    expect (cortex::ui::tips::forParam (withId->paramID).isNotEmpty(), "no tooltip for " + withId->paramID);
+
+            proc.prepareToPlay (48000.0, 512);
+            std::unique_ptr<juce::AudioProcessorEditor> editor (proc.createEditor());
+            auto* cortexEditor = dynamic_cast<CortexAudioProcessorEditor*> (editor.get());
+            editor->setSize (1280, 820);
+            cortexEditor->showTooltip ({ 700, 660 }, cortex::ui::tips::forParam (cortex::ParamIDs::chaos));
+            const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
+            const auto file = outDir.getChildFile ("ui_tooltip.png");
+            file.deleteFile();
+            juce::FileOutputStream out (file);
+            juce::PNGImageFormat().writeImageToStream (image, out);
+            expect (editor->getNumChildComponents() >= 2, "the tooltip window should be a child of the editor");
         }
 
         beginTest ("Changing the Theme parameter restyles the open editor");

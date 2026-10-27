@@ -2,14 +2,36 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "CortexFonts.h"
 #include "dsp/Cepstrum.h"
 #include "dsp/STFT.h"
 
 namespace cortex::ui
 {
+// The embedded families (Resources/fonts, SIL Open Font License).
+enum class Face { none, inter, barlow };
+
+// Holds the loaded typefaces. A DeletedAtShutdown singleton, so JUCE frees
+// them while its font system is still up (a static would outlive it and
+// crash on macOS at exit) and recreates them if an editor opens later.
+class Faces final : private juce::DeletedAtShutdown
+{
+public:
+    juce::Typeface::Ptr regular (Face f) { return f == Face::inter ? inter : f == Face::barlow ? barlow : nullptr; }
+    juce::Typeface::Ptr bold (Face f)    { return f == Face::inter ? interBold : f == Face::barlow ? barlowBold : nullptr; }
+
+    Faces();
+    ~Faces() override { clearSingletonInstance(); }
+
+    JUCE_DECLARE_SINGLETON (Faces, false)
+
+private:
+    juce::Typeface::Ptr inter, interBold, barlow, barlowBold;
+};
+
 // A complete look: palette, fonts, label casing. Two ship: Dark and Light,
 // chosen by the Theme parameter; `applyStyle` switches the palette and the
-// editor rebuilds its view. The fonts are system fonts for now.
+// editor rebuilds its view.
 struct Style
 {
     juce::String name;
@@ -17,9 +39,19 @@ struct Style
     juce::Colour input, brain1, brain2, result, neutralAccent;
     bool uppercaseTitles = true;
     float titleKerning = 0.08f;     // extra letter spacing for titles / labels
-    juce::String fontName, boldFontName, monoFontName;
+    Face face = Face::none;
+    juce::String monoFontName;      // values: a system monospace face
     float plotLineWidth = 1.4f;
 };
+
+inline juce::String systemMonoFontName()
+{
+#if JUCE_WINDOWS
+    return "Cascadia Mono";
+#else
+    return juce::Font::getDefaultMonospacedFontName();   // Menlo on macOS
+#endif
+}
 
 inline Style darkStyle()
 {
@@ -37,9 +69,8 @@ inline Style darkStyle()
     s.result = juce::Colour (0xfff687b3);
     s.neutralAccent = juce::Colour (0xffc3c9d6);
     s.titleKerning = 0.08f;
-    s.fontName = "Segoe UI";
-    s.boldFontName = "Segoe UI Semibold";
-    s.monoFontName = "Cascadia Mono";
+    s.face = Face::inter;
+    s.monoFontName = systemMonoFontName();
     return s;
 }
 
@@ -60,9 +91,8 @@ inline Style lightStyle()
     s.result = juce::Colour (0xff141414);
     s.neutralAccent = juce::Colour (0xff141414);
     s.titleKerning = 0.1f;
-    s.fontName = "Bahnschrift";
-    s.boldFontName = "Bahnschrift SemiBold";
-    s.monoFontName = "Cascadia Mono";
+    s.face = Face::barlow;
+    s.monoFontName = systemMonoFontName();
     s.plotLineWidth = 1.6f;
     return s;
 }
@@ -109,7 +139,10 @@ namespace colours
     }
 }
 
-inline Style style = darkStyle();
+// The style in use. Starts empty (the colours above carry the dark defaults);
+// the editor applies the real style when it opens, which is also when the
+// typefaces are first loaded.
+inline Style style;
 
 inline void applyStyle (const Style& s)
 {
@@ -131,7 +164,11 @@ namespace fonts
 {
     inline juce::Font ui (float size, bool bold = false)
     {
-        return juce::Font (juce::FontOptions (bold ? style.boldFontName : style.fontName, size, juce::Font::plain));
+        auto* faces = style.face == Face::none ? nullptr : Faces::getInstance();
+        const auto face = faces == nullptr ? nullptr : bold ? faces->bold (style.face) : faces->regular (style.face);
+        if (face == nullptr)   // before any style is applied, or after shutdown
+            return juce::Font (juce::FontOptions (size, bold ? juce::Font::bold : juce::Font::plain));
+        return juce::Font (juce::FontOptions (face).withHeight (size));
     }
 
     // Section titles: small, tracked, in caps if the style says so.
@@ -150,7 +187,6 @@ namespace fonts
     {
         return juce::Font (juce::FontOptions (style.monoFontName, size, juce::Font::plain));
     }
-
     inline juce::String titleCase (const juce::String& s)
     {
         return style.uppercaseTitles ? s.toUpperCase() : s;
@@ -289,6 +325,34 @@ public:
     }
 
     void drawTabAreaBehindFrontButton (juce::TabbedButtonBar&, juce::Graphics&, int, int) override {}
+
+    // Tooltips: a flat panel, body text wrapped at a readable width.
+    static juce::TextLayout tooltipLayout (const juce::String& text, float maxWidth)
+    {
+        juce::AttributedString s;
+        s.setJustification (juce::Justification::topLeft);
+        s.append (text, fonts::ui (12.5f), colours::text);
+        juce::TextLayout layout;
+        layout.createLayout (s, maxWidth);
+        return layout;
+    }
+
+    juce::Rectangle<int> getTooltipBounds (const juce::String& text, juce::Point<int> screenPos, juce::Rectangle<int> parentArea) override
+    {
+        const auto layout = tooltipLayout (text, 340.0f);
+        const int w = (int) std::ceil (layout.getWidth()) + 20, h = (int) std::ceil (layout.getHeight()) + 14;
+        return juce::Rectangle<int> (screenPos.x > parentArea.getCentreX() ? screenPos.x - (w + 12) : screenPos.x + 24,
+                                     screenPos.y > parentArea.getCentreY() ? screenPos.y - (h + 6) : screenPos.y + 6, w, h)
+            .constrainedWithin (parentArea);
+    }
+
+    void drawTooltip (juce::Graphics& g, const juce::String& text, int width, int height) override
+    {
+        g.fillAll (colours::panel);
+        g.setColour (colours::outline);
+        g.drawRect (0, 0, width, height, 1);
+        tooltipLayout (text, (float) width - 20.0f).draw (g, juce::Rectangle<float> (10.0f, 7.0f, (float) width - 20.0f, (float) height - 14.0f));
+    }
     int getTabButtonBestWidth (juce::TabBarButton& button, int) override
     {
         return juce::roundToInt (fonts::title (11.0f).getStringWidthFloat (fonts::titleCase (button.getButtonText()))) + 32;

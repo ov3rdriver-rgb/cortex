@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- **Two themes:** Dark (near-black, Segoe UI) and Light (paper and ink, Bahnschrift, with blue / red / violet for Input / Brain 1 / Brain 2 and a black result curve). Choose under Output → Theme; the choice is saved with the session and remembered for new instances. The fonts are system fonts for now.
+- **Two themes:** Dark (near-black, Inter) and Light (paper and ink, Barlow, with blue / red / violet for Input / Brain 1 / Brain 2 and a black result curve). Choose under Output → Theme; the choice is saved with the session and remembered for new instances.
+- **Embedded fonts:** Inter and Barlow (SIL Open Font License) are built into the plugin, so both themes look the same on macOS and Windows. Values use the system monospace face (Cascadia Mono on Windows, Menlo on macOS).
 - **New look:** flat regions with hairline edges instead of rounded panels, each source's colour as a rule along the top of its region; small tracked uppercase captions; a monospace face for values; instrument-style tick marks on the knobs; square buttons, menus, tabs and tick boxes drawn to match.
 - "Envelope Transplant" is now "Transplant".
 - **Meters:** input and output peak meters with a gate light in the header, so you can see whether signal is getting in and coming out.

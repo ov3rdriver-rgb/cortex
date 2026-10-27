@@ -2,14 +2,30 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "CortexFonts.h"
 #include "dsp/Cepstrum.h"
 #include "dsp/STFT.h"
 
 namespace cortex::ui
 {
+// The embedded faces (Resources/fonts, SIL Open Font License), loaded once.
+namespace faces
+{
+    inline juce::Typeface::Ptr load (const char* data, int size)
+    {
+        return juce::Typeface::createSystemTypefaceFor (data, (size_t) size);
+    }
+
+    // Inter is the variable build from google/fonts: JUCE draws it at its
+    // default instance (Regular), so it serves as both weights for now.
+    inline juce::Typeface::Ptr inter()        { static auto f = load (CortexFonts::InterVariable_ttf, CortexFonts::InterVariable_ttfSize); return f; }
+    inline juce::Typeface::Ptr barlow()       { static auto f = load (CortexFonts::BarlowRegular_ttf, CortexFonts::BarlowRegular_ttfSize); return f; }
+    inline juce::Typeface::Ptr barlowBold()   { static auto f = load (CortexFonts::BarlowSemiBold_ttf, CortexFonts::BarlowSemiBold_ttfSize); return f; }
+}
+
 // A complete look: palette, fonts, label casing. Two ship: Dark and Light,
 // chosen by the Theme parameter; `applyStyle` switches the palette and the
-// editor rebuilds its view. The fonts are system fonts for now.
+// editor rebuilds its view.
 struct Style
 {
     juce::String name;
@@ -17,9 +33,19 @@ struct Style
     juce::Colour input, brain1, brain2, result, neutralAccent;
     bool uppercaseTitles = true;
     float titleKerning = 0.08f;     // extra letter spacing for titles / labels
-    juce::String fontName, boldFontName, monoFontName;
+    juce::Typeface::Ptr regular, bold;
+    juce::String monoFontName;      // values: a system monospace face
     float plotLineWidth = 1.4f;
 };
+
+inline juce::String systemMonoFontName()
+{
+#if JUCE_WINDOWS
+    return "Cascadia Mono";
+#else
+    return juce::Font::getDefaultMonospacedFontName();   // Menlo on macOS
+#endif
+}
 
 inline Style darkStyle()
 {
@@ -37,9 +63,9 @@ inline Style darkStyle()
     s.result = juce::Colour (0xfff687b3);
     s.neutralAccent = juce::Colour (0xffc3c9d6);
     s.titleKerning = 0.08f;
-    s.fontName = "Segoe UI";
-    s.boldFontName = "Segoe UI Semibold";
-    s.monoFontName = "Cascadia Mono";
+    s.regular = faces::inter();
+    s.bold = faces::inter();
+    s.monoFontName = systemMonoFontName();
     return s;
 }
 
@@ -60,9 +86,9 @@ inline Style lightStyle()
     s.result = juce::Colour (0xff141414);
     s.neutralAccent = juce::Colour (0xff141414);
     s.titleKerning = 0.1f;
-    s.fontName = "Bahnschrift";
-    s.boldFontName = "Bahnschrift SemiBold";
-    s.monoFontName = "Cascadia Mono";
+    s.regular = faces::barlow();
+    s.bold = faces::barlowBold();
+    s.monoFontName = systemMonoFontName();
     s.plotLineWidth = 1.6f;
     return s;
 }
@@ -109,7 +135,10 @@ namespace colours
     }
 }
 
-inline Style style = darkStyle();
+// The style in use. Starts empty (the colours above carry the dark defaults)
+// so no typeface is loaded while the plugin binary is still being loaded;
+// the editor applies the real style when it opens.
+inline Style style;
 
 inline void applyStyle (const Style& s)
 {
@@ -131,7 +160,10 @@ namespace fonts
 {
     inline juce::Font ui (float size, bool bold = false)
     {
-        return juce::Font (juce::FontOptions (bold ? style.boldFontName : style.fontName, size, juce::Font::plain));
+        const auto face = bold ? style.bold : style.regular;
+        if (face == nullptr)   // before any style is applied
+            return juce::Font (juce::FontOptions (size, bold ? juce::Font::bold : juce::Font::plain));
+        return juce::Font (juce::FontOptions (face).withHeight (size));
     }
 
     // Section titles: small, tracked, in caps if the style says so.
@@ -150,7 +182,6 @@ namespace fonts
     {
         return juce::Font (juce::FontOptions (style.monoFontName, size, juce::Font::plain));
     }
-
     inline juce::String titleCase (const juce::String& s)
     {
         return style.uppercaseTitles ? s.toUpperCase() : s;

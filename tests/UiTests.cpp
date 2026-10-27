@@ -64,11 +64,18 @@ public:
         const auto outDir = juce::File (juce::SystemStats::getEnvironmentVariable ("CORTEX_DIAG_OUT",
                                             juce::File::getSpecialLocation (juce::File::tempDirectory).getFullPathName()));
 
-        for (bool instrument : { false, true })
+        // Effect and instrument in the dark theme, then the effect in light.
+        struct Variant { bool instrument; int theme; const char* file; };
+        for (const auto& v : { Variant { false, 0, "ui_effect.png" },
+                               Variant { true, 0, "ui_instrument.png" },
+                               Variant { false, 1, "ui_effect_light.png" } })
         {
-            beginTest (juce::String ("Editor builds, lays out at several sizes and shows live data: ") + (instrument ? "instrument" : "effect"));
+            const bool instrument = v.instrument;
+            beginTest (juce::String ("Editor builds, lays out at several sizes and shows live data: ") + (instrument ? "instrument" : "effect")
+                       + ", theme " + juce::String (v.theme));
 
             CortexAudioProcessor proc (instrument);
+            proc.apvts.getParameterAsValue (cortex::ParamIDs::theme).setValue (v.theme);
             auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
             set (cortex::ParamIDs::envX, 0.45f);    // envelope: mostly Brain 1, some Brain 2 and Input
             set (cortex::ParamIDs::envY, 0.55f);
@@ -93,15 +100,28 @@ public:
             cortexEditor->refresh();
             cortex::dsp::MorphSnapshot snap;
             expect (proc.readMorphSnapshot (snap) && snap.valid);
+            expectEquals (cortex::ui::style.name, juce::String (v.theme == 1 ? "light" : "dark"));
 
             const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
-            const auto file = outDir.getChildFile (instrument ? "ui_instrument.png" : "ui_effect.png");
+            const auto file = outDir.getChildFile (v.file);
             file.deleteFile();
             juce::FileOutputStream out (file);
             juce::PNGImageFormat().writeImageToStream (image, out);
             logMessage ("  wrote " + file.getFullPathName());
 
             editor.reset();
+        }
+
+        beginTest ("Changing the Theme parameter restyles the open editor");
+        {
+            CortexAudioProcessor proc;
+            proc.prepareToPlay (48000.0, 512);
+            std::unique_ptr<juce::AudioProcessorEditor> editor (proc.createEditor());
+            auto* themeParam = proc.apvts.getParameter (cortex::ParamIDs::theme);
+            themeParam->setValueNotifyingHost (themeParam->convertTo0to1 (1.0f));
+            expectEquals (cortex::ui::style.name, juce::String ("light"));
+            themeParam->setValueNotifyingHost (themeParam->convertTo0to1 (0.0f));
+            expectEquals (cortex::ui::style.name, juce::String ("dark"));
         }
 
         beginTest ("Brain map: one position per block, all within the map");

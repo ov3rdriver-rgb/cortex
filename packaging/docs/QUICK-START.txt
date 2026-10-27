@@ -80,6 +80,11 @@ SEARCH, MATCH PITCH  Increase to make the brains match the notes of
 OUTPUT, LOW LATENCY  Set to "on" when you play live. The delay
                      decreases from approximately 85 ms to
                      approximately 11 ms.
+OUTPUT, THEME        "Dark" or "Light". Cortex remembers your
+                     choice for new instances.
+IN / OUT METERS      The header shows the Input level, the output
+                     level and a light that is on when the gate is
+                     open.
 
 To set a triangle back to its default position, double-click the
 triangle.

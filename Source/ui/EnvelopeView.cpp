@@ -17,32 +17,31 @@ void EnvelopeView::paint (juce::Graphics& g)
 
     auto area = getLocalBounds().toFloat().reduced (12.0f, 8.0f);
     auto header = area.removeFromTop (14.0f);
-    g.setFont (juce::FontOptions (11.0f));
-    g.setColour (colours::dim);
-    g.drawText ("spectral envelopes", header.toNearestInt(), juce::Justification::centredLeft);
+    drawCaption (g, getLocalBounds(), "Envelopes");
 
     // Legend.
+    g.setFont (fonts::title (10.0f, false));
     auto legend = header.removeFromRight (260.0f).toNearestInt();
     for (int s : { (int) input, (int) brain1, (int) brain2, -1 })
     {
         auto key = legend.removeFromLeft (65);
         g.setColour (s < 0 ? colours::result : colours::forSource (s));
-        g.fillRect (key.removeFromLeft (10).withSizeKeepingCentre (10, 3));
+        g.fillRect (key.removeFromLeft (12).withSizeKeepingCentre (12, 2));
         g.setColour (colours::dim);
-        g.drawText (s < 0 ? "result" : colours::sourceName (s), key.withTrimmedLeft (4), juce::Justification::centredLeft);
+        g.drawText (fonts::titleCase (s < 0 ? "result" : colours::sourceName (s)), key.withTrimmedLeft (4), juce::Justification::centredLeft);
     }
 
     // Grid at 100 Hz, 1 kHz, 10 kHz.
     auto xFor = [&] (double hz) { return area.getX() + area.getWidth() * (float) (std::log (hz / minHz) / std::log (maxHz / minHz)); };
-    g.setColour (colours::outline.withAlpha (0.7f));
+    g.setFont (fonts::mono (9.5f));
     for (double hz : { 100.0, 1000.0, 10000.0 })
     {
+        g.setColour (colours::rule);
         g.drawVerticalLine ((int) xFor (hz), area.getY(), area.getBottom());
-        g.setColour (colours::dim.withAlpha (0.6f));
+        g.setColour (colours::dim);
         g.drawText (hz >= 1000.0 ? juce::String ((int) (hz / 1000.0)) + "k" : juce::String ((int) hz),
                     juce::Rectangle<float> (xFor (hz) + 3.0f, area.getBottom() - 12.0f, 30.0f, 12.0f).toNearestInt(),
                     juce::Justification::centredLeft);
-        g.setColour (colours::outline.withAlpha (0.7f));
     }
 
     if (! snapshot.valid)
@@ -83,8 +82,8 @@ void EnvelopeView::paint (juce::Graphics& g)
             else        p.lineTo (px, py);
         }
         const bool isResult = c == numSources;
-        g.setColour (isResult ? colours::result : colours::forSource (c).withAlpha (0.6f));
-        g.strokePath (p, juce::PathStrokeType (isResult ? 2.2f : 1.4f));
+        g.setColour (isResult ? colours::result : colours::forSource (c).withAlpha (0.7f));
+        g.strokePath (p, juce::PathStrokeType (isResult ? style.plotLineWidth + 0.8f : style.plotLineWidth));
     }
 }
 } // namespace cortex::ui

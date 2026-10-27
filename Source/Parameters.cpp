@@ -82,7 +82,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
     // Brain search
     layout.add (unit (matchTimbre, "Match Timbre", 0.5f),
                 unit (matchPitch, "Match Pitch", 0.5f),
-                unit (envTransplant, "Envelope Transplant", 0.0f),
+                unit (envTransplant, "Transplant", 0.0f),
                 std::make_unique<Int> (pid (blockSize), "Block Size", 256, 4096, 1000),
                 std::make_unique<Float> (pid (overlap), "Block Overlap", juce::NormalisableRange<float> (0.0f, 0.75f), 0.0f),
                 unit (novelty, "Novelty", 0.3f),
@@ -101,6 +101,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                 std::make_unique<Float> (pid (autoMuteMs), "Auto-Mute Time",
                                          juce::NormalisableRange<float> (10.0f, 2000.0f, 1.0f, 0.5f), 250.0f,
                                          juce::AudioParameterFloatAttributes().withLabel ("ms")));
+
+    // The editor's theme. Saved with the session and remembered for new
+    // instances; not something to automate.
+    layout.add (std::make_unique<Choice> (pid (theme), "Theme", juce::StringArray { "Dark", "Light" }, 0,
+                                          juce::AudioParameterChoiceAttributes().withAutomatable (false)));
 
     if (instrument)
     {

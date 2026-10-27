@@ -17,14 +17,17 @@ namespace
 
 BrainColumn::BrainColumn (CortexAudioProcessor& p, int brainIndex)
     : processor (p), brain (brainIndex), source (cortex::dsp::brain1 + brainIndex),
-      settings (p.apvts, settingsFor (brainIndex), juce::String (colours::sourceName (cortex::dsp::brain1 + brainIndex)) + " ", 62)
+      settings (p.apvts, settingsFor (brainIndex), juce::String (colours::sourceName (cortex::dsp::brain1 + brainIndex)) + " ", 66,
+                colours::forSource (cortex::dsp::brain1 + brainIndex))
 {
-    title.setText (colours::sourceName (source), juce::dontSendNotification);
-    title.setFont (juce::FontOptions (16.0f, juce::Font::bold));
+    map.setAccent (colours::forSource (source));
+    sounds.setAccent (colours::forSource (source));
+    title.setText (fonts::titleCase (colours::sourceName (source)), juce::dontSendNotification);
+    title.setFont (fonts::title (13.0f));
     title.setColour (juce::Label::textColourId, colours::forSource (source));
     addAndMakeVisible (title);
 
-    status.setFont (juce::FontOptions (12.0f));
+    status.setFont (fonts::ui (11.5f));
     status.setColour (juce::Label::textColourId, colours::dim);
     status.setJustificationType (juce::Justification::topLeft);
     addAndMakeVisible (status);
@@ -90,11 +93,15 @@ void BrainColumn::refresh()
 
 void BrainColumn::paint (juce::Graphics& g)
 {
+    // A flat region with a hairline edge and the source's colour as a rule
+    // along the top.
     auto r = getLocalBounds().toFloat();
-    g.setColour (colours::panel.darker (0.15f));
-    g.fillRoundedRectangle (r, 8.0f);
-    g.setColour (colours::forSource (source).withAlpha (0.5f));
-    g.fillRoundedRectangle (r.removeFromTop (3.0f).reduced (8.0f, 0.0f), 1.5f);
+    g.setColour (colours::background);
+    g.fillRect (r);
+    g.setColour (colours::outline);
+    g.drawRect (r, 1.0f);
+    g.setColour (colours::forSource (source));
+    g.fillRect (r.removeFromTop (3.0f));
 }
 
 void BrainColumn::paintOverChildren (juce::Graphics& g)
@@ -103,11 +110,11 @@ void BrainColumn::paintOverChildren (juce::Graphics& g)
         return;
     const auto colour = colours::forSource (source);
     g.setColour (colour.withAlpha (0.12f));
-    g.fillRoundedRectangle (getLocalBounds().toFloat(), 8.0f);
+    g.fillRect (getLocalBounds());
     g.setColour (colour);
-    g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.5f), 8.0f, 3.0f);
-    g.setFont (juce::FontOptions (18.0f));
-    g.drawText (juce::String ("Drop to build ") + colours::sourceName (source), getLocalBounds(), juce::Justification::centred);
+    g.drawRect (getLocalBounds().reduced (1), 3);
+    g.setFont (fonts::title (16.0f));
+    g.drawText (fonts::titleCase (juce::String ("Drop to build ") + colours::sourceName (source)), getLocalBounds(), juce::Justification::centred);
 }
 
 void BrainColumn::resized()

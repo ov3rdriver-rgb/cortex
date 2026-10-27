@@ -11,6 +11,8 @@ namespace cortex::ui
 class BrainMap final : public juce::Component
 {
 public:
+    // The brain's colour: sounds are drawn in shades of it.
+    void setAccent (juce::Colour);
     void setBrain (std::shared_ptr<const cortex::brain::Brain>);
     void setPlayingBlock (int block);
 
@@ -19,7 +21,7 @@ public:
 
     // Exposed for tests: 2D positions in [0, 1].
     const std::vector<juce::Point<float>>& getPositions() const noexcept { return positions; }
-    static juce::Colour colourForSound (int index);
+    juce::Colour colourForSound (int index) const { return colours::forSound (accent, index); }
 
 private:
     void computeLayout();
@@ -31,8 +33,9 @@ private:
     std::vector<juce::Point<float>> positions;
     std::vector<int> soundOfBlock;
     juce::Image dots;
+    juce::Colour accent = colours::brain1;
 
-    std::array<int, 12> trail {};
+    std::array<int, 24> trail {};
     int trailLength = 0;
 };
 
@@ -41,6 +44,7 @@ class SoundList final : public juce::Component, private juce::ListBoxModel
 {
 public:
     SoundList();
+    void setAccent (juce::Colour c) { accent = c; list.repaint(); }
     void setBrain (std::shared_ptr<const cortex::brain::Brain>);
     void resized() override { list.setBounds (getLocalBounds()); }
 
@@ -50,5 +54,6 @@ private:
 
     juce::ListBox list;
     std::shared_ptr<const cortex::brain::Brain> brain;
+    juce::Colour accent = colours::brain1;
 };
 } // namespace cortex::ui

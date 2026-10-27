@@ -4,12 +4,13 @@
 #include "ui/BrainColumn.h"
 #include "ui/CepstrumView.h"
 #include "ui/EnvelopeView.h"
+#include "ui/MeterStrip.h"
 #include "ui/ParamPanel.h"
 #include "ui/Theme.h"
 #include "ui/TrianglePad.h"
 
 // Layout:
-//   header       title, Rebuild, version
+//   header       title, in/out meters + gate light, Rebuild, version
 //   left/right   Brain 1 / Brain 2 columns (status, load, map, sounds, their settings)
 //   centre       Envelope and Detail triangles (+ Link), live envelopes, cepstrum
 //   bottom       Input panel (synth or track/sidechain + its settings), tabs
@@ -39,6 +40,7 @@ private:
 
     juce::Label title, versionLabel, credits;
     juce::TextButton rebuildButton { "Rebuild brains" };
+    cortex::ui::MeterStrip meters;
 
     cortex::ui::BrainColumn brain1Column, brain2Column;
     cortex::ui::TrianglePad envelopeTriangle, detailTriangle;

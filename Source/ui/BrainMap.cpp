@@ -37,11 +37,13 @@ namespace
     }
 }
 
-juce::Colour BrainMap::colourForSound (int index)
+void BrainMap::setAccent (juce::Colour c)
 {
-    // Golden-ratio hue steps keep neighbouring sounds distinct.
-    const float hue = std::fmod (0.08f + 0.618034f * (float) index, 1.0f);
-    return juce::Colour::fromHSV (hue, 0.55f, 0.95f, 1.0f);
+    if (c == accent)
+        return;
+    accent = c;
+    renderDots();
+    repaint();
 }
 
 void BrainMap::setBrain (std::shared_ptr<const cortex::brain::Brain> newBrain)
@@ -189,24 +191,28 @@ void BrainMap::paint (juce::Graphics& g)
 
     g.drawImageAt (dots, 0, 0);
 
-    for (int i = trailLength - 1; i >= 0; --i)
+    // The search's path: a line through the last blocks, fading back, with
+    // the one playing now ringed in white so it reads over the dots.
+    auto screenOf = [this] (int i) { return toScreen (positions[(size_t) trail[(size_t) i]]); };
+    auto valid = [this] (int i) { const int b = trail[(size_t) i]; return b >= 0 && b < (int) positions.size(); };
+    for (int i = trailLength - 1; i > 0; --i)
     {
-        const int block = trail[(size_t) i];
-        if (block < 0 || block >= (int) positions.size())
+        if (! valid (i) || ! valid (i - 1))
             continue;
-        const auto p = toScreen (positions[(size_t) block]);
         const float fade = 1.0f - (float) i / (float) trail.size();
-        if (i == 0)
-        {
-            g.setColour (colours::text);
-            g.drawEllipse (juce::Rectangle<float> (14.0f, 14.0f).withCentre (p), 2.0f);
-            g.fillEllipse (juce::Rectangle<float> (5.0f, 5.0f).withCentre (p));
-        }
-        else
-        {
-            g.setColour (colours::text.withAlpha (0.5f * fade));
-            g.fillEllipse (juce::Rectangle<float> (5.0f, 5.0f).withCentre (p));
-        }
+        g.setColour (colours::text.withAlpha (0.6f * fade));
+        g.drawLine (juce::Line<float> (screenOf (i), screenOf (i - 1)), 1.5f);
+        g.fillEllipse (juce::Rectangle<float> (4.0f, 4.0f).withCentre (screenOf (i)));
+    }
+    if (trailLength > 0 && valid (0))
+    {
+        const auto p = screenOf (0);
+        g.setColour (colours::background.withAlpha (0.7f));
+        g.fillEllipse (juce::Rectangle<float> (20.0f, 20.0f).withCentre (p));
+        g.setColour (colours::text);
+        g.drawEllipse (juce::Rectangle<float> (18.0f, 18.0f).withCentre (p), 2.5f);
+        g.setColour (accent);
+        g.fillEllipse (juce::Rectangle<float> (7.0f, 7.0f).withCentre (p));
     }
 }
 
@@ -238,7 +244,7 @@ void SoundList::paintListBoxItem (int row, juce::Graphics& g, int width, int hei
         return;
     const auto& s = brain->sounds[(size_t) row];
 
-    g.setColour (BrainMap::colourForSound (row));
+    g.setColour (colours::forSound (accent, row));
     g.fillEllipse (juce::Rectangle<float> (8.0f, 8.0f).withCentre ({ 10.0f, height * 0.5f }));
 
     g.setFont (juce::FontOptions (12.0f));

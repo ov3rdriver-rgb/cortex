@@ -86,6 +86,19 @@ public:
     // Latest morph frame (left channel) for the editor's displays.
     bool readMorphSnapshot (cortex::dsp::MorphSnapshot& out) const { return morphSnapshots.read (out); }
 
+    // Per-block peak levels and gate state for the editor's meters.
+    struct Levels
+    {
+        float inputPeak = 0.0f;    // linear, the Input before the gate
+        float outputPeak = 0.0f;   // linear, after output gain and limiter
+        bool gateOpen = true;
+    };
+    Levels getLevels() const
+    {
+        return { inputPeakLevel.load (std::memory_order_relaxed), outputPeakLevel.load (std::memory_order_relaxed),
+                 gateOpenFlag.load (std::memory_order_relaxed) };
+    }
+
 private:
     static constexpr int maxChannels = 2;
     static constexpr int numSources = cortex::dsp::numSources;
@@ -183,6 +196,8 @@ private:
     juce::dsp::Limiter<float> limiter;
 
     juce::SmoothedValue<float> gateGain, wetMix, outGain;
+    std::atomic<float> inputPeakLevel { 0.0f }, outputPeakLevel { 0.0f };
+    std::atomic<bool> gateOpenFlag { true };
     std::array<float, maxChannels> dcX1 {}, dcY1 {};
     float dcCoeff = 0.9993f;
     int silentSamples = 0;

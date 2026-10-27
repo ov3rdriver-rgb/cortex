@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Meters:** input and output peak meters with a gate light in the header, so you can see whether signal is getting in and coming out.
+- **Layout:** the triangles are capped at 250 px, so the spectral envelope and cepstrum plots get real height instead of 90 px each.
+- **Colours:** knobs take their panel's colour (orange in Brain 1, violet in Brain 2, turquoise in the Input, neutral in the tabs); pink now means the output only. Each brain map colours its sounds in shades of that brain's colour instead of borrowing the other sources' colours.
+- **Brain map:** a bigger marker for the block playing now, with a line through the last blocks the search chose.
+- **Switches** (Freeze Env, Freeze Det, Gate, Limiter, Low Latency...) are buttons that say what they do and light up when on.
+- Values show one decimal for dB, semitones and ms.
+
 ## 1.0.1
 
 - **Fixed:** formant shift used far too much CPU. With formant shift on all three sources, the audio processing needed 167% of a CPU core, so the DAW overloaded and audio dropped out. It now needs about 42%. Each shifted source adds about 7% instead of about 43%. The formant estimate uses 4 passes instead of 8, and its gain curve is reused for 2 frames (recomputed at once when the shift or cutoff moves). Formants land where they did before.

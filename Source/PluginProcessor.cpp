@@ -333,7 +333,10 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
                            -juce::FloatVectorOperations::findMinimum (input[(size_t) ch], numSamples));
 
     const float threshold = juce::Decibels::decibelsToGain (params.gateThresh->load());
-    gateGain.setTargetValue (params.gateOn->load() > 0.5f && peak < threshold ? 0.0f : 1.0f);
+    const bool gateOpen = ! (params.gateOn->load() > 0.5f && peak < threshold);
+    gateGain.setTargetValue (gateOpen ? 1.0f : 0.0f);
+    inputPeakLevel.store (peak, std::memory_order_relaxed);
+    gateOpenFlag.store (gateOpen, std::memory_order_relaxed);
 
     bool muted = false;
     if (params.autoMute->load() > 0.5f)
@@ -443,6 +446,12 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         juce::dsp::AudioBlock<float> block (buffer.getArrayOfWritePointers(), (size_t) numChannels, (size_t) numSamples);
         limiter.process (juce::dsp::ProcessContextReplacing<float> (block));
     }
+
+    float outPeak = 0.0f;
+    for (int ch = 0; ch < numChannels; ++ch)
+        outPeak = juce::jmax (outPeak, juce::FloatVectorOperations::findMaximum (out[(size_t) ch], numSamples),
+                              -juce::FloatVectorOperations::findMinimum (out[(size_t) ch], numSamples));
+    outputPeakLevel.store (outPeak, std::memory_order_relaxed);
 }
 
 void CortexAudioProcessor::switchEngine (int newOrder, int newBrainDelay, const PerSourceInt& newDelays,

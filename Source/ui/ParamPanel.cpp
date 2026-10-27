@@ -9,7 +9,7 @@ namespace
 }
 
 ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::StringArray& ids,
-                        const juce::String& stripPrefix, int width)
+                        const juce::String& stripPrefix, int width, juce::Colour accent)
     : cellWidth (width)
 {
     for (const auto& id : ids)
@@ -37,7 +37,15 @@ ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::S
         }
         else if (dynamic_cast<juce::AudioParameterBool*> (param) != nullptr)
         {
-            c->toggle = std::make_unique<juce::ToggleButton> ("on");
+            // A switch is a button that says what it does and lights up when on
+            // (its label row is left empty).
+            c->label.setText ({}, juce::dontSendNotification);
+            // "Freeze Detail" doesn't fit a brain column's cell; the host still sees the full name.
+            c->toggle = std::make_unique<juce::TextButton> (name.replace ("Detail", "Det"));
+            c->toggle->setClickingTogglesState (true);
+            c->toggle->setColour (juce::TextButton::buttonOnColourId, accent.withAlpha (0.28f));
+            c->toggle->setColour (juce::TextButton::textColourOnId, accent);
+            c->toggle->setColour (juce::TextButton::textColourOffId, colours::dim);
             c->buttonAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (state, id, *c->toggle);
             addAndMakeVisible (*c->toggle);
         }
@@ -47,16 +55,19 @@ ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::S
             c->slider->setTextBoxStyle (juce::Slider::TextBoxBelow, false, cellWidth - 8, 16);
             c->slider->setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
             c->slider->setColour (juce::Slider::textBoxBackgroundColourId, colours::background);
+            c->slider->setColour (juce::Slider::rotarySliderFillColourId, accent);
             c->sliderAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (state, id, *c->slider);
 
             // The attachment shows the parameter's own text (full precision for
-            // plain floats); keep continuous values to two decimals, with the unit.
+            // plain floats); keep continuous values short, with the unit: one
+            // decimal for dB / semitones / ms, two for 0..1 amounts.
             if (dynamic_cast<juce::AudioParameterInt*> (param) == nullptr)
             {
                 const auto unit = param->getLabel();
-                c->slider->textFromValueFunction = [unit] (double v)
+                const int decimals = unit.isNotEmpty() ? 1 : 2;
+                c->slider->textFromValueFunction = [unit, decimals] (double v)
                 {
-                    return juce::String (v, 2) + (unit.isNotEmpty() ? " " + unit : juce::String());
+                    return juce::String (v, decimals) + (unit.isNotEmpty() ? " " + unit : juce::String());
                 };
                 c->slider->updateText();
             }
@@ -87,7 +98,7 @@ void ParamPanel::resized()
         else if (c.combo != nullptr)
             c.combo->setBounds (cell.withSizeKeepingCentre (cell.getWidth(), 24));
         else if (c.toggle != nullptr)
-            c.toggle->setBounds (cell.withSizeKeepingCentre (56, 24));
+            c.toggle->setBounds (cell.withSizeKeepingCentre (juce::jmin (cell.getWidth(), cellWidth - 4), 26));
     }
 }
 } // namespace cortex::ui

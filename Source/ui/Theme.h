@@ -17,7 +17,17 @@ namespace colours
     inline const juce::Colour input      { 0xff4fd1c5 };   // the Input
     inline const juce::Colour brain1     { 0xfff6ad55 };   // Brain 1
     inline const juce::Colour brain2     { 0xffb794f4 };   // Brain 2
-    inline const juce::Colour result     { 0xfff687b3 };   // the morph
+    inline const juce::Colour result     { 0xfff687b3 };   // the morph (output)
+    inline const juce::Colour neutralAccent { 0xffb9c1cf };   // knobs that belong to no source
+
+    // Sounds inside a brain are shades of that brain's colour, so a map never
+    // borrows another source's colour.
+    inline juce::Colour forSound (juce::Colour brainColour, int index)
+    {
+        const float t = std::fmod (0.618034f * (float) index, 1.0f);
+        return brainColour.withRotatedHue (-0.05f + 0.1f * t).withMultipliedBrightness (0.55f + 0.45f * std::fmod (t * 2.7f, 1.0f))
+            .withMultipliedSaturation (0.7f + 0.3f * std::fmod (t * 1.9f, 1.0f));
+    }
 
     inline juce::Colour forSource (int source)
     {
@@ -38,7 +48,7 @@ public:
         using namespace colours;
         setColour (juce::ResizableWindow::backgroundColourId, background);
         setColour (juce::Label::textColourId, text);
-        setColour (juce::Slider::rotarySliderFillColourId, result);
+        setColour (juce::Slider::rotarySliderFillColourId, neutralAccent);
         setColour (juce::Slider::rotarySliderOutlineColourId, outline);
         setColour (juce::Slider::thumbColourId, text);
         setColour (juce::Slider::textBoxTextColourId, text);
@@ -52,7 +62,7 @@ public:
         setColour (juce::TextButton::buttonColourId, panel);
         setColour (juce::TextButton::textColourOffId, text);
         setColour (juce::ToggleButton::textColourId, text);
-        setColour (juce::ToggleButton::tickColourId, result);
+        setColour (juce::ToggleButton::tickColourId, neutralAccent);
         setColour (juce::ToggleButton::tickDisabledColourId, dim);
         setColour (juce::TabbedButtonBar::tabTextColourId, dim);
         setColour (juce::TabbedButtonBar::frontTextColourId, text);
@@ -61,6 +71,13 @@ public:
         setColour (juce::ProgressBar::foregroundColourId, brain1);
         setColour (juce::ListBox::backgroundColourId, panel);
         setColour (juce::ListBox::outlineColourId, outline);
+    }
+
+    // Small buttons (the parameter switches) get a smaller face so their
+    // names fit.
+    juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override
+    {
+        return juce::FontOptions (buttonHeight < 30 ? 11.0f : 14.0f);
     }
 
     void drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h, float pos,

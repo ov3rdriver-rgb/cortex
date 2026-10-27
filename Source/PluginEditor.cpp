@@ -25,7 +25,7 @@ CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
       envelopeTriangle (p.apvts, cortex::ParamIDs::envX, cortex::ParamIDs::envY, "Envelope (timbre)"),
       detailTriangle (p.apvts, cortex::ParamIDs::detailX, cortex::ParamIDs::detailY, "Detail (pitch, texture)"),
       cepstrum (p.apvts),
-      inputPanel (p.apvts, inputIds (p.isInstrument()), "Input ", 74)
+      inputPanel (p.apvts, inputIds (p.isInstrument()), "Input ", 74, cortex::ui::colours::input)
 {
     setLookAndFeel (&lookAndFeel);
     using namespace cortex::ParamIDs;
@@ -49,6 +49,7 @@ CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
                 processor.rebuildBrain (b);
     };
     addAndMakeVisible (rebuildButton);
+    addAndMakeVisible (meters);
 
     addAndMakeVisible (brain1Column);
     addAndMakeVisible (brain2Column);
@@ -115,6 +116,8 @@ void CortexAudioProcessorEditor::resized()
     title.setBounds (header.removeFromLeft (260));
     versionLabel.setBounds (header.removeFromRight (150));
     rebuildButton.setBounds (header.removeFromRight (130).reduced (2, 3));
+    header.removeFromRight (gap);
+    meters.setBounds (header.removeFromRight (juce::jmin (260, header.getWidth())));
     area.removeFromTop (gap);
 
     credits.setBounds (area.removeFromBottom (footerHeight));
@@ -135,7 +138,10 @@ void CortexAudioProcessorEditor::resized()
     brain2Column.setBounds (area.removeFromRight (columnWidth));
     area.removeFromRight (gap);
 
-    const int triangleHeight = juce::jmin (area.getWidth() / 2 - gap, area.getHeight() - 220);
+    // The triangles are controls, the plots underneath are what the morph is
+    // doing: cap the triangles so the plots get real height.
+    constexpr int maxTriangleHeight = 250;
+    const int triangleHeight = juce::jmin (area.getWidth() / 2 - gap, maxTriangleHeight, area.getHeight() - 260);
     auto triangles = area.removeFromTop (triangleHeight);
     envelopeTriangle.setBounds (triangles.removeFromLeft (triangles.getWidth() / 2 - gap / 2));
     triangles.removeFromLeft (gap);
@@ -159,6 +165,10 @@ void CortexAudioProcessorEditor::timerCallback()
     brain2Column.refresh();
 
     detailTriangle.setFollowing (processor.apvts.getRawParameterValue (cortex::ParamIDs::linkTriangles)->load() > 0.5f);
+
+    const auto levels = processor.getLevels();
+    meters.setLevels (levels.inputPeak, levels.outputPeak, levels.gateOpen,
+                      processor.apvts.getRawParameterValue (cortex::ParamIDs::gateOn)->load() > 0.5f);
 
     cortex::dsp::MorphSnapshot snapshot;
     if (processor.readMorphSnapshot (snapshot))

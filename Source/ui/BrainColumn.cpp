@@ -17,8 +17,11 @@ namespace
 
 BrainColumn::BrainColumn (CortexAudioProcessor& p, int brainIndex)
     : processor (p), brain (brainIndex), source (cortex::dsp::brain1 + brainIndex),
-      settings (p.apvts, settingsFor (brainIndex), juce::String (colours::sourceName (cortex::dsp::brain1 + brainIndex)) + " ", 62)
+      settings (p.apvts, settingsFor (brainIndex), juce::String (colours::sourceName (cortex::dsp::brain1 + brainIndex)) + " ", 66,
+                colours::forSource (cortex::dsp::brain1 + brainIndex))
 {
+    map.setAccent (colours::forSource (source));
+    sounds.setAccent (colours::forSource (source));
     title.setText (colours::sourceName (source), juce::dontSendNotification);
     title.setFont (juce::FontOptions (16.0f, juce::Font::bold));
     title.setColour (juce::Label::textColourId, colours::forSource (source));

@@ -320,6 +320,34 @@ public:
     }
 
     void drawTabAreaBehindFrontButton (juce::TabbedButtonBar&, juce::Graphics&, int, int) override {}
+
+    // Tooltips: a flat panel, body text wrapped at a readable width.
+    static juce::TextLayout tooltipLayout (const juce::String& text, float maxWidth)
+    {
+        juce::AttributedString s;
+        s.setJustification (juce::Justification::topLeft);
+        s.append (text, fonts::ui (12.5f), colours::text);
+        juce::TextLayout layout;
+        layout.createLayout (s, maxWidth);
+        return layout;
+    }
+
+    juce::Rectangle<int> getTooltipBounds (const juce::String& text, juce::Point<int> screenPos, juce::Rectangle<int> parentArea) override
+    {
+        const auto layout = tooltipLayout (text, 340.0f);
+        const int w = (int) std::ceil (layout.getWidth()) + 20, h = (int) std::ceil (layout.getHeight()) + 14;
+        return juce::Rectangle<int> (screenPos.x > parentArea.getCentreX() ? screenPos.x - (w + 12) : screenPos.x + 24,
+                                     screenPos.y > parentArea.getCentreY() ? screenPos.y - (h + 6) : screenPos.y + 6, w, h)
+            .constrainedWithin (parentArea);
+    }
+
+    void drawTooltip (juce::Graphics& g, const juce::String& text, int width, int height) override
+    {
+        g.fillAll (colours::panel);
+        g.setColour (colours::outline);
+        g.drawRect (0, 0, width, height, 1);
+        tooltipLayout (text, (float) width - 20.0f).draw (g, juce::Rectangle<float> (10.0f, 7.0f, (float) width - 20.0f, (float) height - 14.0f));
+    }
     int getTabButtonBestWidth (juce::TabBarButton& button, int) override
     {
         return juce::roundToInt (fonts::title (11.0f).getStringWidthFloat (fonts::titleCase (button.getButtonText()))) + 32;

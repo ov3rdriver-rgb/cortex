@@ -11,7 +11,8 @@ namespace cortex::ui
 // lifter cutoff as a line you can drag. Left of a source's line is its
 // envelope, right of it its detail. Dashed lines show where the cutoffs
 // actually are while modulation moves them.
-class CepstrumView final : public juce::Component
+class CepstrumView final : public juce::Component,
+                           public juce::SettableTooltipClient
 {
 public:
     explicit CepstrumView (juce::AudioProcessorValueTreeState&);

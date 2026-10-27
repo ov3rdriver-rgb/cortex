@@ -50,6 +50,11 @@ void CortexAudioProcessorEditor::resized()
         view->setBounds (getLocalBounds());
 }
 
+void CortexAudioProcessorEditor::showTooltip (juce::Point<int> position, const juce::String& text)
+{
+    tooltipWindow.displayTip (localPointToGlobal (position), text);
+}
+
 void CortexAudioProcessorEditor::filesDropped (const juce::StringArray& files, int, int)
 {
     processor.loadBrainFrom (files, 0);

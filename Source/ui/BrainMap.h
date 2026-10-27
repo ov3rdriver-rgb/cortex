@@ -8,7 +8,8 @@ namespace cortex::ui
 // Every block in the brain as a dot, placed by the first two principal
 // components of its MFCCs (similar-sounding blocks land near each other) and
 // coloured by source sound. The block playing now is ringed, with a short trail.
-class BrainMap final : public juce::Component
+class BrainMap final : public juce::Component,
+                       public juce::SettableTooltipClient
 {
 public:
     // The brain's colour: sounds are drawn in shades of it.
@@ -40,7 +41,7 @@ private:
 };
 
 // The brain's source sounds with their block counts.
-class SoundList final : public juce::Component, private juce::ListBoxModel
+class SoundList final : public juce::Component, public juce::SettableTooltipClient, private juce::ListBoxModel
 {
 public:
     SoundList();

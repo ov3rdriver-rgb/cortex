@@ -23,6 +23,10 @@ public:
     // Pull the latest audio-thread state now (the timer does this 30x a second).
     void refresh() { timerCallback(); }
 
+    // Show a tooltip at a position in the editor (for tests and screenshots;
+    // hovering does this on its own).
+    void showTooltip (juce::Point<int> position, const juce::String& text);
+
 private:
     void timerCallback() override;
     void buildView();
@@ -31,6 +35,7 @@ private:
     cortex::ui::CortexLookAndFeel lookAndFeel;
     std::unique_ptr<cortex::ui::MainView> view;
     std::unique_ptr<juce::ParameterAttachment> themeAttachment;
+    juce::TooltipWindow tooltipWindow { this, 450 };   // inside the editor, so it shows in every host
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CortexAudioProcessorEditor)
 };

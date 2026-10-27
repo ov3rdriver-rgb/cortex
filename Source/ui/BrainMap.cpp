@@ -177,15 +177,13 @@ void BrainMap::renderDots()
 void BrainMap::paint (juce::Graphics& g)
 {
     drawPanel (g, getLocalBounds().toFloat());
-
-    g.setFont (juce::FontOptions (11.0f));
-    g.setColour (colours::dim);
-    g.drawText ("brain map (blocks by timbre, PCA of MFCCs)", getLocalBounds().reduced (12, 4).removeFromTop (14),
-                juce::Justification::centredLeft);
+    drawCaption (g, getLocalBounds(), "Map: blocks by timbre");
 
     if (positions.empty())
     {
-        g.drawText ("no brain loaded", getLocalBounds(), juce::Justification::centred);
+        g.setFont (fonts::ui (12.0f));
+        g.setColour (colours::dim);
+        g.drawText ("Drop samples or a folder here", getLocalBounds(), juce::Justification::centred);
         return;
     }
 
@@ -247,10 +245,11 @@ void SoundList::paintListBoxItem (int row, juce::Graphics& g, int width, int hei
     g.setColour (colours::forSound (accent, row));
     g.fillEllipse (juce::Rectangle<float> (8.0f, 8.0f).withCentre ({ 10.0f, height * 0.5f }));
 
-    g.setFont (juce::FontOptions (12.0f));
+    g.setFont (fonts::ui (11.5f));
     g.setColour (colours::text);
     g.drawText (juce::File (s.path).getFileName(), 22, 0, width - 92, height, juce::Justification::centredLeft, true);
+    g.setFont (fonts::mono (10.5f));
     g.setColour (colours::dim);
-    g.drawText (juce::String ((int) s.numBlocks) + " blocks", width - 70, 0, 64, height, juce::Justification::centredRight);
+    g.drawText (juce::String ((int) s.numBlocks), width - 70, 0, 64, height, juce::Justification::centredRight);
 }
 } // namespace cortex::ui

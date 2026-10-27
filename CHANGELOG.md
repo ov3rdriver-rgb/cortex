@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Two themes:** Dark (near-black, Segoe UI) and Light (paper and ink, Bahnschrift, with blue / red / violet for Input / Brain 1 / Brain 2 and a black result curve). Choose under Output → Theme; the choice is saved with the session and remembered for new instances. The fonts are system fonts for now.
+- **New look:** flat regions with hairline edges instead of rounded panels, each source's colour as a rule along the top of its region; small tracked uppercase captions; a monospace face for values; instrument-style tick marks on the knobs; square buttons, menus, tabs and tick boxes drawn to match.
+- "Envelope Transplant" is now "Transplant".
 - **Meters:** input and output peak meters with a gate light in the header, so you can see whether signal is getting in and coming out.
 - **Layout:** the triangles are capped at 250 px, so the spectral envelope and cepstrum plots get real height instead of 90 px each.
 - **Colours:** knobs take their panel's colour (orange in Brain 1, violet in Brain 2, turquoise in the Input, neutral in the tabs); pink now means the output only. Each brain map colours its sounds in shades of that brain's colour instead of borrowing the other sources' colours.

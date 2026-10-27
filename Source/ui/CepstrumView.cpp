@@ -50,13 +50,12 @@ void CepstrumView::paint (juce::Graphics& g)
     drawPanel (g, getLocalBounds().toFloat());
     const auto area = plotArea();
 
-    g.setFont (juce::FontOptions (11.0f));
+    drawCaption (g, getLocalBounds(), "Cepstrum: drag a line to move that source's split");
+    g.setFont (fonts::mono (9.5f));
     g.setColour (colours::dim);
-    g.drawText ("cepstrum: drag a line to set that source's envelope / detail split",
-                getLocalBounds().reduced (12, 6).removeFromTop (14), juce::Justification::centredLeft);
-    g.drawText ("quefrency 0-200 bins", getLocalBounds().reduced (12, 2).removeFromBottom (12), juce::Justification::centredRight);
+    g.drawText ("quefrency 0-200", getLocalBounds().reduced (12, 3).removeFromBottom (12), juce::Justification::centredRight);
 
-    g.setColour (colours::outline);
+    g.setColour (colours::rule);
     g.drawHorizontalLine ((int) area.getCentreY(), area.getX(), area.getRight());
 
     if (snapshot.valid)
@@ -82,7 +81,7 @@ void CepstrumView::paint (juce::Graphics& g)
                 else        p.lineTo (px, py);
             }
             g.setColour (colours::forSource (s).withAlpha (0.75f));
-            g.strokePath (p, juce::PathStrokeType (1.2f));
+            g.strokePath (p, juce::PathStrokeType (style.plotLineWidth - 0.2f));
         }
     }
 
@@ -92,9 +91,9 @@ void CepstrumView::paint (juce::Graphics& g)
         const float px = xForQuefrency (q);
         const auto colour = colours::forSource (s);
         g.setColour (colour);
-        g.drawLine (px, area.getY(), px, area.getBottom(), 2.0f);
-        g.setFont (juce::FontOptions (11.0f));
-        const auto label = juce::String (colours::sourceName (s)) + " " + juce::String (juce::roundToInt (q));
+        g.drawLine (px, area.getY(), px, area.getBottom(), 1.5f);
+        g.setFont (fonts::title (10.0f, false));
+        const auto label = fonts::titleCase (colours::sourceName (s)) + " " + juce::String (juce::roundToInt (q));
         g.drawText (label, juce::Rectangle<float> (px + 4.0f, area.getY() + (float) s * 14.0f, 90.0f, 14.0f).toNearestInt(),
                     juce::Justification::centredLeft);
 

@@ -32,13 +32,13 @@ void MeterStrip::setLevels (float inputPeak, float outputPeak, bool open, bool e
 
 void MeterStrip::drawMeter (juce::Graphics& g, juce::Rectangle<float> r, const char* name, float level, float hold, juce::Colour colour)
 {
-    g.setFont (juce::FontOptions (10.5f));
+    g.setFont (fonts::title (9.5f, false));
     g.setColour (colours::dim);
-    g.drawText (name, r.removeFromLeft (26.0f).toNearestInt(), juce::Justification::centredLeft);
+    g.drawText (fonts::titleCase (name), r.removeFromLeft (28.0f).toNearestInt(), juce::Justification::centredLeft);
 
     auto bar = r.reduced (0.0f, 6.0f);
-    g.setColour (colours::panel);
-    g.fillRoundedRectangle (bar, 2.0f);
+    g.setColour (colours::rule);
+    g.fillRect (bar);
 
     // Green up to -12 dB, amber to -3 dB, red above (positions in the 0..1 range).
     const float amber = 1.0f - 12.0f / -floorDb, red = 1.0f - 3.0f / -floorDb;
@@ -68,12 +68,12 @@ void MeterStrip::paint (juce::Graphics& g)
     const float rowHeight = r.getHeight() * 0.5f;
 
     // Gate light on the right, then two meter rows.
-    auto gate = r.removeFromRight (46.0f);
-    g.setFont (juce::FontOptions (10.5f));
+    auto gate = r.removeFromRight (50.0f);
+    g.setFont (fonts::title (9.5f, false));
     g.setColour (gateEnabled ? colours::text : colours::dim);
-    g.drawText ("gate", gate.removeFromLeft (26.0f).toNearestInt(), juce::Justification::centredLeft);
+    g.drawText (fonts::titleCase ("gate"), gate.removeFromLeft (30.0f).toNearestInt(), juce::Justification::centredLeft);
     const auto light = juce::Rectangle<float> (10.0f, 10.0f).withCentre (gate.getCentre());
-    g.setColour (! gateEnabled ? colours::outline : gateOpen ? colours::input : colours::input.withAlpha (0.2f));
+    g.setColour (! gateEnabled ? colours::rule : gateOpen ? colours::input : colours::input.withAlpha (0.2f));
     g.fillEllipse (light);
     if (gateEnabled && gateOpen)
     {

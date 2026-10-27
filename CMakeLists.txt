@@ -54,7 +54,8 @@ set(CORTEX_UI_SOURCES
     ${PROJECT_SOURCE_DIR}/Source/ui/CepstrumView.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/BrainMap.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/ParamPanel.cpp
-    ${PROJECT_SOURCE_DIR}/Source/ui/MeterStrip.cpp)
+    ${PROJECT_SOURCE_DIR}/Source/ui/MeterStrip.cpp
+    ${PROJECT_SOURCE_DIR}/Source/ui/MainView.cpp)
 
 # Both plugins are built from the same sources; the processor picks effect or
 # instrument behaviour from JucePlugin_IsSynth.

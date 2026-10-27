@@ -71,9 +71,7 @@ void TrianglePad::paint (juce::Graphics& g)
 {
     drawPanel (g, getLocalBounds().toFloat());
 
-    g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
-    g.setColour (colours::text);
-    g.drawText (title, getLocalBounds().reduced (12, 6).removeFromTop (16), juce::Justification::centredLeft);
+    drawCaption (g, getLocalBounds(), title, colours::text);
 
     const auto corner = [this] (int c) { return toScreen (triangleCorner[c]); };
 
@@ -88,16 +86,16 @@ void TrianglePad::paint (juce::Graphics& g)
         g.setGradientFill (grad);
         g.fillPath (tri);
     }
-    g.setColour (colours::outline.brighter (0.3f));
-    g.strokePath (tri, juce::PathStrokeType (1.5f));
+    g.setColour (colours::rule);
+    g.strokePath (tri, juce::PathStrokeType (1.0f));
 
     // Corner labels with the live weight.
-    g.setFont (juce::FontOptions (11.0f));
+    g.setFont (fonts::title (10.0f, false));
     for (int c = 0; c < 3; ++c)
     {
         const int s = cornerSource[c];
         const auto p = corner (c);
-        const auto text = juce::String (colours::sourceName (s)) + "  " + juce::String (juce::roundToInt (liveWeights[(size_t) s] * 100.0f)) + "%";
+        const auto text = fonts::titleCase (colours::sourceName (s)) + "  " + juce::String (juce::roundToInt (liveWeights[(size_t) s] * 100.0f)) + "%";
         juce::Rectangle<float> box (110.0f, 14.0f);
         if (c == 0)      box = box.withCentre ({ p.x, p.y - 10.0f });
         else if (c == 1) box = box.withPosition (p.x - 4.0f, p.y + 4.0f);
@@ -116,8 +114,9 @@ void TrianglePad::paint (juce::Graphics& g)
 
     if (following)
     {
+        g.setFont (fonts::title (10.0f, false));
         g.setColour (colours::dim);
-        g.drawText ("linked to envelope", getLocalBounds().reduced (12, 6).removeFromTop (16), juce::Justification::centredRight);
+        g.drawText (fonts::titleCase ("linked"), getLocalBounds().reduced (12, 7).removeFromTop (12), juce::Justification::centredRight);
     }
 }
 

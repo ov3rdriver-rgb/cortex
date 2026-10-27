@@ -1,20 +1,12 @@
 #pragma once
 
 #include "PluginProcessor.h"
-#include "ui/BrainColumn.h"
-#include "ui/CepstrumView.h"
-#include "ui/EnvelopeView.h"
-#include "ui/MeterStrip.h"
-#include "ui/ParamPanel.h"
+#include "ui/MainView.h"
 #include "ui/Theme.h"
-#include "ui/TrianglePad.h"
 
-// Layout:
-//   header       title, in/out meters + gate light, Rebuild, version
-//   left/right   Brain 1 / Brain 2 columns (status, load, map, sounds, their settings)
-//   centre       Envelope and Detail triangles (+ Link), live envelopes, cepstrum
-//   bottom       Input panel (synth or track/sidechain + its settings), tabs
-// Files dropped on a brain column load into that brain; anywhere else, Brain 1.
+// The window: owns the look-and-feel and the view, and rebuilds the view
+// when the Theme parameter changes. Files dropped on a brain column load into
+// that brain; anywhere else, Brain 1.
 class CortexAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                          public juce::FileDragAndDropTarget,
                                          private juce::Timer
@@ -23,7 +15,6 @@ public:
     explicit CortexAudioProcessorEditor (CortexAudioProcessor&);
     ~CortexAudioProcessorEditor() override;
 
-    void paint (juce::Graphics&) override;
     void resized() override;
 
     bool isInterestedInFileDrag (const juce::StringArray&) override { return true; }
@@ -34,24 +25,12 @@ public:
 
 private:
     void timerCallback() override;
+    void buildView();
 
     CortexAudioProcessor& processor;
     cortex::ui::CortexLookAndFeel lookAndFeel;
-
-    juce::Label title, versionLabel, credits;
-    juce::TextButton rebuildButton { "Rebuild brains" };
-    cortex::ui::MeterStrip meters;
-
-    cortex::ui::BrainColumn brain1Column, brain2Column;
-    cortex::ui::TrianglePad envelopeTriangle, detailTriangle;
-    juce::ToggleButton linkToggle { "Link: detail follows envelope" };
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> linkAttachment;
-    cortex::ui::EnvelopeView envelopes;
-    cortex::ui::CepstrumView cepstrum;
-
-    juce::Label inputTitle;
-    cortex::ui::ParamPanel inputPanel;
-    juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
+    std::unique_ptr<cortex::ui::MainView> view;
+    std::unique_ptr<juce::ParameterAttachment> themeAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CortexAudioProcessorEditor)
 };

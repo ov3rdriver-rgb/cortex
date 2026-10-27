@@ -3,6 +3,7 @@
 #include "Parameters.h"
 #include "dsp/Triangle.h"
 #include "state/BrainCache.h"
+#include "state/Settings.h"
 
 namespace
 {
@@ -41,6 +42,10 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
             [this, b] (std::shared_ptr<const cortex::brain::Brain> brain, const juce::String& m) { onBrainBuilt (b, std::move (brain), m); });
 
     formatManager.registerBasicFormats();
+
+    // A new instance opens in the theme the user last chose (a saved session
+    // then restores its own).
+    apvts.getParameterAsValue (id::theme).setValue (cortex::settings::loadTheme());
 
     auto get = [this] (const char* id) { return apvts.getRawParameterValue (id); };
 

@@ -22,9 +22,9 @@ ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::S
         auto name = param->getName (40);
         if (stripPrefix.isNotEmpty() && name.startsWith (stripPrefix))
             name = name.substring (stripPrefix.length());
-        c->label.setText (name, juce::dontSendNotification);
+        c->label.setText (fonts::titleCase (name), juce::dontSendNotification);
         c->label.setJustificationType (juce::Justification::centred);
-        c->label.setFont (juce::FontOptions (11.5f));
+        c->label.setFont (fonts::label (9.5f));
         c->label.setColour (juce::Label::textColourId, colours::dim);
         addAndMakeVisible (c->label);
 
@@ -41,7 +41,7 @@ ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::S
             // (its label row is left empty).
             c->label.setText ({}, juce::dontSendNotification);
             // "Freeze Detail" doesn't fit a brain column's cell; the host still sees the full name.
-            c->toggle = std::make_unique<juce::TextButton> (name.replace ("Detail", "Det"));
+            c->toggle = std::make_unique<juce::TextButton> (fonts::titleCase (name.replace ("Detail", "Det")));
             c->toggle->setClickingTogglesState (true);
             c->toggle->setColour (juce::TextButton::buttonOnColourId, accent.withAlpha (0.28f));
             c->toggle->setColour (juce::TextButton::textColourOnId, accent);
@@ -54,7 +54,8 @@ ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::S
             c->slider = std::make_unique<juce::Slider> (juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow);
             c->slider->setTextBoxStyle (juce::Slider::TextBoxBelow, false, cellWidth - 8, 16);
             c->slider->setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-            c->slider->setColour (juce::Slider::textBoxBackgroundColourId, colours::background);
+            c->slider->setColour (juce::Slider::textBoxTextColourId, colours::text);   // the box is made before the look-and-feel applies
+            c->slider->setColour (juce::Slider::textBoxHighlightColourId, accent.withAlpha (0.4f));
             c->slider->setColour (juce::Slider::rotarySliderFillColourId, accent);
             c->sliderAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (state, id, *c->slider);
 

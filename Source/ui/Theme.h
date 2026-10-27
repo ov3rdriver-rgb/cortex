@@ -7,27 +7,87 @@
 
 namespace cortex::ui
 {
+// A complete look: palette, fonts, label casing. Two ship: Dark and Light,
+// chosen by the Theme parameter; `applyStyle` switches the palette and the
+// editor rebuilds its view. The fonts are system fonts for now.
+struct Style
+{
+    juce::String name;
+    juce::Colour background, panel, outline, rule, text, dim;
+    juce::Colour input, brain1, brain2, result, neutralAccent;
+    bool uppercaseTitles = true;
+    float titleKerning = 0.08f;     // extra letter spacing for titles / labels
+    juce::String fontName, boldFontName, monoFontName;
+    float plotLineWidth = 1.4f;
+};
+
+inline Style darkStyle()
+{
+    Style s;
+    s.name = "dark";
+    s.background = juce::Colour (0xff0e0f12);
+    s.panel = juce::Colour (0xff14161b);
+    s.outline = juce::Colour (0xff23272f);
+    s.rule = juce::Colour (0xff2b303a);
+    s.text = juce::Colour (0xffe6e8ee);
+    s.dim = juce::Colour (0xff7d8496);
+    s.input = juce::Colour (0xff4fd1c5);
+    s.brain1 = juce::Colour (0xfff6ad55);
+    s.brain2 = juce::Colour (0xffb794f4);
+    s.result = juce::Colour (0xfff687b3);
+    s.neutralAccent = juce::Colour (0xffc3c9d6);
+    s.titleKerning = 0.08f;
+    s.fontName = "Segoe UI";
+    s.boldFontName = "Segoe UI Semibold";
+    s.monoFontName = "Cascadia Mono";
+    return s;
+}
+
+// Paper, ink and three printing colours; the output is black.
+inline Style lightStyle()
+{
+    Style s;
+    s.name = "light";
+    s.background = juce::Colour (0xffeeece6);
+    s.panel = juce::Colour (0xfffbfaf7);
+    s.outline = juce::Colour (0xff141414);
+    s.rule = juce::Colour (0xffc9c6bd);
+    s.text = juce::Colour (0xff141414);
+    s.dim = juce::Colour (0xff6c6a64);
+    s.input = juce::Colour (0xff0b63c7);
+    s.brain1 = juce::Colour (0xffd92b2b);
+    s.brain2 = juce::Colour (0xff6a2bd9);
+    s.result = juce::Colour (0xff141414);
+    s.neutralAccent = juce::Colour (0xff141414);
+    s.titleKerning = 0.1f;
+    s.fontName = "Bahnschrift";
+    s.boldFontName = "Bahnschrift SemiBold";
+    s.monoFontName = "Cascadia Mono";
+    s.plotLineWidth = 1.6f;
+    return s;
+}
+
+// Index of the Theme parameter -> style.
+inline Style styleForTheme (int index)
+{
+    return index == 1 ? lightStyle() : darkStyle();
+}
+
+// The colours the components read. They start as the dark style and are
+// reassigned by applyStyle (the names stay so call sites read naturally).
 namespace colours
 {
-    inline const juce::Colour background { 0xff101217 };
-    inline const juce::Colour panel      { 0xff181b22 };
-    inline const juce::Colour outline    { 0xff2b303b };
-    inline const juce::Colour text       { 0xffd9dee8 };
-    inline const juce::Colour dim        { 0xff7b8496 };
-    inline const juce::Colour input      { 0xff4fd1c5 };   // the Input
-    inline const juce::Colour brain1     { 0xfff6ad55 };   // Brain 1
-    inline const juce::Colour brain2     { 0xffb794f4 };   // Brain 2
-    inline const juce::Colour result     { 0xfff687b3 };   // the morph (output)
-    inline const juce::Colour neutralAccent { 0xffb9c1cf };   // knobs that belong to no source
-
-    // Sounds inside a brain are shades of that brain's colour, so a map never
-    // borrows another source's colour.
-    inline juce::Colour forSound (juce::Colour brainColour, int index)
-    {
-        const float t = std::fmod (0.618034f * (float) index, 1.0f);
-        return brainColour.withRotatedHue (-0.05f + 0.1f * t).withMultipliedBrightness (0.55f + 0.45f * std::fmod (t * 2.7f, 1.0f))
-            .withMultipliedSaturation (0.7f + 0.3f * std::fmod (t * 1.9f, 1.0f));
-    }
+    inline juce::Colour background { 0xff0e0f12 };
+    inline juce::Colour panel      { 0xff14161b };
+    inline juce::Colour outline    { 0xff23272f };
+    inline juce::Colour rule       { 0xff2b303a };   // hairlines between regions
+    inline juce::Colour text       { 0xffe6e8ee };
+    inline juce::Colour dim        { 0xff7d8496 };
+    inline juce::Colour input      { 0xff4fd1c5 };   // the Input
+    inline juce::Colour brain1     { 0xfff6ad55 };   // Brain 1
+    inline juce::Colour brain2     { 0xffb794f4 };   // Brain 2
+    inline juce::Colour result     { 0xfff687b3 };   // the morph (output)
+    inline juce::Colour neutralAccent { 0xffc3c9d6 };   // knobs that belong to no source
 
     inline juce::Colour forSource (int source)
     {
@@ -38,29 +98,93 @@ namespace colours
     {
         return source == cortex::dsp::input ? "Input" : source == cortex::dsp::brain1 ? "Brain 1" : "Brain 2";
     }
+
+    // Sounds inside a brain are shades of that brain's colour, so a map never
+    // borrows another source's colour.
+    inline juce::Colour forSound (juce::Colour brainColour, int index)
+    {
+        const float t = std::fmod (0.618034f * (float) index, 1.0f);
+        return brainColour.withRotatedHue (-0.05f + 0.1f * t).withMultipliedBrightness (0.55f + 0.45f * std::fmod (t * 2.7f, 1.0f))
+            .withMultipliedSaturation (0.7f + 0.3f * std::fmod (t * 1.9f, 1.0f));
+    }
+}
+
+inline Style style = darkStyle();
+
+inline void applyStyle (const Style& s)
+{
+    style = s;
+    colours::background = s.background;
+    colours::panel = s.panel;
+    colours::outline = s.outline;
+    colours::rule = s.rule;
+    colours::text = s.text;
+    colours::dim = s.dim;
+    colours::input = s.input;
+    colours::brain1 = s.brain1;
+    colours::brain2 = s.brain2;
+    colours::result = s.result;
+    colours::neutralAccent = s.neutralAccent;
+}
+
+namespace fonts
+{
+    inline juce::Font ui (float size, bool bold = false)
+    {
+        return juce::Font (juce::FontOptions (bold ? style.boldFontName : style.fontName, size, juce::Font::plain));
+    }
+
+    // Section titles: small, tracked, in caps if the style says so.
+    inline juce::Font title (float size, bool bold = true)
+    {
+        return ui (size, bold).withExtraKerningFactor (style.titleKerning);
+    }
+
+    // Control labels: like a title but tracked less, so long names fit a cell.
+    inline juce::Font label (float size)
+    {
+        return ui (size).withExtraKerningFactor (style.titleKerning * 0.25f);
+    }
+
+    inline juce::Font mono (float size)
+    {
+        return juce::Font (juce::FontOptions (style.monoFontName, size, juce::Font::plain));
+    }
+
+    inline juce::String titleCase (const juce::String& s)
+    {
+        return style.uppercaseTitles ? s.toUpperCase() : s;
+    }
 }
 
 class CortexLookAndFeel final : public juce::LookAndFeel_V4
 {
 public:
-    CortexLookAndFeel()
+    CortexLookAndFeel() { applyColours(); }
+
+    // Re-read the palette after applyStyle.
+    void applyColours()
     {
         using namespace colours;
         setColour (juce::ResizableWindow::backgroundColourId, background);
         setColour (juce::Label::textColourId, text);
         setColour (juce::Slider::rotarySliderFillColourId, neutralAccent);
-        setColour (juce::Slider::rotarySliderOutlineColourId, outline);
+        setColour (juce::Slider::rotarySliderOutlineColourId, rule);
         setColour (juce::Slider::thumbColourId, text);
         setColour (juce::Slider::textBoxTextColourId, text);
+        setColour (juce::Slider::textBoxBackgroundColourId, background);
         setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
         setColour (juce::ComboBox::backgroundColourId, panel);
         setColour (juce::ComboBox::outlineColourId, outline);
         setColour (juce::ComboBox::textColourId, text);
         setColour (juce::ComboBox::arrowColourId, dim);
         setColour (juce::PopupMenu::backgroundColourId, panel);
-        setColour (juce::PopupMenu::highlightedBackgroundColourId, outline);
+        setColour (juce::PopupMenu::textColourId, text);
+        setColour (juce::PopupMenu::highlightedBackgroundColourId, rule);
+        setColour (juce::PopupMenu::highlightedTextColourId, text);
         setColour (juce::TextButton::buttonColourId, panel);
         setColour (juce::TextButton::textColourOffId, text);
+        setColour (juce::TextButton::textColourOnId, text);
         setColour (juce::ToggleButton::textColourId, text);
         setColour (juce::ToggleButton::tickColourId, neutralAccent);
         setColour (juce::ToggleButton::tickDisabledColourId, dim);
@@ -71,13 +195,103 @@ public:
         setColour (juce::ProgressBar::foregroundColourId, brain1);
         setColour (juce::ListBox::backgroundColourId, panel);
         setColour (juce::ListBox::outlineColourId, outline);
+        setColour (juce::ScrollBar::thumbColourId, rule);
+        setColour (juce::TooltipWindow::backgroundColourId, panel);
+        setColour (juce::TooltipWindow::textColourId, text);
+        setColour (juce::TooltipWindow::outlineColourId, outline);
     }
 
-    // Small buttons (the parameter switches) get a smaller face so their
-    // names fit.
     juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override
     {
-        return juce::FontOptions (buttonHeight < 30 ? 11.0f : 14.0f);
+        return fonts::title (buttonHeight < 30 ? 10.5f : 12.5f, false);
+    }
+
+    juce::Font getLabelFont (juce::Label& label) override { return label.getFont(); }
+    juce::Font getComboBoxFont (juce::ComboBox&) override { return fonts::ui (12.5f); }
+    juce::Font getPopupMenuFont() override { return fonts::ui (13.0f); }
+    juce::Font getTabButtonFont (juce::TabBarButton&, float) override { return fonts::title (11.0f); }
+    juce::Font getSliderPopupFont (juce::Slider&) override { return fonts::mono (12.0f); }
+
+    // Values in a monospace face, so they don't jiggle as they change.
+    juce::Label* createSliderTextBox (juce::Slider& slider) override
+    {
+        auto* label = LookAndFeel_V4::createSliderTextBox (slider);
+        label->setFont (fonts::mono (11.0f));
+        return label;
+    }
+
+    void drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour& backgroundColour,
+                               bool highlighted, bool down) override
+    {
+        auto bounds = button.getLocalBounds().toFloat().reduced (0.5f);
+        auto base = backgroundColour;
+        if (down || highlighted)
+            base = base.contrasting (down ? 0.12f : 0.05f);
+        g.setColour (base);
+        g.fillRect (bounds);
+        g.setColour (button.getToggleState() ? button.findColour (juce::TextButton::textColourOnId).withAlpha (0.8f) : colours::outline);
+        g.drawRect (bounds, 1.0f);
+    }
+
+    void drawComboBox (juce::Graphics& g, int width, int height, bool, int, int, int, int, juce::ComboBox& box) override
+    {
+        auto bounds = juce::Rectangle<int> (0, 0, width, height).toFloat().reduced (0.5f);
+        g.setColour (box.findColour (juce::ComboBox::backgroundColourId));
+        g.fillRect (bounds);
+        g.setColour (box.findColour (juce::ComboBox::outlineColourId));
+        g.drawRect (bounds, 1.0f);
+
+        // A small chevron.
+        const auto arrow = juce::Rectangle<float> ((float) width - 18.0f, (float) height * 0.5f - 2.0f, 8.0f, 4.0f);
+        juce::Path p;
+        p.startNewSubPath (arrow.getX(), arrow.getY());
+        p.lineTo (arrow.getCentreX(), arrow.getBottom());
+        p.lineTo (arrow.getRight(), arrow.getY());
+        g.setColour (box.findColour (juce::ComboBox::arrowColourId));
+        g.strokePath (p, juce::PathStrokeType (1.5f));
+    }
+
+    // A square tick box with a filled square when on.
+    void drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool down) override
+    {
+        const float boxSize = 14.0f;
+        auto bounds = button.getLocalBounds().toFloat();
+        auto box = juce::Rectangle<float> (boxSize, boxSize).withCentre ({ bounds.getX() + boxSize * 0.5f + 2.0f, bounds.getCentreY() });
+        g.setColour (colours::panel.contrasting (down ? 0.12f : highlighted ? 0.05f : 0.0f));
+        g.fillRect (box);
+        g.setColour (button.getToggleState() ? button.findColour (juce::ToggleButton::tickColourId) : colours::outline);
+        g.drawRect (box, 1.0f);
+        if (button.getToggleState())
+            g.fillRect (box.reduced (3.5f));
+
+        g.setFont (fonts::ui (12.5f));
+        g.setColour (button.findColour (juce::ToggleButton::textColourId).withMultipliedAlpha (button.isEnabled() ? 1.0f : 0.5f));
+        g.drawText (button.getButtonText(), bounds.withTrimmedLeft (boxSize + 10.0f).toNearestInt(), juce::Justification::centredLeft);
+    }
+
+    // Tabs: flat text with a rule under the front one in the accent colour.
+    void drawTabButton (juce::TabBarButton& button, juce::Graphics& g, bool highlighted, bool) override
+    {
+        const auto area = button.getActiveArea();
+        const bool front = button.isFrontTab();
+        g.setColour (front ? colours::panel : colours::background);
+        g.fillRect (area);
+        g.setColour (colours::outline);
+        g.fillRect (area.getX(), area.getBottom() - 1, area.getWidth(), 1);
+        if (front)
+        {
+            g.setColour (colours::neutralAccent);
+            g.fillRect (area.getX(), area.getY(), area.getWidth(), 2);
+        }
+        g.setFont (fonts::title (11.0f));
+        g.setColour (front ? colours::text : highlighted ? colours::text.withAlpha (0.8f) : colours::dim);
+        g.drawText (fonts::titleCase (button.getButtonText()), area, juce::Justification::centred);
+    }
+
+    void drawTabAreaBehindFrontButton (juce::TabbedButtonBar&, juce::Graphics&, int, int) override {}
+    int getTabButtonBestWidth (juce::TabBarButton& button, int) override
+    {
+        return juce::roundToInt (fonts::title (11.0f).getStringWidthFloat (fonts::titleCase (button.getButtonText()))) + 32;
     }
 
     void drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h, float pos,
@@ -87,20 +301,25 @@ public:
         const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
         const auto centre = bounds.getCentre();
         const float angle = startAngle + pos * (endAngle - startAngle);
-        const float stroke = juce::jmax (2.5f, radius * 0.16f);
+        const float stroke = juce::jmax (2.0f, radius * 0.13f);
 
         juce::Path track, value;
         track.addCentredArc (centre.x, centre.y, radius - stroke, radius - stroke, 0.0f, startAngle, endAngle, true);
         value.addCentredArc (centre.x, centre.y, radius - stroke, radius - stroke, 0.0f, startAngle, angle, true);
 
         g.setColour (slider.findColour (juce::Slider::rotarySliderOutlineColourId));
-        g.strokePath (track, juce::PathStrokeType (stroke, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.strokePath (track, juce::PathStrokeType (stroke, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
         g.setColour (slider.findColour (juce::Slider::rotarySliderFillColourId));
-        g.strokePath (value, juce::PathStrokeType (stroke, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.strokePath (value, juce::PathStrokeType (stroke, juce::PathStrokeType::curved, juce::PathStrokeType::butt));
 
-        const auto tip = centre.getPointOnCircumference (radius - stroke * 2.2f, angle);
+        // Tick marks at the ends and the middle, like an instrument dial.
+        g.setColour (slider.findColour (juce::Slider::rotarySliderOutlineColourId).contrasting (0.25f));
+        for (float a : { startAngle, (startAngle + endAngle) * 0.5f, endAngle })
+            g.drawLine ({ centre.getPointOnCircumference (radius + 1.0f, a), centre.getPointOnCircumference (radius - stroke * 2.0f - 1.0f, a) }, 1.0f);
+
+        const auto tip = centre.getPointOnCircumference (radius - stroke * 2.4f, angle);
         g.setColour (slider.findColour (juce::Slider::thumbColourId));
-        g.drawLine ({ centre.getPointOnCircumference (radius * 0.15f, angle), tip }, 2.0f);
+        g.drawLine ({ centre.getPointOnCircumference (radius * 0.1f, angle), tip }, 2.0f);
     }
 };
 
@@ -121,11 +340,20 @@ inline float cepstralEnvelope (const float* ceps, int numCoeffs, float cutoff, d
     return sum;
 }
 
+// A region: flat panel with a hairline edge.
 inline void drawPanel (juce::Graphics& g, juce::Rectangle<float> r)
 {
     g.setColour (colours::panel);
-    g.fillRoundedRectangle (r, 6.0f);
+    g.fillRect (r);
     g.setColour (colours::outline);
-    g.drawRoundedRectangle (r.reduced (0.5f), 6.0f, 1.0f);
+    g.drawRect (r, 1.0f);
+}
+
+// A small section caption at the top-left of a region.
+inline void drawCaption (juce::Graphics& g, juce::Rectangle<int> region, const juce::String& text, juce::Colour colour = colours::dim)
+{
+    g.setFont (fonts::title (10.0f));
+    g.setColour (colour);
+    g.drawText (fonts::titleCase (text), region.reduced (12, 7).removeFromTop (12), juce::Justification::centredLeft);
 }
 } // namespace cortex::ui

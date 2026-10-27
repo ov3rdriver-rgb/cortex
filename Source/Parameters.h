@@ -58,6 +58,7 @@ namespace cortex::ParamIDs
     inline constexpr auto envDepth      = "envDepth";
     inline constexpr auto envAttack     = "envAttack";
     inline constexpr auto envRelease    = "envRelease";
+    inline constexpr auto theme         = "theme";          // UI only: Dark / Light
 
     // Cortex Instrument only.
     inline constexpr auto oscWave       = "oscWave";

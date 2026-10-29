@@ -102,8 +102,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                                          juce::NormalisableRange<float> (10.0f, 2000.0f, 1.0f, 0.5f), 250.0f,
                                          juce::AudioParameterFloatAttributes().withLabel ("ms")));
 
-    // The editor's theme. Saved with the session and remembered for new
-    // instances; not something to automate.
+    // The editor's theme. A per-user setting (state/Settings.h) that the
+    // processor keeps out of the saved state; a parameter only so the Output
+    // panel can show it like any other control. Not automatable.
     layout.add (std::make_unique<Choice> (pid (theme), "Theme", juce::StringArray { "Dark", "Light" }, 0,
                                           juce::AudioParameterChoiceAttributes().withAutomatable (false)));
 

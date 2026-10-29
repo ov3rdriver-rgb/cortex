@@ -45,6 +45,8 @@ foreach ($doc in Get-ChildItem (Join-Path $PSScriptRoot 'docs') -Filter *.txt) {
 # Licence and project notes.
 Copy-Item (Join-Path $root 'LICENSE') (Join-Path $stage 'LICENSE.txt')
 Copy-Item (Join-Path $root 'CREDITS.md'), (Join-Path $root 'CHANGELOG.md') $stage
+# The embedded fonts' licences (SIL OFL asks for them to travel with the fonts).
+Copy-Item (Join-Path $root 'Resources\fonts\Inter-OFL.txt'), (Join-Path $root 'Resources\fonts\Barlow-OFL.txt') $stage
 
 # Source of exactly this version (AGPL-3.0: recipients of the binaries get the source).
 git archive --format=zip --prefix="cortex-$version/" -o (Join-Path $stage "Source\cortex-$version-source.zip") $tag

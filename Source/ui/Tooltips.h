@@ -66,7 +66,7 @@ inline juce::String forParam (const juce::String& id)
         { gateThresh, "Gate threshold in dB (-96 to 0). The Input must be louder than this for the gate to open." },
         { autoMute, "Auto-mute: after the Input has been below the gate threshold for the auto-mute time, stop processing entirely (saves CPU and lets the output fall silent)." },
         { autoMuteMs, "Auto-mute time in ms (10-2000): how long the Input must stay quiet before auto-mute kicks in." },
-        { theme, "Dark or Light. Saved with the session, and remembered for new instances." },
+        { theme, "Dark or Light. A setting for you, not for the project: every Cortex you open uses it, and projects and presets never change it." },
 
         { oscWave, "Oscillator waveform for the Instrument's Input: Saw, Square, Triangle or Sine. The brains morph against this, so it sets the detail (pitch) you hear." },
         { oscGlide, "Glide (portamento) in ms: how long a held note takes to slide to a new one." },

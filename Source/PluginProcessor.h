@@ -56,6 +56,10 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    // Sets the theme parameter from the per-user setting (Settings.h). The
+    // theme is never part of the saved state.
+    void syncThemeFromSettings();
+
     juce::AudioProcessorValueTreeState apvts;
 
     int currentFftSize() const;

@@ -10,6 +10,9 @@ CortexAudioProcessorEditor::CortexAudioProcessorEditor (CortexAudioProcessor& p)
 
     // The theme: restyle and rebuild the view whenever it changes (the
     // attachment also delivers the current value, which builds the first one).
+    // Opening an editor picks up a theme chosen in another instance since
+    // this one was created.
+    p.syncThemeFromSettings();
     auto& themeParam = *p.apvts.getParameter (cortex::ParamIDs::theme);
     themeAttachment = std::make_unique<juce::ParameterAttachment> (themeParam, [this, &themeParam] (float)
     {

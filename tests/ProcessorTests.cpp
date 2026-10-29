@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "Parameters.h"
+#include "state/Settings.h"
 
 class ProcessorScaffoldTests final : public juce::UnitTest
 {
@@ -43,6 +44,27 @@ public:
         other.setStateInformation (state.getData(), (int) state.getSize());
         expectWithinAbsoluteError (other.apvts.getParameter (cortex::ParamIDs::envX)->getValue(), 0.7f, 1e-4f);
         expectEquals (other.getLatencySamples(), 4096);
+
+        beginTest ("The theme is a user setting, not part of the state");
+        {
+            const int chosen = cortex::settings::loadTheme();
+            auto* theme = proc.apvts.getParameter (cortex::ParamIDs::theme);
+            theme->setValueNotifyingHost (theme->convertTo0to1 ((float) (1 - chosen)));
+            juce::MemoryBlock saved;
+            proc.getStateInformation (saved);
+            expect (! juce::String::fromUTF8 ((const char*) saved.getData(), (int) saved.getSize()).contains ("\"theme\""));
+
+            // A state that does carry a theme (older versions saved one) is ignored.
+            auto state = proc.apvts.copyState();
+            state.getChildWithProperty ("id", cortex::ParamIDs::theme).setProperty ("value", 1 - chosen, nullptr);
+            juce::MemoryBlock withTheme;
+            proc.copyXmlToBinary (*state.createXml(), withTheme);
+            CortexAudioProcessor third;
+            third.setStateInformation (withTheme.getData(), (int) withTheme.getSize());
+            auto* restored = third.apvts.getParameter (cortex::ParamIDs::theme);
+            expectEquals (juce::roundToInt (restored->convertFrom0to1 (restored->getValue())), chosen);
+            theme->setValueNotifyingHost (theme->convertTo0to1 ((float) chosen));
+        }
 
         beginTest ("Silence in, silence out, no NaN");
         proc.prepareToPlay (48000.0, 512);

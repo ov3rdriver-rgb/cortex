@@ -43,9 +43,9 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
 
     formatManager.registerBasicFormats();
 
-    // A new instance opens in the theme the user last chose (a saved session
-    // then restores its own).
-    apvts.getParameterAsValue (id::theme).setValue (cortex::settings::loadTheme());
+    // The theme is a per-user setting, not part of the session: every instance
+    // opens in the theme the user last chose.
+    syncThemeFromSettings();
 
     auto get = [this] (const char* id) { return apvts.getRawParameterValue (id); };
 
@@ -530,6 +530,11 @@ void CortexAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
         state.appendChild (brainTree, nullptr);
     }
 
+    // The theme is a user setting (Settings.h), never saved into a project or
+    // preset: a session saved in Light must not flip a user who has since
+    // chosen Dark.
+    state.removeChild (state.getChildWithProperty ("id", id::theme), nullptr);
+
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -549,6 +554,7 @@ void CortexAudioProcessor::setStateInformation (const void* data, int sizeInByte
                 state.removeChild (state.getChildWithName (brainStateIds[b]), nullptr);
             }
             apvts.replaceState (state);
+            syncThemeFromSettings();   // ignores a theme saved by older versions
 
             // Hosts never call this on the audio thread. The builds themselves
             // are asynchronous, and usually fast cache loads.
@@ -563,6 +569,12 @@ void CortexAudioProcessor::setStateInformation (const void* data, int sizeInByte
     }
 
     updateLatency();
+}
+
+void CortexAudioProcessor::syncThemeFromSettings()
+{
+    auto& param = *apvts.getParameter (id::theme);
+    param.setValueNotifyingHost (param.convertTo0to1 ((float) cortex::settings::loadTheme()));
 }
 
 //==============================================================================

@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 (2026-10-29)
 
-- **Two themes:** Dark (near-black, Inter) and Light (paper and ink, Barlow, with blue / red / violet for Input / Brain 1 / Brain 2 and a black result curve). Choose under Output → Theme; the choice is saved with the session and remembered for new instances.
+- **Two themes:** Dark (near-black, Inter) and Light (paper and ink, Barlow, with blue / red / violet for Input / Brain 1 / Brain 2 and a black result curve). Choose under Output → Theme. It is a per-user setting: every instance uses it, and projects and presets never change it.
 - **Tooltips:** hover any knob, switch, menu, triangle, plot, map or button for a few sentences on what it does, what the range means and what to use it for.
 - **Embedded fonts:** Inter and Barlow (SIL Open Font License) are built into the plugin, so both themes look the same on macOS and Windows. Values use the system monospace face (Cascadia Mono on Windows, Menlo on macOS).
 - **New look:** flat regions with hairline edges instead of rounded panels, each source's colour as a rule along the top of its region; small tracked uppercase captions; a monospace face for values; instrument-style tick marks on the knobs; square buttons, menus, tabs and tick boxes drawn to match.

@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "ui/Tooltips.h"
 #include "Parameters.h"
+#include "state/Settings.h"
 
 namespace
 {
@@ -65,6 +66,10 @@ public:
         const auto outDir = juce::File (juce::SystemStats::getEnvironmentVariable ("CORTEX_DIAG_OUT",
                                             juce::File::getSpecialLocation (juce::File::tempDirectory).getFullPathName()));
 
+        // The tests write the real per-user theme setting; put it back after.
+        const int userTheme = cortex::settings::loadTheme();
+        struct RestoreTheme { int t; ~RestoreTheme() { cortex::settings::saveTheme (t); } } restoreTheme { userTheme };
+
         // Effect and instrument in the dark theme, then the effect in light.
         struct Variant { bool instrument; int theme; const char* file; };
         for (const auto& v : { Variant { false, 0, "ui_effect.png" },
@@ -76,7 +81,8 @@ public:
                        + ", theme " + juce::String (v.theme));
 
             CortexAudioProcessor proc (instrument);
-            proc.apvts.getParameterAsValue (cortex::ParamIDs::theme).setValue (v.theme);
+            // Opening an editor applies the user's saved theme, so set that.
+            cortex::settings::saveTheme (v.theme);
             auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
             set (cortex::ParamIDs::envX, 0.45f);    // envelope: mostly Brain 1, some Brain 2 and Input
             set (cortex::ParamIDs::envY, 0.55f);
@@ -139,14 +145,24 @@ public:
 
         beginTest ("Changing the Theme parameter restyles the open editor");
         {
+            cortex::settings::saveTheme (0);
             CortexAudioProcessor proc;
             proc.prepareToPlay (48000.0, 512);
             std::unique_ptr<juce::AudioProcessorEditor> editor (proc.createEditor());
             auto* themeParam = proc.apvts.getParameter (cortex::ParamIDs::theme);
             themeParam->setValueNotifyingHost (themeParam->convertTo0to1 (1.0f));
             expectEquals (cortex::ui::style.name, juce::String ("light"));
+            expectEquals (cortex::settings::loadTheme(), 1);   // the choice is saved for every instance
             themeParam->setValueNotifyingHost (themeParam->convertTo0to1 (0.0f));
             expectEquals (cortex::ui::style.name, juce::String ("dark"));
+
+            // A second instance opened now follows the choice made in the first.
+            themeParam->setValueNotifyingHost (themeParam->convertTo0to1 (1.0f));
+            CortexAudioProcessor second;
+            std::unique_ptr<juce::AudioProcessorEditor> secondEditor (second.createEditor());
+            auto* secondTheme = second.apvts.getParameter (cortex::ParamIDs::theme);
+            expectEquals (juce::roundToInt (secondTheme->convertFrom0to1 (secondTheme->getValue())), 1);
+            expectEquals (cortex::ui::style.name, juce::String ("light"));
         }
 
         beginTest ("Brain map: one position per block, all within the map");

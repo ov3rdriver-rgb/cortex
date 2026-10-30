@@ -1,5 +1,5 @@
-CORTEX {{VERSION}} - TESTER PACKAGE (WINDOWS)
-=======================================
+CORTEX {{VERSION}} - TESTER PACKAGE (MACOS)
+=====================================
 
 1. WHAT CORTEX IS
 -----------------
@@ -31,10 +31,12 @@ colour of a different source.
 
 2. CONTENTS OF THIS PACKAGE
 ---------------------------
-VST3\Cortex.vst3               The effect plug-in.
-VST3\Cortex Instrument.vst3    The instrument plug-in.
-Standalone\Cortex.exe          The effect as a stand-alone program.
-Standalone\Cortex Instrument.exe
+VST3/Cortex.vst3               The effect plug-in (VST3).
+VST3/Cortex Instrument.vst3    The instrument plug-in (VST3).
+AU/Cortex.component            The effect plug-in (Audio Unit).
+AU/Cortex Instrument.component The instrument plug-in (Audio Unit).
+Standalone/Cortex.app          The effect as a stand-alone program.
+Standalone/Cortex Instrument.app
                                The instrument as a stand-alone program.
 README.txt                     This document.
 INSTALL.txt                    How to install and remove Cortex.
@@ -44,7 +46,8 @@ FEEDBACK.txt                   How to send a report.
 LICENSE.txt                    The licence (GNU AGPL 3.0).
 CREDITS.md                     The people and projects that Cortex uses.
 CHANGELOG.md                   The changes in each version.
-Source\cortex-{{VERSION}}-source.zip The source code of this version.
+Inter-OFL.txt, Barlow-OFL.txt  The licences of the fonts in Cortex.
+Source/cortex-{{VERSION}}-source.zip The source code of this version.
 
 
 3. THE TWO PLUG-INS
@@ -58,15 +61,18 @@ CORTEX INSTRUMENT
   an oscillator. You play the oscillator with MIDI notes. The
   oscillator plays one note at a time.
 
+Use the VST3 or the Audio Unit, not both. Logic Pro and GarageBand
+load only Audio Units. Most other DAWs load both.
+
 
 4. REQUIREMENTS
 ---------------
- - Windows 10 or Windows 11, 64-bit.
- - A host program (DAW) that loads VST3 plug-ins. Alternatively, use
-   the stand-alone programs.
+ - macOS 11 (Big Sur) or later. Apple silicon and Intel.
+ - A host program (DAW) that loads VST3 or Audio Unit plug-ins.
+   Alternatively, use the stand-alone programs.
  - Folders of audio samples (WAV, AIFF, FLAC or OGG) for the brains.
 
-This package does not contain a version for macOS.
+For Windows, use the package "Cortex-{{VERSION}}-Windows.zip".
 
 
 5. VERSION

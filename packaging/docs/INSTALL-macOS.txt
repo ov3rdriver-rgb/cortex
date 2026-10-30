@@ -1,0 +1,122 @@
+CORTEX {{VERSION}} - INSTALLATION (MACOS)
+===================================
+
+The programs in this package do not have a digital signature from
+Apple. macOS marks files from the internet as "quarantined" and
+refuses to open unsigned quarantined programs. Section 2 removes
+this mark. Do not skip it.
+
+
+1. COPY THE PLUG-INS
+--------------------
+CAUTION: CLOSE YOUR DAW BEFORE YOU DO THIS PROCEDURE.
+
+ 1. Close your DAW.
+ 2. Open the VST3 folder in this package.
+ 3. Copy "Cortex.vst3" and "Cortex Instrument.vst3" to this folder:
+      /Library/Audio/Plug-Ins/VST3
+    If macOS asks for your password, type it.
+ 4. Open the AU folder in this package.
+ 5. Copy "Cortex.component" and "Cortex Instrument.component" to
+    this folder:
+      /Library/Audio/Plug-Ins/Components
+
+To open these folders: in the Finder, select "Go" > "Go to Folder"
+and type the path.
+
+If you do not have administrator rights, use the same folders in
+your home folder instead:
+      ~/Library/Audio/Plug-Ins/VST3
+      ~/Library/Audio/Plug-Ins/Components
+If the folders do not exist, make them.
+
+
+2. REMOVE THE QUARANTINE MARK
+-----------------------------
+ 1. Open Terminal (Applications > Utilities > Terminal).
+ 2. Copy this line, paste it into Terminal and press Return:
+
+      sudo xattr -dr com.apple.quarantine "/Library/Audio/Plug-Ins/VST3/Cortex.vst3" "/Library/Audio/Plug-Ins/VST3/Cortex Instrument.vst3" "/Library/Audio/Plug-Ins/Components/Cortex.component" "/Library/Audio/Plug-Ins/Components/Cortex Instrument.component"
+
+ 3. Type your password and press Return. Terminal does not show
+    the password while you type.
+
+If you copied the plug-ins into your home folder, use this line
+instead (no password):
+
+      xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Cortex*.vst3 ~/Library/Audio/Plug-Ins/Components/Cortex*.component
+
+If you skip this section, the DAW shows a message such as
+"Cortex.vst3 cannot be opened because the developer cannot be
+verified", or does not list Cortex at all.
+
+
+3. MAKE THE DAW FIND THE PLUG-INS
+---------------------------------
+ 1. Start your DAW.
+ 2. Tell the DAW to scan for new plug-ins. Refer to the manual of
+    your DAW.
+ 3. Find "Cortex" in the list of effects.
+ 4. Find "Cortex Instrument" in the list of instruments.
+
+LOGIC PRO AND GARAGEBAND: these programs find Audio Units only when
+they start. If Cortex does not show, quit the program, then paste
+this line into Terminal and press Return, then start the program
+again:
+
+      killall -9 AudioComponentRegistrar
+
+Logic Pro validates each new Audio Unit the first time. This can
+take a few seconds for each plug-in.
+
+
+4. MAKE SURE THAT THE CORRECT VERSION IS INSTALLED
+--------------------------------------------------
+ 1. Put Cortex on a track.
+ 2. Open the Cortex window.
+ 3. Look at the top right corner of the window.
+ 4. Make sure that the text is "v{{VERSION}} ({{HASH}})".
+
+If the text is different, your DAW uses an older copy of Cortex.
+Do the procedure in section 1 again.
+
+
+5. USE THE STAND-ALONE PROGRAMS
+-------------------------------
+You can use Cortex without a DAW.
+
+ 1. Open the Standalone folder in this package.
+ 2. Copy "Cortex.app" and "Cortex Instrument.app" to your
+    Applications folder.
+    Then paste this line into Terminal and press Return. It gives
+    the programs permission to run and removes the quarantine mark
+    (the zip file does not keep this permission):
+
+      chmod +x /Applications/Cortex.app/Contents/MacOS/* "/Applications/Cortex Instrument.app/Contents/MacOS/"* && xattr -dr com.apple.quarantine /Applications/Cortex.app "/Applications/Cortex Instrument.app"
+
+ 3. Right-click (or Control-click) the program and select "Open".
+ 4. macOS shows a warning that the developer cannot be verified.
+    Click "Open".
+    On macOS 15 (Sequoia) and later, there is no "Open" button.
+    Click "Done", open System Settings > Privacy & Security, scroll
+    down and click "Open Anyway". Then open the program again.
+ 5. Click "Options".
+ 6. Select your audio device.
+ 7. For Cortex Instrument, select your MIDI input device.
+
+You must do step 3 and 4 only the first time.
+
+
+6. REMOVE CORTEX
+----------------
+ 1. Close your DAW.
+ 2. Delete "Cortex.vst3" and "Cortex Instrument.vst3" from the VST3
+    folder, and "Cortex.component" and "Cortex Instrument.component"
+    from the Components folder (section 1).
+ 3. Delete the stand-alone programs, if you copied them.
+
+Cortex keeps a cache of analysed brains in this folder:
+      ~/Library/Cortex/BrainCache
+and your settings in:
+      ~/Library/Application Support/Cortex
+You can delete these folders. The cache uses a maximum of 3 GB.

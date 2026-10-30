@@ -1,5 +1,5 @@
-CORTEX {{VERSION}} - INSTALLATION
-===========================
+CORTEX {{VERSION}} - INSTALLATION (WINDOWS)
+=====================================
 
 1. INSTALL THE VST3 PLUG-INS
 ----------------------------

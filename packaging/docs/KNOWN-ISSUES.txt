@@ -8,7 +8,10 @@ Do not send reports about these issues. We know about them.
 -----------------
  - We did not test Cortex in Ableton Live, Logic Pro or Reaper.
    Please tell us how Cortex works in your DAW.
- - This package does not contain a version for macOS.
+ - On macOS, the automatic tests ran the plug-ins, but no person has
+   used Cortex on a Mac yet. Please tell us what you see.
+ - The programs do not have a digital signature. Refer to INSTALL.txt
+   for the steps that Windows and macOS need because of this.
 
 
 2. SOUND

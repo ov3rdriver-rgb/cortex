@@ -83,13 +83,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
     layout.add (unit (matchTimbre, "Match Timbre", 0.5f),
                 unit (matchPitch, "Match Pitch", 0.5f),
                 unit (envTransplant, "Transplant", 0.0f),
-                std::make_unique<Int> (pid (blockSize), "Block Size", 256, 4096, 1000),
-                std::make_unique<Float> (pid (overlap), "Block Overlap", juce::NormalisableRange<float> (0.0f, 0.75f), 0.0f),
                 unit (novelty, "Novelty", 0.3f),
                 unit (boredom, "Boredom", 0.5f),
                 unit (stickyness, "Stickyness", 0.0f),
                 std::make_unique<Choice> (pid (searchMode), "Search Mode",
                                           juce::StringArray { "Basic", "Rev", "Synaptic", "Synaptic Slide" }, 0));
+
+    // How each brain slices its samples. Its own pair, so one brain can hold
+    // long slices of a pad while the other chops drums fine.
+    auto slicing = [] (const char* sizeId, const char* overlapId, const char* brainName)
+    {
+        return std::make_pair (std::make_unique<Int> (pid (sizeId), juce::String (brainName) + " Block Size", 256, 4096, 1000),
+                               std::make_unique<Float> (pid (overlapId), juce::String (brainName) + " Block Overlap",
+                                                        juce::NormalisableRange<float> (0.0f, 0.75f), 0.0f));
+    };
+    auto [sizeB1, overlapPB1] = slicing (blockSizeB1, overlapB1, "Brain 1");
+    auto [sizeB2, overlapPB2] = slicing (blockSizeB2, overlapB2, "Brain 2");
+    layout.add (std::move (sizeB1), std::move (overlapPB1), std::move (sizeB2), std::move (overlapPB2));
 
     // Output / utility
     layout.add (unit (dryWet, "Dry/Wet", 1.0f),
@@ -107,6 +117,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
     // panel can show it like any other control. Not automatable.
     layout.add (std::make_unique<Choice> (pid (theme), "Theme", juce::StringArray { "Dark", "Light" }, 0,
                                           juce::AudioParameterChoiceAttributes().withAutomatable (false)));
+
+    // How many seconds of recent output the Capture button saves. Saved with
+    // the session (a project may want its own length); not automatable.
+    layout.add (std::make_unique<Int> (pid (captureSeconds), "Capture Length", minCaptureSeconds, maxCaptureSeconds, defaultCaptureSeconds,
+                                       juce::AudioParameterIntAttributes().withLabel ("s").withAutomatable (false)));
 
     if (instrument)
     {

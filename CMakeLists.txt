@@ -67,6 +67,7 @@ set(CORTEX_UI_SOURCES
     ${PROJECT_SOURCE_DIR}/Source/ui/BrainMap.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/ParamPanel.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/MeterStrip.cpp
+    ${PROJECT_SOURCE_DIR}/Source/ui/CaptureStrip.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/MainView.cpp
     ${PROJECT_SOURCE_DIR}/Source/ui/Theme.cpp)
 

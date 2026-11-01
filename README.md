@@ -43,6 +43,8 @@ The two layers are mixed *separately*, with one triangle each. So you can take t
 | Where | Control | What it does |
 |---|---|---|
 | Brain columns / Input | Cutoff, Formant, Freeze Env / Detail | Per source: where envelope ends and detail begins; shift its formants without changing pitch; hold its envelope or detail still |
+| Brain columns | Block Size, Block Overlap, Rebuild | How that brain slices its samples (each brain has its own); re-analyse it from its files |
+| Header | Capture | Save the last *n* seconds of output (Output → Capture Length, default 60) as a WAV and drag it into the DAW; Cortex always keeps the last two minutes |
 | Search | Match Timbre / Match Pitch | What "closest" means when a brain picks a slice: tone colour, or notes |
 | Search | Chaos / Memory | Chaos makes the brains wander; Memory makes them remember what they played and follow runs in their source |
 | Search | Cepstral Glide | New slices slide in from the previous slice's colour instead of cutting |

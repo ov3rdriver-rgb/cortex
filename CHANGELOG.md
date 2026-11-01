@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Each brain has its own Block Size and Block Overlap,** in its column under its other settings, so one brain can chop drums fine while the other holds long slices of a pad. Changing either rebuilds only that brain. Sessions saved before this apply their shared pair to both brains.
+- **Rebuild is per brain,** a button in each column, instead of one for both in the header.
+- **Capture:** Cortex always keeps the last two minutes of its output. The Capture button in the header saves the most recent Capture Length seconds (Output tab, 5-120 s, default 60) as a 24-bit WAV in Music / Cortex Captures, and the chip that appears can be dragged straight into the DAW or clicked to show the file.
+
 ## 1.1.0 (2026-10-29)
 
 - **Two themes:** Dark (near-black, Inter) and Light (paper and ink, Barlow, with blue / red / violet for Input / Brain 1 / Brain 2 and a black result curve). Choose under Output → Theme. It is a per-user setting: every instance uses it, and projects and presets never change it.

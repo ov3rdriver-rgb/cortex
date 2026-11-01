@@ -24,6 +24,7 @@ namespace
 
 MainView::MainView (CortexAudioProcessor& p)
     : processor (p),
+      capture (p),
       brain1Column (p, 0), brain2Column (p, 1),
       envelopeTriangle (p.apvts, cortex::ParamIDs::envX, cortex::ParamIDs::envY, "Envelope (timbre)"),
       detailTriangle (p.apvts, cortex::ParamIDs::detailX, cortex::ParamIDs::detailY, "Detail (pitch, texture)"),
@@ -43,14 +44,8 @@ MainView::MainView (CortexAudioProcessor& p)
     versionLabel.setColour (juce::Label::textColourId, colours::dim);
     addAndMakeVisible (versionLabel);
 
-    rebuildButton.onClick = [this]
-    {
-        for (int b = 0; b < CortexAudioProcessor::numBrains; ++b)
-            if (! processor.getBrainFiles (b).isEmpty())
-                processor.rebuildBrain (b);
-    };
-    addAndMakeVisible (rebuildButton);
     addAndMakeVisible (meters);
+    addAndMakeVisible (capture);
 
     addAndMakeVisible (brain1Column);
     addAndMakeVisible (brain2Column);
@@ -69,12 +64,11 @@ MainView::MainView (CortexAudioProcessor& p)
 
     const auto tabColour = colours::panel;
     tabs.addTab ("Search", tabColour, new ParamPanel (p.apvts, { chaos, memory, cepstralGlide, matchTimbre, matchPitch,
-                                                                 envTransplant, searchMode, novelty, boredom, stickyness,
-                                                                 blockSize, overlap }), true);
+                                                                 envTransplant, searchMode, novelty, boredom, stickyness }), true);
     tabs.addTab ("Mod", tabColour, new ParamPanel (p.apvts, { lfoRate, lfoDepth, lfoShape, lfoTarget,
                                                               envDepth, envAttack, envRelease }), true);
     tabs.addTab ("Output", tabColour, new ParamPanel (p.apvts, { phaseMode, fftSize, lowLatency, dryWet, outGain,
-                                                                 limiter, autoMute, autoMuteMs, theme }), true);
+                                                                 limiter, autoMute, autoMuteMs, captureSeconds, theme }), true);
     tabs.setTabBarDepth (26);
     tabs.setOutline (0);
     addAndMakeVisible (tabs);
@@ -86,7 +80,6 @@ MainView::MainView (CortexAudioProcessor& p)
     addAndMakeVisible (credits);
 
     versionLabel.setTooltip (tips::version);
-    rebuildButton.setTooltip (tips::rebuildButton);
     meters.setTooltip (tips::meters);
     envelopeTriangle.setTooltip (tips::envelopeTriangle);
     detailTriangle.setTooltip (tips::detailTriangle);
@@ -125,9 +118,9 @@ void MainView::resized()
     auto header = area.removeFromTop (headerHeight - gap);
     title.setBounds (header.removeFromLeft (260));
     versionLabel.setBounds (header.removeFromRight (150));
-    rebuildButton.setBounds (header.removeFromRight (130).reduced (2, 3));
-    header.removeFromRight (gap);
     meters.setBounds (header.removeFromRight (juce::jmin (260, header.getWidth())));
+    header.removeFromRight (gap);
+    capture.setBounds (header);   // the button sits at the right, the file chip grows leftwards
     area.removeFromTop (gap);
 
     credits.setBounds (area.removeFromBottom (footerHeight));
@@ -168,6 +161,7 @@ void MainView::refresh()
 {
     brain1Column.refresh();
     brain2Column.refresh();
+    capture.refresh();
 
     detailTriangle.setFollowing (processor.apvts.getRawParameterValue (cortex::ParamIDs::linkTriangles)->load() > 0.5f);
 

@@ -77,6 +77,17 @@ SEARCH, MATCH TIMBRE Increase to make the brains match the colour of
                      the Input.
 SEARCH, MATCH PITCH  Increase to make the brains match the notes of
                      the Input.
+BLOCK SIZE, OVERLAP  In each brain column. The length of the blocks
+                     of that brain, and how much they overlap. Each
+                     brain has its own. When you change them, Cortex
+                     analyses that brain again.
+CAPTURE              Cortex always keeps the last 2 minutes of its
+                     output. Click "Capture 60 s" in the header to
+                     save the last 60 seconds as a WAV file in your
+                     Music folder, in "Cortex Captures". Then drag the
+                     file name that appears into your DAW. Set the
+                     number of seconds with "Capture Length" in the
+                     Output tab.
 OUTPUT, LOW LATENCY  Set to "on" when you play live. The delay
                      decreases from approximately 85 ms to
                      approximately 11 ms.

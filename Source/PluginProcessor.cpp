@@ -5,6 +5,8 @@
 #include "state/BrainCache.h"
 #include "state/Settings.h"
 
+#include <juce_audio_formats/juce_audio_formats.h>
+
 namespace
 {
     // Plugin state keeps a reference to each brain (its source files), never
@@ -85,8 +87,9 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
     params.matchTimbre = get (id::matchTimbre);
     params.matchPitch = get (id::matchPitch);
     params.envTransplant = get (id::envTransplant);
-    params.blockSize = get (id::blockSize);
-    params.overlap = get (id::overlap);
+    params.blockSize = { get (id::blockSizeB1), get (id::blockSizeB2) };
+    params.overlap = { get (id::overlapB1), get (id::overlapB2) };
+    params.captureSeconds = get (id::captureSeconds);
     params.novelty = get (id::novelty);
     params.boredom = get (id::boredom);
     params.stickyness = get (id::stickyness);
@@ -100,7 +103,7 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
         params.ampRelease = get (id::ampRelease);
     }
 
-    for (auto* param : { id::fftSize, id::blockSize, id::overlap, id::lowLatency })
+    for (auto* param : { id::fftSize, id::blockSizeB1, id::overlapB1, id::blockSizeB2, id::overlapB2, id::lowLatency })
         apvts.addParameterListener (param, this);
     updateLatency();
     startTimerHz (10);
@@ -111,7 +114,7 @@ CortexAudioProcessor::~CortexAudioProcessor()
     stopTimer();
     for (auto& s : slots)
         s.builder->cancel();
-    for (auto* param : { id::fftSize, id::blockSize, id::overlap, id::lowLatency })
+    for (auto* param : { id::fftSize, id::blockSizeB1, id::overlapB1, id::blockSizeB2, id::overlapB2, id::lowLatency })
         apvts.removeParameterListener (param, this);
 }
 
@@ -130,10 +133,12 @@ void CortexAudioProcessor::updateLatency()
 
 void CortexAudioProcessor::parameterChanged (const juce::String& parameterID, float)
 {
-    if (parameterID == cortex::ParamIDs::fftSize || parameterID == cortex::ParamIDs::lowLatency)
+    if (parameterID == id::fftSize || parameterID == id::lowLatency)
         updateLatency();
+    else if (parameterID == id::blockSizeB1 || parameterID == id::overlapB1)
+        rebuildRequested[0] = true;   // slicing: that brain is rebuilt (debounced) by the timer
     else
-        rebuildRequested = true;   // block size / overlap: rebuilt (debounced) by the timer
+        rebuildRequested[1] = true;
 }
 
 cortex::dsp::MorphParams CortexAudioProcessor::readMorphParams() const
@@ -200,10 +205,17 @@ void CortexAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     // Brains are built at the host rate; a new rate needs a rebuild (usually a cache hit).
     {
         std::lock_guard<std::mutex> l (brainLock);
-        for (const auto& s : slots)
-            if (! s.files.isEmpty() && s.builtSettings.sampleRate != sampleRate)
-                rebuildRequested = true;
+        for (int b = 0; b < numBrains; ++b)
+            if (! slots[(size_t) b].files.isEmpty() && slots[(size_t) b].builtSettings.sampleRate != sampleRate)
+                rebuildRequested[(size_t) b] = true;
     }
+
+    // The capture ring always holds the longest capture the knob allows.
+    captureCapacity = juce::roundToInt (cortex::maxCaptureSeconds * sampleRate);
+    for (auto& ch : captureRing)
+        ch.assign ((size_t) captureCapacity, 0.0f);
+    capturePos = 0;
+    captureWritten = 0;
 
     updateLatency();
 }
@@ -457,6 +469,60 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         outPeak = juce::jmax (outPeak, juce::FloatVectorOperations::findMaximum (out[(size_t) ch], numSamples),
                               -juce::FloatVectorOperations::findMinimum (out[(size_t) ch], numSamples));
     outputPeakLevel.store (outPeak, std::memory_order_relaxed);
+
+    // Keep the last maxCaptureSeconds of what went out (mono output fills both ring channels).
+    if (captureCapacity > 0 && numChannels > 0)
+    {
+        int pos = capturePos.load (std::memory_order_relaxed);
+        for (int i = 0; i < numSamples; ++i)
+        {
+            for (int ch = 0; ch < maxChannels; ++ch)
+                captureRing[(size_t) ch][(size_t) pos] = out[(size_t) juce::jmin (ch, numChannels - 1)][i];
+            if (++pos == captureCapacity)
+                pos = 0;
+        }
+        capturePos.store (pos, std::memory_order_release);
+        captureWritten.fetch_add (numSamples, std::memory_order_relaxed);
+    }
+}
+
+double CortexAudioProcessor::saveCapture (const juce::File& wav, juce::String& error) const
+{
+    const auto written = captureWritten.load (std::memory_order_relaxed);
+    const int wanted = juce::roundToInt (getCaptureSeconds() * currentSampleRate);
+    const int length = (int) juce::jmin ((std::int64_t) wanted, (std::int64_t) captureCapacity, written);
+    if (length <= 0)
+    {
+        error = "Nothing to capture yet: play some audio through Cortex first.";
+        return 0.0;
+    }
+
+    // Copy the newest `length` samples, ending at the write head, out of the ring.
+    const int end = capturePos.load (std::memory_order_acquire);
+    juce::AudioBuffer<float> audio (maxChannels, length);
+    for (int ch = 0; ch < maxChannels; ++ch)
+    {
+        const auto& ring = captureRing[(size_t) ch];
+        int from = end - length;
+        if (from < 0) from += captureCapacity;
+        const int firstRun = juce::jmin (length, captureCapacity - from);
+        audio.copyFrom (ch, 0, ring.data() + from, firstRun);
+        if (firstRun < length)
+            audio.copyFrom (ch, firstRun, ring.data(), length - firstRun);
+    }
+
+    wav.getParentDirectory().createDirectory();
+    wav.deleteFile();
+    juce::WavAudioFormat format;
+    std::unique_ptr<juce::AudioFormatWriter> writer (format.createWriterFor (new juce::FileOutputStream (wav), currentSampleRate,
+                                                                             (unsigned) maxChannels, 24, {}, 0));
+    if (writer == nullptr || ! writer->writeFromAudioSampleBuffer (audio, 0, length))
+    {
+        error = "Could not write " + wav.getFullPathName();
+        return 0.0;
+    }
+    writer.reset();   // flushes and closes the stream
+    return length / currentSampleRate;
 }
 
 void CortexAudioProcessor::switchEngine (int newOrder, int newBrainDelay, const PerSourceInt& newDelays,
@@ -553,6 +619,27 @@ void CortexAudioProcessor::setStateInformation (const void* data, int sizeInByte
                     paths[(size_t) b].add (source[pathId].toString());
                 state.removeChild (state.getChildWithName (brainStateIds[b]), nullptr);
             }
+            // Sessions from before the per-brain slicing saved one shared pair:
+            // both brains take it.
+            for (auto [legacy, b1, b2] : { std::tuple { id::legacyBlockSize, id::blockSizeB1, id::blockSizeB2 },
+                                           std::tuple { id::legacyOverlap, id::overlapB1, id::overlapB2 } })
+            {
+                auto old = state.getChildWithProperty ("id", legacy);
+                if (! old.isValid())
+                    continue;
+                for (auto* target : { b1, b2 })
+                {
+                    auto child = state.getChildWithProperty ("id", target);
+                    if (! child.isValid())
+                    {
+                        child = juce::ValueTree (old.getType(), { { "id", target } });
+                        state.appendChild (child, nullptr);
+                    }
+                    child.setProperty ("value", old["value"], nullptr);
+                }
+                state.removeChild (old, nullptr);
+            }
+
             apvts.replaceState (state);
             syncThemeFromSettings();   // ignores a theme saved by older versions
 
@@ -580,11 +667,11 @@ void CortexAudioProcessor::syncThemeFromSettings()
 //==============================================================================
 // Brain management
 
-cortex::brain::BrainSettings CortexAudioProcessor::currentBrainSettings() const
+cortex::brain::BrainSettings CortexAudioProcessor::currentBrainSettings (int brain) const
 {
     cortex::brain::BrainSettings s;
-    s.blockSize = (int) params.blockSize->load();
-    s.overlap = params.overlap->load();
+    s.blockSize = (int) params.blockSize[(size_t) brain]->load();
+    s.overlap = params.overlap[(size_t) brain]->load();
     s.sampleRate = currentSampleRate;
     return s;
 }
@@ -626,7 +713,7 @@ void CortexAudioProcessor::rebuildBrain (int brain)
         clearBrain (brain);
         return;
     }
-    s.builder->start ({ s.files, currentBrainSettings(), cortex::BrainCache::defaultDirectory() });
+    s.builder->start ({ s.files, currentBrainSettings (brain), cortex::BrainCache::defaultDirectory() });
 }
 
 void CortexAudioProcessor::onBrainBuilt (int brain, std::shared_ptr<const cortex::brain::Brain> built, const juce::String& message)
@@ -650,16 +737,19 @@ void CortexAudioProcessor::timerCallback()
         updateLatency();
 
     // Debounce block size / overlap / sample-rate changes so dragging a knob
-    // doesn't restart the build on every step.
+    // doesn't restart the build on every step. Each brain on its own clock.
     const auto now = juce::Time::getMillisecondCounter();
-    if (rebuildRequested.exchange (false))
-        rebuildDueMs = now + 600;
-    if (rebuildDueMs != 0 && now >= rebuildDueMs)
+    for (int b = 0; b < numBrains; ++b)
     {
-        rebuildDueMs = 0;
-        for (int b = 0; b < numBrains; ++b)
+        auto& due = rebuildDueMs[(size_t) b];
+        if (rebuildRequested[(size_t) b].exchange (false))
+            due = now + 600;
+        if (due != 0 && now >= due)
+        {
+            due = 0;
             if (! slots[(size_t) b].files.isEmpty())
                 rebuildBrain (b);
+        }
     }
 }
 

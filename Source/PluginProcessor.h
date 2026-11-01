@@ -87,6 +87,13 @@ public:
     std::shared_ptr<const cortex::brain::Brain> getBrain (int brain = 0) const;
     juce::Array<juce::File> getBrainFiles (int brain = 0) const { return slots[(size_t) brain].files; }
 
+    // Output capture (message thread). Writes the last `getCaptureSeconds()`
+    // of output (less, if the plugin has run for less) as a 24-bit WAV at the
+    // host rate. Returns the number of seconds written, or 0 with `error` set.
+    double saveCapture (const juce::File& wav, juce::String& error) const;
+    int getCaptureSeconds() const { return (int) params.captureSeconds->load(); }
+    double getCaptureSampleRate() const { return currentSampleRate; }
+
     // Latest morph frame (left channel) for the editor's displays.
     bool readMorphSnapshot (cortex::dsp::MorphSnapshot& out) const { return morphSnapshots.read (out); }
 
@@ -111,7 +118,7 @@ private:
     void parameterChanged (const juce::String& parameterID, float newValue) override;
     void timerCallback() override;
     void onBrainBuilt (int brain, std::shared_ptr<const cortex::brain::Brain>, const juce::String& message);
-    cortex::brain::BrainSettings currentBrainSettings() const;
+    cortex::brain::BrainSettings currentBrainSettings (int brain) const;
     cortex::brain::SearchParams readSearchParams (int brain) const;
     void updateLatency();
     cortex::dsp::MorphParams readMorphParams() const;
@@ -156,8 +163,8 @@ private:
         std::atomic<float>* matchTimbre = nullptr;
         std::atomic<float>* matchPitch = nullptr;
         std::atomic<float>* envTransplant = nullptr;
-        std::atomic<float>* blockSize = nullptr;
-        std::atomic<float>* overlap = nullptr;
+        std::array<std::atomic<float>*, numBrains> blockSize {}, overlap {};   // per brain
+        std::atomic<float>* captureSeconds = nullptr;
         std::atomic<float>* novelty = nullptr;
         std::atomic<float>* boredom = nullptr;
         std::atomic<float>* stickyness = nullptr;
@@ -223,8 +230,17 @@ private:
     juce::AudioFormatManager formatManager;
     std::array<BrainSlot, numBrains> slots;
     cortex::SnapshotExchange<cortex::dsp::MorphSnapshot> morphSnapshots;
-    std::atomic<bool> rebuildRequested { false };
-    juce::uint32 rebuildDueMs = 0;
+    std::array<std::atomic<bool>, numBrains> rebuildRequested {};
+    std::array<juce::uint32, numBrains> rebuildDueMs {};
+
+    // Output capture: a ring of the last maxCaptureSeconds of output (after
+    // gain and limiter), written by the audio thread. saveCapture() copies the
+    // most recent captureSeconds out of it on the message thread; the write
+    // head only reaches that region again after a full lap, seconds later.
+    std::array<std::vector<float>, maxChannels> captureRing;
+    int captureCapacity = 0;
+    std::atomic<int> capturePos { 0 };
+    std::atomic<std::int64_t> captureWritten { 0 };
     mutable std::mutex brainLock;   // never taken on the audio thread
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CortexAudioProcessor)

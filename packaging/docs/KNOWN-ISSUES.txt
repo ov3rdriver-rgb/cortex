@@ -30,8 +30,8 @@ Do not send reports about these issues. We know about them.
  - A large folder of samples takes time to analyse. A folder with
    150,000 blocks can take several minutes. Cortex shows the progress
    in the brain column.
- - When you change "Block Size" or "Block Overlap", Cortex analyses
-   the brains again.
+ - When you change "Block Size" or "Block Overlap" of a brain, Cortex
+   analyses that brain again.
  - The brain map can look full with very large brains.
 
 

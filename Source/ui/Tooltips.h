@@ -52,8 +52,10 @@ inline juce::String forParam (const juce::String& id)
         { matchTimbre, "Match timbre (0-1): how much a brain cares about tone colour when it picks the closest slice to the Input. With Match Pitch at 0 it picks purely by colour." },
         { matchPitch, "Match pitch (0-1): how much a brain cares about notes (pitch, chroma, voicing) when it picks the closest slice. Turn up to make a brain follow the Input's melody." },
         { envTransplant, "Transplant (0-1): brain slices take on the Input's envelope before the morph, so the brain 'sings with your mouth'. At 1 the brain supplies only texture and pitch under the Input's colour." },
-        { blockSize, "Slice length in samples (256-4096) for the brains. Short slices follow the Input closely and sound granular; long slices keep more of each sample's character. Changing it rebuilds the brains (cached, so usually quick)." },
-        { overlap, "How much consecutive brain slices overlap (0-0.75). More overlap: smoother, more smeared. Less: choppier, more distinct. Changing it rebuilds the brains." },
+        { blockSizeB1, "Brain 1 slice length in samples (256-4096). Short slices follow the Input closely and sound granular; long slices keep more of each sample's character. Each brain has its own, so one can chop drums fine while the other holds long slices of a pad. Changing it rebuilds Brain 1 (cached, so usually quick)." },
+        { overlapB1, "How much consecutive Brain 1 slices overlap (0-0.75). More overlap: smoother, more smeared. Less: choppier, more distinct. Changing it rebuilds Brain 1." },
+        { blockSizeB2, "Brain 2 slice length in samples (256-4096). Short slices follow the Input closely and sound granular; long slices keep more of each sample's character. Each brain has its own. Changing it rebuilds Brain 2 (cached, so usually quick)." },
+        { overlapB2, "How much consecutive Brain 2 slices overlap (0-0.75). More overlap: smoother, more smeared. Less: choppier, more distinct. Changing it rebuilds Brain 2." },
         { novelty, "Novelty (0-1): penalises slices the brain used recently, so it does not repeat itself. Chaos adds to this." },
         { boredom, "Boredom (0-1): how long the brain remembers what it played. Higher: recently used slices stay penalised for longer. Memory adds to this." },
         { stickyness, "Stickyness (0-1): prefer the slice that comes next in the source sound over the closest match, so the brain plays through its samples in order. Memory adds to this; Chaos takes from it." },
@@ -67,6 +69,7 @@ inline juce::String forParam (const juce::String& id)
         { autoMute, "Auto-mute: after the Input has been below the gate threshold for the auto-mute time, stop processing entirely (saves CPU and lets the output fall silent)." },
         { autoMuteMs, "Auto-mute time in ms (10-2000): how long the Input must stay quiet before auto-mute kicks in." },
         { theme, "Dark or Light. A setting for you, not for the project: every Cortex you open uses it, and projects and presets never change it." },
+        { captureSeconds, "Capture length in seconds (5-120): how much of the most recent output the Capture button in the header saves. Cortex always keeps the last two minutes in memory, so you can grab a moment after it happened." },
 
         { oscWave, "Oscillator waveform for the Instrument's Input: Saw, Square, Triangle or Sine. The brains morph against this, so it sets the detail (pitch) you hear." },
         { oscGlide, "Glide (portamento) in ms: how long a held note takes to slide to a new one." },
@@ -86,11 +89,13 @@ inline const char* brainMap = "Brain map: every slice in this brain as a dot, pl
 inline const char* soundList = "The sounds in this brain and how many slices each gave.";
 inline const char* loadButton = "Choose samples or a folder to build this brain from. You can also drop files or folders on the column.";
 inline const char* clearButton = "Empty this brain. Its corner of each triangle then falls back to the Input.";
-inline const char* rebuildButton = "Re-analyse both brains from their source files with the current slice length and overlap.";
+inline const char* rebuildButton = "Re-analyse this brain from its source files with its current block size and overlap. Changing either knob does this for you after a moment; the button is for when the sample files themselves have changed.";
+inline const char* captureButton = "Save the last Capture Length seconds of Cortex's output (what you just heard, after gain and limiter) as a 24-bit WAV in your Music folder, under Cortex Captures. Then drag the chip that appears into your DAW. Set the length in the Output tab.";
+inline const char* captureChip = "The capture you just made. Drag it into your DAW to drop the file on a track; click it to show the file in a folder.";
 inline const char* meters = "Input and output peak levels, and the gate light (on when the gate is open, dim when closed, off when the gate is off).";
 inline const char* status = "Blocks: the slices this brain holds. Building shows progress; large folders take a while the first time and are cached after that.";
 inline const char* version = "Version and commit of this build.";
-inline const char* searchTab = "How the brains choose slices: the macros, the matching weights, and the slice settings.";
+inline const char* searchTab = "How the brains choose slices: the macros and the matching weights. Each brain's block size and overlap are in its own column.";
 inline const char* modTab = "An LFO and an envelope follower that sweep a source's cutoff.";
-inline const char* outputTab = "Phase, window size, latency, mix, gain, safety and the theme.";
+inline const char* outputTab = "Phase, window size, latency, mix, gain, safety, capture length and the theme.";
 } // namespace cortex::ui::tips

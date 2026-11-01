@@ -39,11 +39,11 @@ private:
     juce::Label title, status;
     double progress = 0.0;
     juce::ProgressBar progressBar { progress };
-    juce::TextButton loadButton { "Load..." }, clearButton { "Clear" };
+    juce::TextButton loadButton { "Load..." }, clearButton { "Clear" }, rebuildButton { "Rebuild" };
     std::unique_ptr<juce::FileChooser> chooser;
     BrainMap map;
     SoundList sounds;
-    ParamPanel settings;
+    ParamPanel settings;   // cutoff, formant, freezes, and this brain's slicing (block size, overlap)
     bool dropHighlight = false;
 };
 } // namespace cortex::ui

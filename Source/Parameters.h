@@ -34,8 +34,14 @@ namespace cortex::ParamIDs
     inline constexpr auto matchTimbre   = "matchTimbre";
     inline constexpr auto matchPitch    = "matchPitch";
     inline constexpr auto envTransplant = "envTransplant";
-    inline constexpr auto blockSize     = "blockSize";
-    inline constexpr auto overlap       = "overlap";
+    // Per brain: how its samples are sliced. Sessions from before 1.2 saved one
+    // shared pair (legacyBlockSize / legacyOverlap), applied to both on load.
+    inline constexpr auto blockSizeB1   = "blockSizeB1";
+    inline constexpr auto overlapB1     = "overlapB1";
+    inline constexpr auto blockSizeB2   = "blockSizeB2";
+    inline constexpr auto overlapB2     = "overlapB2";
+    inline constexpr auto legacyBlockSize = "blockSize";
+    inline constexpr auto legacyOverlap   = "overlap";
     inline constexpr auto novelty       = "novelty";
     inline constexpr auto boredom       = "boredom";
     inline constexpr auto stickyness    = "stickyness";
@@ -59,6 +65,7 @@ namespace cortex::ParamIDs
     inline constexpr auto envAttack     = "envAttack";
     inline constexpr auto envRelease    = "envRelease";
     inline constexpr auto theme         = "theme";          // UI only: Dark / Light
+    inline constexpr auto captureSeconds = "captureSeconds"; // how much recent output Capture saves
 
     // Cortex Instrument only.
     inline constexpr auto oscWave       = "oscWave";
@@ -73,6 +80,12 @@ namespace cortex
     inline constexpr int fftSizes[] { 512, 1024, 2048, 4096 };
     inline constexpr int defaultFftSizeIndex = 2;
     inline constexpr int lowLatencyFftSize = 512;
+
+    // The output capture ring (Capture button): always holds the last
+    // maxCaptureSeconds of output; captureSeconds chooses how much is saved.
+    inline constexpr int minCaptureSeconds = 5;
+    inline constexpr int maxCaptureSeconds = 120;
+    inline constexpr int defaultCaptureSeconds = 60;
 
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool instrument);
 }

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 (2026-11-01)
 
 - **Each brain is fully independent.** Block Size and Block Overlap sit in its column under its other settings, and the search controls (Chaos, Memory, Cepstral Glide, Match Timbre, Match Pitch, Transplant, Search Mode, Novelty, Boredom, Stickyness) are on a Search tab per brain, in that brain's colour. One brain can chop drums fine and wander while the other plays long, faithful slices of a pad. Changing a brain's slicing rebuilds only that brain. Sessions saved before this apply their shared settings to both brains.
 - **Link controls across the brains** when you do want them to move together: the small rings in a control's corner link that one control (turn it on either brain and the other follows), and **Link all** at the right of the tabs links everything. Links are saved with the session.

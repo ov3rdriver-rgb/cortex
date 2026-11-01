@@ -62,9 +62,19 @@ MainView::MainView (CortexAudioProcessor& p)
     addAndMakeVisible (inputTitle);
     addAndMakeVisible (inputPanel);
 
+    // Each brain searches its samples on its own terms: a Search tab per
+    // brain, in that brain's colour. (Block size and overlap are in its column.)
     const auto tabColour = colours::panel;
-    tabs.addTab ("Search", tabColour, new ParamPanel (p.apvts, { chaos, memory, cepstralGlide, matchTimbre, matchPitch,
-                                                                 envTransplant, searchMode, novelty, boredom, stickyness }), true);
+    for (int b = 0; b < CortexAudioProcessor::numBrains; ++b)
+    {
+        const auto& ids = brainIds[b];
+        const auto source = cortex::dsp::brain1 + b;
+        tabs.addTab (juce::String (colours::sourceName (source)) + " search", tabColour,
+                     new ParamPanel (p.apvts, { ids.chaos.id, ids.memory.id, ids.cepstralGlide.id, ids.matchTimbre.id, ids.matchPitch.id,
+                                                ids.envTransplant.id, ids.searchMode.id, ids.novelty.id, ids.boredom.id, ids.stickyness.id },
+                                     juce::String (colours::sourceName (source)) + " ", 84, colours::forSource (source)),
+                     true);
+    }
     tabs.addTab ("Mod", tabColour, new ParamPanel (p.apvts, { lfoRate, lfoDepth, lfoShape, lfoTarget,
                                                               envDepth, envAttack, envRelease }), true);
     tabs.addTab ("Output", tabColour, new ParamPanel (p.apvts, { phaseMode, fftSize, lowLatency, dryWet, outGain,
@@ -87,9 +97,10 @@ MainView::MainView (CortexAudioProcessor& p)
     envelopes.setTooltip (tips::envelopeView);
     cepstrum.setTooltip (tips::cepstrumView);
     auto& bar = tabs.getTabbedButtonBar();
-    bar.getTabButton (0)->setTooltip (tips::searchTab);
-    bar.getTabButton (1)->setTooltip (tips::modTab);
-    bar.getTabButton (2)->setTooltip (tips::outputTab);
+    bar.getTabButton (0)->setTooltip (tips::searchTab (0));
+    bar.getTabButton (1)->setTooltip (tips::searchTab (1));
+    bar.getTabButton (2)->setTooltip (tips::modTab);
+    bar.getTabButton (3)->setTooltip (tips::outputTab);
 
     refresh();
 }

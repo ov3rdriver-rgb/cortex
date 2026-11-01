@@ -16,10 +16,14 @@ public:
         beginTest ("All brief parameters exist");
         for (auto* id : { "envX", "envY", "detailX", "detailY", "linkTriangles", "cutoffIn", "cutoffB1", "cutoffB2",
                           "formantIn", "formantB1", "formantB2", "phaseMode", "fftSize", "inputSource",
-                          "matchTimbre", "matchPitch", "envTransplant", "blockSizeB1", "overlapB1", "blockSizeB2", "overlapB2",
-                          "novelty", "boredom", "stickyness", "searchMode",
                           "dryWet", "outGain", "limiter", "gateOn", "gateThresh", "autoMute", "autoMuteMs", "captureSeconds" })
             expect (proc.apvts.getParameter (id) != nullptr, juce::String ("missing ") + id);
+        for (const auto& ids : cortex::ParamIDs::brainIds)
+            for (auto p : ids.all())
+            {
+                expect (proc.apvts.getParameter (p.id) != nullptr, juce::String ("missing ") + p.id);
+                expect (proc.apvts.getParameter (p.legacy) == nullptr, juce::String ("the shared ") + p.legacy + " is gone");
+            }
 
         beginTest ("Cutoff defaults to 25 bins");
         expectEquals ((int) proc.apvts.getRawParameterValue (cortex::ParamIDs::cutoffIn)->load(), 25);
@@ -68,23 +72,31 @@ public:
             theme->setValueNotifyingHost (theme->convertTo0to1 ((float) chosen));
         }
 
-        beginTest ("A session with one shared block size / overlap sets both brains");
+        beginTest ("A pre-1.2 session with shared slicing and search settings sets both brains");
         {
             auto state = proc.apvts.copyState();
-            for (auto* id : { "blockSizeB1", "overlapB1", "blockSizeB2", "overlapB2" })
-                state.removeChild (state.getChildWithProperty ("id", id), nullptr);
+            for (const auto& ids : cortex::ParamIDs::brainIds)
+                for (auto p : ids.all())
+                    state.removeChild (state.getChildWithProperty ("id", p.id), nullptr);
             state.appendChild (juce::ValueTree ("PARAM", { { "id", "blockSize" }, { "value", 2048 } }), nullptr);
             state.appendChild (juce::ValueTree ("PARAM", { { "id", "overlap" }, { "value", 0.5 } }), nullptr);
+            state.appendChild (juce::ValueTree ("PARAM", { { "id", "chaos" }, { "value", 0.7 } }), nullptr);
+            state.appendChild (juce::ValueTree ("PARAM", { { "id", "searchMode" }, { "value", 2 } }), nullptr);
             juce::MemoryBlock legacy;
             proc.copyXmlToBinary (*state.createXml(), legacy);
 
             CortexAudioProcessor old;
             old.setStateInformation (legacy.getData(), (int) legacy.getSize());
-            for (auto* id : { "blockSizeB1", "blockSizeB2" })
-                expectEquals ((int) old.apvts.getRawParameterValue (id)->load(), 2048, id);
-            for (auto* id : { "overlapB1", "overlapB2" })
-                expectWithinAbsoluteError (old.apvts.getRawParameterValue (id)->load(), 0.5f, 1e-4f, id);
+            for (const auto& ids : cortex::ParamIDs::brainIds)
+            {
+                expectEquals ((int) old.apvts.getRawParameterValue (ids.blockSize.id)->load(), 2048, ids.blockSize.id);
+                expectWithinAbsoluteError (old.apvts.getRawParameterValue (ids.overlap.id)->load(), 0.5f, 1e-4f, ids.overlap.id);
+                expectWithinAbsoluteError (old.apvts.getRawParameterValue (ids.chaos.id)->load(), 0.7f, 1e-4f, ids.chaos.id);
+                expectEquals ((int) old.apvts.getRawParameterValue (ids.searchMode.id)->load(), 2, ids.searchMode.id);
+                expectWithinAbsoluteError (old.apvts.getRawParameterValue (ids.novelty.id)->load(), 0.3f, 1e-4f, "untouched: default");
+            }
             expect (! old.apvts.state.getChildWithProperty ("id", "blockSize").isValid(), "the legacy entry is dropped");
+            expect (! old.apvts.state.getChildWithProperty ("id", "chaos").isValid(), "the legacy entry is dropped");
         }
 
         beginTest ("Capture saves the most recent output");

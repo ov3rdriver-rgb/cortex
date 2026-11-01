@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Each brain has its own Block Size and Block Overlap,** in its column under its other settings, so one brain can chop drums fine while the other holds long slices of a pad. Changing either rebuilds only that brain. Sessions saved before this apply their shared pair to both brains.
+- **Each brain is fully independent.** Block Size and Block Overlap sit in its column under its other settings, and the search controls (Chaos, Memory, Cepstral Glide, Match Timbre, Match Pitch, Transplant, Search Mode, Novelty, Boredom, Stickyness) are on a Search tab per brain, in that brain's colour. One brain can chop drums fine and wander while the other plays long, faithful slices of a pad. Changing a brain's slicing rebuilds only that brain. Sessions saved before this apply their shared settings to both brains.
 - **Rebuild is per brain,** a button in each column, instead of one for both in the header.
 - **Capture:** Cortex always keeps the last two minutes of its output. The Capture button in the header saves the most recent Capture Length seconds (Output tab, 5-120 s, default 60) as a 24-bit WAV in Music / Cortex Captures, and the chip that appears can be dragged straight into the DAW or clicked to show the file.
 

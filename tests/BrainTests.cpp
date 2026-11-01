@@ -556,7 +556,7 @@ public:
             set ("overlapB1", 0.5f);
             cortex::test::setPureSource (proc.apvts, c.source);
             set ("phaseMode", (float) c.source + 1.0f);
-            set ("novelty", 0.0f);
+            set ("noveltyB1", 0.0f);
             set ("dryWet", 1.0f);
             set ("limiter", 0.0f);
             set ("autoMute", 0.0f);

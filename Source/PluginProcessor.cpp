@@ -74,9 +74,6 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
     params.autoMute = get (id::autoMute);
     params.autoMuteMs = get (id::autoMuteMs);
 
-    params.chaos = get (id::chaos);
-    params.cepstralGlide = get (id::cepstralGlide);
-    params.memory = get (id::memory);
     params.lfoRate = get (id::lfoRate);
     params.lfoDepth = get (id::lfoDepth);
     params.lfoShape = get (id::lfoShape);
@@ -84,16 +81,23 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
     params.envDepth = get (id::envDepth);
     params.envAttack = get (id::envAttack);
     params.envRelease = get (id::envRelease);
-    params.matchTimbre = get (id::matchTimbre);
-    params.matchPitch = get (id::matchPitch);
-    params.envTransplant = get (id::envTransplant);
-    params.blockSize = { get (id::blockSizeB1), get (id::blockSizeB2) };
-    params.overlap = { get (id::overlapB1), get (id::overlapB2) };
+    for (size_t b = 0; b < numBrains; ++b)
+    {
+        const auto& ids = id::brainIds[b];
+        params.blockSize[b] = get (ids.blockSize.id);
+        params.overlap[b] = get (ids.overlap.id);
+        params.chaos[b] = get (ids.chaos.id);
+        params.memory[b] = get (ids.memory.id);
+        params.cepstralGlide[b] = get (ids.cepstralGlide.id);
+        params.matchTimbre[b] = get (ids.matchTimbre.id);
+        params.matchPitch[b] = get (ids.matchPitch.id);
+        params.envTransplant[b] = get (ids.envTransplant.id);
+        params.searchMode[b] = get (ids.searchMode.id);
+        params.novelty[b] = get (ids.novelty.id);
+        params.boredom[b] = get (ids.boredom.id);
+        params.stickyness[b] = get (ids.stickyness.id);
+    }
     params.captureSeconds = get (id::captureSeconds);
-    params.novelty = get (id::novelty);
-    params.boredom = get (id::boredom);
-    params.stickyness = get (id::stickyness);
-    params.searchMode = get (id::searchMode);
 
     if (instrument)
     {
@@ -103,7 +107,7 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
         params.ampRelease = get (id::ampRelease);
     }
 
-    for (auto* param : { id::fftSize, id::blockSizeB1, id::overlapB1, id::blockSizeB2, id::overlapB2, id::lowLatency })
+    for (auto* param : { id::fftSize, id::lowLatency, id::blockSizeB1, id::overlapB1, id::blockSizeB2, id::overlapB2 })
         apvts.addParameterListener (param, this);
     updateLatency();
     startTimerHz (10);
@@ -114,7 +118,7 @@ CortexAudioProcessor::~CortexAudioProcessor()
     stopTimer();
     for (auto& s : slots)
         s.builder->cancel();
-    for (auto* param : { id::fftSize, id::blockSizeB1, id::overlapB1, id::blockSizeB2, id::overlapB2, id::lowLatency })
+    for (auto* param : { id::fftSize, id::lowLatency, id::blockSizeB1, id::overlapB1, id::blockSizeB2, id::overlapB2 })
         apvts.removeParameterListener (param, this);
 }
 
@@ -278,13 +282,12 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
     // Brains: each renders its best match for the live input.
     std::array<cortex::brain::Renderer*, numBrains> brains { slots[0].renderer.acquire(), slots[1].renderer.acquire() };
-    const auto searchMode = (cortex::brain::SearchMode) juce::jlimit (0, 3, (int) params.searchMode->load());
     const bool lowLatency = params.lowLatency->load() > 0.5f;
     for (int b = 0; b < numBrains; ++b)
         if (auto* r = brains[(size_t) b])
         {
             r->setBlocking (isNonRealtime());
-            r->setSearch (readSearchParams (b), searchMode);
+            r->setSearch (readSearchParams (b), (cortex::brain::SearchMode) juce::jlimit (0, 3, (int) params.searchMode[(size_t) b]->load()));
             r->setLowLatency (lowLatency);
         }
 
@@ -619,16 +622,17 @@ void CortexAudioProcessor::setStateInformation (const void* data, int sizeInByte
                     paths[(size_t) b].add (source[pathId].toString());
                 state.removeChild (state.getChildWithName (brainStateIds[b]), nullptr);
             }
-            // Sessions from before the per-brain slicing saved one shared pair:
-            // both brains take it.
-            for (auto [legacy, b1, b2] : { std::tuple { id::legacyBlockSize, id::blockSizeB1, id::blockSizeB2 },
-                                           std::tuple { id::legacyOverlap, id::overlapB1, id::overlapB2 } })
+            // Sessions from before the per-brain slicing and search (1.2) saved
+            // one shared set: both brains take it.
+            for (size_t i = 0; i < id::brainIds[0].all().size(); ++i)
             {
+                const auto* legacy = id::brainIds[0].all()[i].legacy;
                 auto old = state.getChildWithProperty ("id", legacy);
                 if (! old.isValid())
                     continue;
-                for (auto* target : { b1, b2 })
+                for (const auto& ids : id::brainIds)
                 {
+                    const auto* target = ids.all()[i].id;
                     auto child = state.getChildWithProperty ("id", target);
                     if (! child.isValid())
                     {
@@ -678,14 +682,15 @@ cortex::brain::BrainSettings CortexAudioProcessor::currentBrainSettings (int bra
 
 cortex::brain::SearchParams CortexAudioProcessor::readSearchParams (int brain) const
 {
+    const auto b = (size_t) brain;
     cortex::brain::SearchParams p;
-    p.timbreWeight = params.matchTimbre->load();
-    p.pitchWeight = params.matchPitch->load();
-    p.envTransplant = params.envTransplant->load();
+    p.timbreWeight = params.matchTimbre[b]->load();
+    p.pitchWeight = params.matchPitch[b]->load();
+    p.envTransplant = params.envTransplant[b]->load();
     p.transplantCutoff = params.cutoff[(size_t) (Source::brain1 + brain)]->load();
-    p.cepstralGlide = params.cepstralGlide->load();
-    return cortex::brain::applySearchKnobs (p, { params.novelty->load(), params.boredom->load(), params.stickyness->load() },
-                                            params.chaos->load(), params.memory->load());
+    p.cepstralGlide = params.cepstralGlide[b]->load();
+    return cortex::brain::applySearchKnobs (p, { params.novelty[b]->load(), params.boredom[b]->load(), params.stickyness[b]->load() },
+                                            params.chaos[b]->load(), params.memory[b]->load());
 }
 
 void CortexAudioProcessor::loadBrainFrom (const juce::StringArray& filesOrFolders, int brain)

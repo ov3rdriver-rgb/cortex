@@ -69,13 +69,15 @@ LINK                 When "Link" is on, the Detail triangle follows
 CUTOFF LINES         Drag a line in the cepstrum to change where the
                      envelope of that source stops and the detail
                      starts.
-SEARCH, CHAOS        Increase Chaos to make the brains change blocks
+BRAIN 1 SEARCH,      Each brain has its own Search tab. The settings
+BRAIN 2 SEARCH       in a tab apply to that brain only.
+  CHAOS              Increase Chaos to make the brain change blocks
                      more frequently.
-SEARCH, MEMORY       Increase Memory to make the brains play blocks
-                     in the order of their samples.
-SEARCH, MATCH TIMBRE Increase to make the brains match the colour of
+  MEMORY             Increase Memory to make the brain play blocks
+                     in the order of its samples.
+  MATCH TIMBRE       Increase to make the brain match the colour of
                      the Input.
-SEARCH, MATCH PITCH  Increase to make the brains match the notes of
+  MATCH PITCH        Increase to make the brain match the notes of
                      the Input.
 BLOCK SIZE, OVERLAP  In each brain column. The length of the blocks
                      of that brain, and how much they overlap. Each

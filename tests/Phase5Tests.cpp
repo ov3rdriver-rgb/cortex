@@ -610,7 +610,8 @@ public:
         auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
         cortex::test::setPureSource (proc.apvts, pure);
         set (cortex::ParamIDs::phaseMode, (float) pure + 1.0f);
-        set (cortex::ParamIDs::novelty, 0.0f);
+        set (cortex::ParamIDs::noveltyB1, 0.0f);
+        set (cortex::ParamIDs::noveltyB2, 0.0f);
         set (cortex::ParamIDs::limiter, 0.0f);
         set (cortex::ParamIDs::autoMute, 0.0f);
         proc.setNonRealtime (true);

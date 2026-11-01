@@ -76,30 +76,30 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                 std::make_unique<Float> (pid (envRelease), "Env Release", juce::NormalisableRange<float> (1.0f, 5000.0f, 0.0f, 0.4f), 200.0f,
                                          juce::AudioParameterFloatAttributes().withLabel ("ms")));
 
-    // Search macros
-    layout.add (unit (chaos, "Chaos", 0.0f), unit (memory, "Memory", 0.0f), unit (cepstralGlide, "Cepstral Glide", 0.0f));
-
-    // Brain search
-    layout.add (unit (matchTimbre, "Match Timbre", 0.5f),
-                unit (matchPitch, "Match Pitch", 0.5f),
-                unit (envTransplant, "Transplant", 0.0f),
-                unit (novelty, "Novelty", 0.3f),
-                unit (boredom, "Boredom", 0.5f),
-                unit (stickyness, "Stickyness", 0.0f),
-                std::make_unique<Choice> (pid (searchMode), "Search Mode",
-                                          juce::StringArray { "Basic", "Rev", "Synaptic", "Synaptic Slide" }, 0));
-
-    // How each brain slices its samples. Its own pair, so one brain can hold
-    // long slices of a pad while the other chops drums fine.
-    auto slicing = [] (const char* sizeId, const char* overlapId, const char* brainName)
+    // Each brain slices and searches its samples on its own terms: one can hold
+    // long, faithful slices of a pad while the other chops drums fine and wanders.
+    for (int b = 0; b < 2; ++b)
     {
-        return std::make_pair (std::make_unique<Int> (pid (sizeId), juce::String (brainName) + " Block Size", 256, 4096, 1000),
-                               std::make_unique<Float> (pid (overlapId), juce::String (brainName) + " Block Overlap",
-                                                        juce::NormalisableRange<float> (0.0f, 0.75f), 0.0f));
-    };
-    auto [sizeB1, overlapPB1] = slicing (blockSizeB1, overlapB1, "Brain 1");
-    auto [sizeB2, overlapPB2] = slicing (blockSizeB2, overlapB2, "Brain 2");
-    layout.add (std::move (sizeB1), std::move (overlapPB1), std::move (sizeB2), std::move (overlapPB2));
+        const auto& ids = brainIds[b];
+        const juce::String name = juce::String ("Brain ") + (b == 0 ? "1 " : "2 ");
+        auto amount = [&] (BrainParam p, const char* label, float def)
+        {
+            return std::make_unique<Float> (pid (p.id), name + label, juce::NormalisableRange<float> (0.0f, 1.0f), def);
+        };
+        layout.add (std::make_unique<Int> (pid (ids.blockSize.id), name + "Block Size", 256, 4096, 1000),
+                    std::make_unique<Float> (pid (ids.overlap.id), name + "Block Overlap", juce::NormalisableRange<float> (0.0f, 0.75f), 0.0f),
+                    amount (ids.chaos, "Chaos", 0.0f),
+                    amount (ids.memory, "Memory", 0.0f),
+                    amount (ids.cepstralGlide, "Cepstral Glide", 0.0f),
+                    amount (ids.matchTimbre, "Match Timbre", 0.5f),
+                    amount (ids.matchPitch, "Match Pitch", 0.5f),
+                    amount (ids.envTransplant, "Transplant", 0.0f),
+                    std::make_unique<Choice> (pid (ids.searchMode.id), name + "Search Mode",
+                                              juce::StringArray { "Basic", "Rev", "Synaptic", "Synaptic Slide" }, 0),
+                    amount (ids.novelty, "Novelty", 0.3f),
+                    amount (ids.boredom, "Boredom", 0.5f),
+                    amount (ids.stickyness, "Stickyness", 0.0f));
+    }
 
     // Output / utility
     layout.add (unit (dryWet, "Dry/Wet", 1.0f),

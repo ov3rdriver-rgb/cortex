@@ -18,7 +18,7 @@ public:
         set ("envY", x);
         set ("detailX", 1.0f - 0.5f * y);
         set ("detailY", y);
-        set ("novelty", novelty);
+        set ("noveltyB1", novelty);
         proc.prepareToPlay (44100.0, 512);
         if (brain)
         {
@@ -232,7 +232,8 @@ public:
         measure ("centre + formant + FFT 4096", setter ({ { envX, 0.5f }, { envY, 0.33f }, { detailX, 0.5f }, { detailY, 0.33f },
                                                          { formantIn, 5.0f }, { formantB1, -3.0f }, { formantB2, 7.0f }, { fftSize, 3.0f } }), true);
         measure ("centre + transplant + glide", setter ({ { envX, 0.5f }, { envY, 0.33f }, { detailX, 0.5f }, { detailY, 0.33f },
-                                                         { envTransplant, 1.0f }, { cepstralGlide, 1.0f } }), true);
+                                                         { envTransplantB1, 1.0f }, { cepstralGlideB1, 1.0f },
+                                                         { envTransplantB2, 1.0f }, { cepstralGlideB2, 1.0f } }), true);
         expect (true);
     }
 };

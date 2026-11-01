@@ -134,7 +134,7 @@ public:
             std::unique_ptr<juce::AudioProcessorEditor> editor (proc.createEditor());
             auto* cortexEditor = dynamic_cast<CortexAudioProcessorEditor*> (editor.get());
             editor->setSize (1280, 820);
-            cortexEditor->showTooltip ({ 700, 660 }, cortex::ui::tips::forParam (cortex::ParamIDs::chaos));
+            cortexEditor->showTooltip ({ 700, 660 }, cortex::ui::tips::forParam (cortex::ParamIDs::chaosB1));
             const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
             const auto file = outDir.getChildFile ("ui_tooltip.png");
             file.deleteFile();

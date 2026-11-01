@@ -150,9 +150,6 @@ private:
         std::atomic<float>* autoMute = nullptr;
         std::atomic<float>* autoMuteMs = nullptr;
 
-        std::atomic<float>* chaos = nullptr;
-        std::atomic<float>* cepstralGlide = nullptr;
-        std::atomic<float>* memory = nullptr;
         std::atomic<float>* lfoRate = nullptr;
         std::atomic<float>* lfoDepth = nullptr;
         std::atomic<float>* lfoShape = nullptr;
@@ -160,15 +157,12 @@ private:
         std::atomic<float>* envDepth = nullptr;
         std::atomic<float>* envAttack = nullptr;
         std::atomic<float>* envRelease = nullptr;
-        std::atomic<float>* matchTimbre = nullptr;
-        std::atomic<float>* matchPitch = nullptr;
-        std::atomic<float>* envTransplant = nullptr;
-        std::array<std::atomic<float>*, numBrains> blockSize {}, overlap {};   // per brain
+        // Per brain: slicing and search.
+        template <typename T> using PerBrain = std::array<T, numBrains>;
+        PerBrain<std::atomic<float>*> blockSize {}, overlap {}, chaos {}, memory {}, cepstralGlide {},
+                                      matchTimbre {}, matchPitch {}, envTransplant {}, searchMode {},
+                                      novelty {}, boredom {}, stickyness {};
         std::atomic<float>* captureSeconds = nullptr;
-        std::atomic<float>* novelty = nullptr;
-        std::atomic<float>* boredom = nullptr;
-        std::atomic<float>* stickyness = nullptr;
-        std::atomic<float>* searchMode = nullptr;
 
         std::atomic<float>* oscWave = nullptr;      // instrument only
         std::atomic<float>* oscGlide = nullptr;

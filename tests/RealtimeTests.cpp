@@ -115,7 +115,7 @@ public:
 
         CortexAudioProcessor proc;
         auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
-        set ("envTransplant", 1.0f);
+        set ("envTransplantB1", 1.0f);
         set ("gateOn", 1.0f);
         proc.prepareToPlay (48000.0, 512);
         proc.loadBrainFrom ({ dir.getFullPathName() });
@@ -136,7 +136,7 @@ public:
             if (block % 100 == 50)  set ("fftSize", (float) ((block / 100) % 4));
             if (block % 150 == 75)  set ("inputSource", (block / 150) % 2 == 0 ? 0.0f : 1.0f);
             if (block % 90 == 45)   set ("envX", (float) (block % 7) / 7.0f);
-            if (block % 120 == 60)  set ("searchMode", (float) ((block / 120) % 4));
+            if (block % 120 == 60)  set ("searchModeB1", (float) ((block / 120) % 4));
             if (block == 300)       set ("phaseMode", 2.0f);
 
             for (int i = 0; i < 512; ++i)
@@ -166,7 +166,7 @@ public:
         {
             CortexAudioProcessor inst (true);
             auto setI = [&] (const char* id, float v) { auto* p = inst.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
-            setI ("envTransplant", 0.7f);
+            setI ("envTransplantB1", 0.7f);
             inst.prepareToPlay (48000.0, 512);
             inst.loadBrainFrom ({ dir.getFullPathName() });
             for (int i = 0; i < 600 && inst.getBrain() == nullptr; ++i)

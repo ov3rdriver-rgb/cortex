@@ -13,7 +13,32 @@ namespace cortex::ui::tips
 inline juce::String forParam (const juce::String& id)
 {
     using namespace cortex::ParamIDs;
-    static const std::map<juce::String, juce::String> texts {
+    static const std::map<juce::String, juce::String> texts = []
+    {
+        std::map<juce::String, juce::String> t;
+
+        // The per-brain controls, one text each with the brain's name filled in.
+        for (int b = 0; b < 2; ++b)
+        {
+            const auto& ids = brainIds[b];
+            const juce::String name = b == 0 ? "Brain 1" : "Brain 2";
+            auto add = [&] (BrainParam p, const char* text) { t[p.id] = juce::String (text).replace ("{B}", name); };
+            add (ids.blockSize, "{B} slice length in samples (256-4096). Short slices follow the Input closely and sound granular; long slices keep more of each sample's character. Each brain has its own, so one can chop drums fine while the other holds long slices of a pad. Changing it rebuilds {B} (cached, so usually quick).");
+            add (ids.overlap, "How much consecutive {B} slices overlap (0-0.75). More overlap: smoother, more smeared. Less: choppier, more distinct. Changing it rebuilds {B}.");
+            add (ids.chaos, "{B} Chaos (0-1): makes {B} wander. Raises its novelty, lowers its stickyness, and adds random jumps (up to 30% of searches at full). Low for faithful matching, high for a brain that never settles.");
+            add (ids.memory, "{B} Memory (0-1): makes {B} remember. Longer boredom memory and more stickyness, so it follows runs in its source sounds instead of re-picking every slice. High values play recognisable phrases from the samples.");
+            add (ids.cepstralGlide, "{B} Cepstral glide (0-1): each new {B} slice slides in from the previous slice's colour instead of cutting. 0: hard cuts between slices. 1: the colour drifts smoothly, like a filter sweep between grains.");
+            add (ids.matchTimbre, "{B} Match timbre (0-1): how much {B} cares about tone colour when it picks the closest slice to the Input. With its Match Pitch at 0 it picks purely by colour.");
+            add (ids.matchPitch, "{B} Match pitch (0-1): how much {B} cares about notes (pitch, chroma, voicing) when it picks the closest slice. Turn up to make {B} follow the Input's melody.");
+            add (ids.envTransplant, "{B} Transplant (0-1): {B}'s slices take on the Input's envelope before the morph, so the brain 'sings with your mouth'. At 1 it supplies only texture and pitch under the Input's colour.");
+            add (ids.searchMode, "How {B} looks for its next slice. Basic: the closest slice in the whole brain. Rev: the furthest (deliberately wrong). Synaptic: walk to one of the current slice's nearest neighbours, so the brain drifts rather than jumps. Synaptic Slide: the same walk, sliding between slices.");
+            add (ids.novelty, "{B} Novelty (0-1): penalises slices {B} used recently, so it does not repeat itself. Its Chaos adds to this.");
+            add (ids.boredom, "{B} Boredom (0-1): how long {B} remembers what it played. Higher: recently used slices stay penalised for longer. Its Memory adds to this.");
+            add (ids.stickyness, "{B} Stickyness (0-1): prefer the slice that comes next in the source sound over the closest match, so {B} plays through its samples in order. Its Memory adds to this; its Chaos takes from it.");
+        }
+        return t;
+    }();
+    static const std::map<juce::String, juce::String> shared {
         { envX, "Envelope triangle. Drag the dot to set how much of the spectral envelope (the tone colour) comes from Brain 1 (top), Brain 2 (bottom left) and the Input (bottom right). Double-click to reset." },
         { envY, "Envelope triangle, vertical position." },
         { detailX, "Detail triangle. Drag the dot to set where the fine spectral detail (pitch, harmonics, texture) comes from: Brain 1 (top), Brain 2 (bottom left) or the Input (bottom right). Double-click to reset." },
@@ -46,21 +71,6 @@ inline juce::String forParam (const juce::String& id)
         { envAttack, "Envelope follower attack in ms (0.1-1000): how fast it reacts when the Input gets louder." },
         { envRelease, "Envelope follower release in ms (1-5000): how fast it falls back when the Input gets quieter." },
 
-        { chaos, "Chaos (0-1): makes the brains wander. Raises novelty, lowers stickyness, and adds random jumps (up to 30% of searches at full). Low for faithful matching, high for a brain that never settles." },
-        { memory, "Memory (0-1): makes the brains remember. Longer boredom memory and more stickyness, so a brain follows runs in its source sounds instead of re-picking every slice. High values play recognisable phrases from the samples." },
-        { cepstralGlide, "Cepstral glide (0-1): each new slice slides in from the previous slice's colour instead of cutting. 0: hard cuts between slices. 1: the colour drifts smoothly, like a filter sweep between grains." },
-        { matchTimbre, "Match timbre (0-1): how much a brain cares about tone colour when it picks the closest slice to the Input. With Match Pitch at 0 it picks purely by colour." },
-        { matchPitch, "Match pitch (0-1): how much a brain cares about notes (pitch, chroma, voicing) when it picks the closest slice. Turn up to make a brain follow the Input's melody." },
-        { envTransplant, "Transplant (0-1): brain slices take on the Input's envelope before the morph, so the brain 'sings with your mouth'. At 1 the brain supplies only texture and pitch under the Input's colour." },
-        { blockSizeB1, "Brain 1 slice length in samples (256-4096). Short slices follow the Input closely and sound granular; long slices keep more of each sample's character. Each brain has its own, so one can chop drums fine while the other holds long slices of a pad. Changing it rebuilds Brain 1 (cached, so usually quick)." },
-        { overlapB1, "How much consecutive Brain 1 slices overlap (0-0.75). More overlap: smoother, more smeared. Less: choppier, more distinct. Changing it rebuilds Brain 1." },
-        { blockSizeB2, "Brain 2 slice length in samples (256-4096). Short slices follow the Input closely and sound granular; long slices keep more of each sample's character. Each brain has its own. Changing it rebuilds Brain 2 (cached, so usually quick)." },
-        { overlapB2, "How much consecutive Brain 2 slices overlap (0-0.75). More overlap: smoother, more smeared. Less: choppier, more distinct. Changing it rebuilds Brain 2." },
-        { novelty, "Novelty (0-1): penalises slices the brain used recently, so it does not repeat itself. Chaos adds to this." },
-        { boredom, "Boredom (0-1): how long the brain remembers what it played. Higher: recently used slices stay penalised for longer. Memory adds to this." },
-        { stickyness, "Stickyness (0-1): prefer the slice that comes next in the source sound over the closest match, so the brain plays through its samples in order. Memory adds to this; Chaos takes from it." },
-        { searchMode, "How a brain looks for its next slice. Basic: the closest slice in the whole brain. Rev: the furthest (deliberately wrong). Synaptic: walk to one of the current slice's nearest neighbours, so the brain drifts rather than jumps. Synaptic Slide: the same walk, sliding between slices." },
-
         { dryWet, "Dry / wet (0-1): mix between the untouched Input (dry) and the morph (wet)." },
         { outGain, "Output gain in dB (-24 to +12), after the mix." },
         { limiter, "Limiter: a brick-wall limiter at -0.3 dB on the output. Keep it on; a morph can spike when the envelope and detail disagree." },
@@ -76,8 +86,10 @@ inline juce::String forParam (const juce::String& id)
         { ampAttack, "Amplitude attack in ms for the oscillator." },
         { ampRelease, "Amplitude release in ms for the oscillator after the key is lifted." },
     };
-    const auto it = texts.find (id);
-    return it != texts.end() ? it->second : juce::String();
+    if (const auto it = texts.find (id); it != texts.end())
+        return it->second;
+    const auto it = shared.find (id);
+    return it != shared.end() ? it->second : juce::String();
 }
 
 // The non-parameter controls.
@@ -95,7 +107,11 @@ inline const char* captureChip = "The capture you just made. Drag it into your D
 inline const char* meters = "Input and output peak levels, and the gate light (on when the gate is open, dim when closed, off when the gate is off).";
 inline const char* status = "Blocks: the slices this brain holds. Building shows progress; large folders take a while the first time and are cached after that.";
 inline const char* version = "Version and commit of this build.";
-inline const char* searchTab = "How the brains choose slices: the macros and the matching weights. Each brain's block size and overlap are in its own column.";
+inline juce::String searchTab (int brain)
+{
+    const juce::String name = brain == 0 ? "Brain 1" : "Brain 2";
+    return "How " + name + " chooses its slices: its macros, matching weights and search mode, separate from the other brain's. Its block size and overlap are in its column.";
+}
 inline const char* modTab = "An LFO and an envelope follower that sweep a source's cutoff.";
 inline const char* outputTab = "Phase, window size, latency, mix, gain, safety, capture length and the theme.";
 } // namespace cortex::ui::tips

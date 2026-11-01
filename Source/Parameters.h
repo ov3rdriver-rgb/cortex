@@ -48,6 +48,7 @@ namespace cortex::ParamIDs
     inline constexpr auto noveltyB1       = "noveltyB1";
     inline constexpr auto boredomB1       = "boredomB1";
     inline constexpr auto stickynessB1    = "stickynessB1";
+    inline constexpr auto listenB1        = "listenB1";       // what Brain 1 matches: Input / Track / Sidechain / Brain 2 / Output
     inline constexpr auto blockSizeB2     = "blockSizeB2";
     inline constexpr auto overlapB2       = "overlapB2";
     inline constexpr auto chaosB2         = "chaosB2";
@@ -60,31 +61,33 @@ namespace cortex::ParamIDs
     inline constexpr auto noveltyB2       = "noveltyB2";
     inline constexpr auto boredomB2       = "boredomB2";
     inline constexpr auto stickynessB2    = "stickynessB2";
+    inline constexpr auto listenB2        = "listenB2";
 
     // One brain's ids, so code can take "brain b" and index. `legacy` is the
-    // pre-1.2 shared id of the same control.
+    // pre-1.2 shared id of the same control (for Listen, which never had a
+    // shared version, just the key the Links tree uses).
     struct BrainParam { const char* id; const char* legacy; };
     struct BrainIds
     {
         BrainParam blockSize, overlap, chaos, memory, cepstralGlide, matchTimbre, matchPitch,
-                   envTransplant, searchMode, novelty, boredom, stickyness;
+                   envTransplant, searchMode, novelty, boredom, stickyness, listen;
 
-        // The slicing pair first, then the search controls in the order the Search tab shows them.
-        std::array<BrainParam, 12> all() const
+        // The slicing pair first, then the search controls in the order the Search tab shows them, then Listen.
+        std::array<BrainParam, 13> all() const
         {
             return { blockSize, overlap, chaos, memory, cepstralGlide, matchTimbre, matchPitch,
-                     envTransplant, searchMode, novelty, boredom, stickyness };
+                     envTransplant, searchMode, novelty, boredom, stickyness, listen };
         }
     };
     inline constexpr BrainIds brainIds[2] {
         { { blockSizeB1, "blockSize" }, { overlapB1, "overlap" }, { chaosB1, "chaos" }, { memoryB1, "memory" },
           { cepstralGlideB1, "cepstralGlide" }, { matchTimbreB1, "matchTimbre" }, { matchPitchB1, "matchPitch" },
           { envTransplantB1, "envTransplant" }, { searchModeB1, "searchMode" }, { noveltyB1, "novelty" },
-          { boredomB1, "boredom" }, { stickynessB1, "stickyness" } },
+          { boredomB1, "boredom" }, { stickynessB1, "stickyness" }, { listenB1, "listen" } },
         { { blockSizeB2, "blockSize" }, { overlapB2, "overlap" }, { chaosB2, "chaos" }, { memoryB2, "memory" },
           { cepstralGlideB2, "cepstralGlide" }, { matchTimbreB2, "matchTimbre" }, { matchPitchB2, "matchPitch" },
           { envTransplantB2, "envTransplant" }, { searchModeB2, "searchMode" }, { noveltyB2, "novelty" },
-          { boredomB2, "boredom" }, { stickynessB2, "stickyness" } },
+          { boredomB2, "boredom" }, { stickynessB2, "stickyness" }, { listenB2, "listen" } },
     };
 
     inline constexpr auto dryWet        = "dryWet";
@@ -124,6 +127,18 @@ namespace cortex
     inline constexpr int minCaptureSeconds = 5;
     inline constexpr int maxCaptureSeconds = 120;
     inline constexpr int defaultCaptureSeconds = 60;
+
+    // What a brain listens to (matches its slices against). The Listen
+    // parameter's choices are "Input", "Track", "Sidechain", "Brain N",
+    // "Output" in the effect; the instrument has no track or sidechain, so its
+    // choices are "Input", "Brain N", "Output". listenFromChoice() maps both.
+    enum class Listen { input, track, sidechain, otherBrain, output };
+    inline Listen listenFromChoice (int choice, bool instrument)
+    {
+        if (instrument)
+            return choice <= 0 ? Listen::input : choice == 1 ? Listen::otherBrain : Listen::output;
+        return (Listen) juce::jlimit (0, 4, choice);
+    }
 
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool instrument);
 }

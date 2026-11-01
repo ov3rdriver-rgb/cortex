@@ -96,6 +96,7 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
         params.novelty[b] = get (ids.novelty.id);
         params.boredom[b] = get (ids.boredom.id);
         params.stickyness[b] = get (ids.stickyness.id);
+        params.listen[b] = get (ids.listen.id);
     }
     params.captureSeconds = get (id::captureSeconds);
 
@@ -287,6 +288,8 @@ void CortexAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     silentSamples = 0;
     activeOrder = -1;   // forces an engine setup on the first block
     activeBrainDelay = previousBrainDelay = 0;
+    lastBrainOut.fill (0.0f);
+    lastOutMono = 0.0f;
     activeDelays = previousDelays = {};
 
     // Brains are built at the host rate; a new rate needs a rebuild (usually a cache hit).
@@ -351,28 +354,37 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
     // Effect: the Input source is the track, or the sidechain if chosen (and
     // connected). The dry signal is always the track.
-    std::array<const float*, maxChannels> input {};
+    std::array<const float*, maxChannels> track {}, sidechain {}, input {};
     for (int ch = 0; ch < numChannels; ++ch)
-        input[(size_t) ch] = buffer.getReadPointer (ch);
-    if (! instrument && params.inputSource->load() >= 0.5f)
+        track[(size_t) ch] = sidechain[(size_t) ch] = buffer.getReadPointer (ch);
+    if (! instrument)
     {
         const auto* scBus = getBus (true, 1);
         const int scChannels = scBus != nullptr && scBus->isEnabled() ? scBus->getNumberOfChannels() : 0;
         if (scChannels > 0)
             for (int ch = 0; ch < numChannels; ++ch)
-                input[(size_t) ch] = buffer.getReadPointer (getChannelIndexInProcessBlockBuffer (true, 1, juce::jmin (ch, scChannels - 1)));
+                sidechain[(size_t) ch] = buffer.getReadPointer (getChannelIndexInProcessBlockBuffer (true, 1, juce::jmin (ch, scChannels - 1)));
     }
+    input = ! instrument && params.inputSource->load() >= 0.5f ? sidechain : track;
 
-    // Brains: each renders its best match for the live input.
+    // Brains: each renders its best match for what it listens to - the Input
+    // by default, or the track / sidechain regardless of the Input setting,
+    // the other brain, or Cortex's own output (the last two a sample behind).
     std::array<cortex::brain::Renderer*, numBrains> brains { slots[0].renderer.acquire(), slots[1].renderer.acquire() };
     const bool lowLatency = params.lowLatency->load() > 0.5f;
+    std::array<cortex::Listen, numBrains> listen {};
     for (int b = 0; b < numBrains; ++b)
+    {
+        listen[(size_t) b] = listenSource (b);
+        if (listen[(size_t) b] == cortex::Listen::otherBrain && brains[(size_t) (1 - b)] == nullptr)
+            listen[(size_t) b] = cortex::Listen::input;   // nothing to hear there: fall back
         if (auto* r = brains[(size_t) b])
         {
             r->setBlocking (isNonRealtime());
             r->setSearch (readSearchParams (b), (cortex::brain::SearchMode) juce::jlimit (0, 3, (int) params.searchMode[(size_t) b]->load()));
             r->setLowLatency (lowLatency);
         }
+    }
 
     // Morph settings. A brain that isn't loaded has nothing to give: its share
     // of each triangle goes back to the Input, so an empty corner is transparent.
@@ -411,10 +423,22 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // through and the brains' timbre follows a grain behind.
     const int order = lowLatency ? cortex::dsp::minFftOrder
                                  : cortex::dsp::minFftOrder + juce::jlimit (0, 3, (int) params.fftSize->load());
+    // A brain that listens to the other brain answers that brain's output, so
+    // its latency stacks on top (unless the two listen to each other, a loop
+    // with no first link). One that listens to the output is in a loop too and
+    // keeps its own latency.
     PerSourceInt latency {};
+    std::array<int, numBrains> own {};
     for (int b = 0; b < numBrains; ++b)
         if (brains[(size_t) b] != nullptr && ! lowLatency)
-            latency[(size_t) (Source::brain1 + b)] = brains[(size_t) b]->getLatencySamples();
+            own[(size_t) b] = brains[(size_t) b]->getLatencySamples();
+    for (int b = 0; b < numBrains; ++b)
+    {
+        const int other = 1 - b;
+        latency[(size_t) (Source::brain1 + b)] = own[(size_t) b];
+        if (brains[(size_t) b] != nullptr && listen[(size_t) b] == cortex::Listen::otherBrain && listen[(size_t) other] != cortex::Listen::otherBrain)
+            latency[(size_t) (Source::brain1 + b)] += own[(size_t) other];
+    }
     const int brainDelay = juce::jmax (latency[Source::brain1], latency[Source::brain2]);
     PerSourceInt delays {};
     for (int s = 0; s < numSources; ++s)
@@ -483,18 +507,35 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             gainOld = std::cos (t * juce::MathConstants<float>::halfPi);
         }
 
-        // The brains are mono: each matches the mono mix of the Input and
-        // feeds every channel.
+        // The brains are mono: each matches the mono mix of what it listens
+        // to and feeds every channel.
         std::array<float, numBrains> brainOut {};
         if (brains[0] != nullptr || brains[1] != nullptr)
         {
-            float mono = 0.0f;
-            for (int ch = 0; ch < numChannels; ++ch)
-                mono += input[(size_t) ch][i];
-            mono /= (float) juce::jmax (1, numChannels);
+            auto monoOf = [&] (const std::array<const float*, maxChannels>& src)
+            {
+                float mono = 0.0f;
+                for (int ch = 0; ch < numChannels; ++ch)
+                    mono += src[(size_t) ch][i];
+                return mono / (float) juce::jmax (1, numChannels);
+            };
             for (int b = 0; b < numBrains; ++b)
-                if (brains[(size_t) b] != nullptr)
-                    brainOut[(size_t) b] = brains[(size_t) b]->processSample (mono);
+            {
+                if (brains[(size_t) b] == nullptr)
+                    continue;
+                float heard = 0.0f;
+                switch (listen[(size_t) b])
+                {
+                    case cortex::Listen::track:      heard = monoOf (track); break;
+                    case cortex::Listen::sidechain:  heard = monoOf (sidechain); break;
+                    case cortex::Listen::otherBrain: heard = lastBrainOut[(size_t) (1 - b)]; break;
+                    case cortex::Listen::output:     heard = lastOutMono; break;
+                    case cortex::Listen::input:
+                    default:                         heard = monoOf (input); break;
+                }
+                brainOut[(size_t) b] = brains[(size_t) b]->processSample (heard);
+            }
+            lastBrainOut = brainOut;
         }
 
         for (int ch = 0; ch < numChannels; ++ch)
@@ -531,6 +572,14 @@ void CortexAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             dcY1[c] = y;
 
             out[c][i] = (dry + wet * (y - dry)) * og;
+        }
+
+        // The output this sample (before the limiter), for a brain listening to it.
+        {
+            float mono = 0.0f;
+            for (int ch = 0; ch < numChannels; ++ch)
+                mono += out[(size_t) ch][i];
+            lastOutMono = mono / (float) juce::jmax (1, numChannels);
         }
 
         historyPos = (historyPos + 1) & historyMask;

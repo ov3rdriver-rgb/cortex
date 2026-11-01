@@ -148,6 +148,47 @@ public:
             expect (! fx.allLinked() && ! fx.isLinked (chaosIndex));
         }
 
+        beginTest ("Each brain chooses what it listens to; the instrument has no track or sidechain");
+        {
+            using namespace cortex::ParamIDs;
+            CortexAudioProcessor fx, inst (true);
+            auto* fxListen = dynamic_cast<juce::AudioParameterChoice*> (fx.apvts.getParameter (listenB1));
+            auto* instListen = dynamic_cast<juce::AudioParameterChoice*> (inst.apvts.getParameter (listenB2));
+            expect (fxListen != nullptr && instListen != nullptr);
+            expectEquals (fxListen->choices.joinIntoString ("/"), juce::String ("Input/Track/Sidechain/Brain 2/Output"));
+            expectEquals (instListen->choices.joinIntoString ("/"), juce::String ("Input/Brain 1/Output"));
+            expect (fx.listenSource (0) == cortex::Listen::input && inst.listenSource (1) == cortex::Listen::input, "both default to the Input");
+
+            auto choose = [] (juce::AudioParameterChoice* p, int index) { p->setValueNotifyingHost (p->convertTo0to1 ((float) index)); };
+            choose (fxListen, 2);
+            expect (fx.listenSource (0) == cortex::Listen::sidechain);
+            choose (fxListen, 3);
+            expect (fx.listenSource (0) == cortex::Listen::otherBrain);
+            choose (instListen, 1);
+            expect (inst.listenSource (1) == cortex::Listen::otherBrain, "the instrument's second choice is the other brain");
+            choose (instListen, 2);
+            expect (inst.listenSource (1) == cortex::Listen::output);
+
+            // Audio runs cleanly whatever the brains listen to, loaded or not.
+            fx.prepareToPlay (48000.0, 256);
+            juce::AudioBuffer<float> buf (4, 256);
+            juce::MidiBuffer midi;
+            for (int choice = 0; choice < 5; ++choice)
+            {
+                choose (fxListen, choice);
+                choose (dynamic_cast<juce::AudioParameterChoice*> (fx.apvts.getParameter (listenB2)), 4 - choice);
+                for (int block = 0; block < 8; ++block)
+                {
+                    for (int ch = 0; ch < 4; ++ch)
+                        for (int i = 0; i < 256; ++i)
+                            buf.setSample (ch, i, 0.3f * std::sin (0.05f * (float) (i + block * 256) * (float) (ch + 1)));
+                    fx.processBlock (buf, midi);
+                    for (int i = 0; i < 256; ++i)
+                        expect (std::isfinite (buf.getSample (0, i)));
+                }
+            }
+        }
+
         beginTest ("Capture saves the most recent output");
         {
             CortexAudioProcessor fx;

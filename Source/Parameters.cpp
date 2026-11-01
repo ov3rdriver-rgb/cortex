@@ -99,6 +99,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout (bool 
                     amount (ids.novelty, "Novelty", 0.3f),
                     amount (ids.boredom, "Boredom", 0.5f),
                     amount (ids.stickyness, "Stickyness", 0.0f));
+
+        // What this brain listens to. "Input" is whatever the Input panel says
+        // (so both brains follow it by default); the other choices let one
+        // brain match the sidechain while the other matches the track, chase
+        // the other brain, or feed on Cortex's own output.
+        const juce::String other = b == 0 ? "Brain 2" : "Brain 1";
+        layout.add (std::make_unique<Choice> (pid (ids.listen.id), name + "Listen",
+                                              instrument ? juce::StringArray { "Input", other, "Output" }
+                                                         : juce::StringArray { "Input", "Track", "Sidechain", other, "Output" }, 0));
     }
 
     // Output / utility

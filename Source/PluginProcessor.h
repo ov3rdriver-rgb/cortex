@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 
+#include "Parameters.h"
 #include "brain/BrainBuilder.h"
 #include "brain/RealtimeExchange.h"
 #include "brain/Renderer.h"
@@ -92,11 +93,18 @@ public:
     // whichever brain's knob you turn, the other follows to the same value.
     // Saved with the session. Switching a link on copies `fromBrain`'s value
     // to the other brain.
-    static constexpr int numBrainControls = 12;
+    static constexpr int numBrainControls = 13;
     bool isLinked (int control) const { return linked[(size_t) control].load (std::memory_order_relaxed); }
     void setLinked (int control, bool shouldLink, int fromBrain = 0);
     bool allLinked() const;
     void setAllLinked (bool shouldLink, int fromBrain = 0);
+
+    // What a brain listens to right now (its Listen parameter decoded for
+    // this plugin). The audio thread uses the same mapping.
+    cortex::Listen listenSource (int brain) const
+    {
+        return cortex::listenFromChoice ((int) params.listen[(size_t) brain]->load(), instrument);
+    }
 
     // Output capture (message thread). Writes the last `getCaptureSeconds()`
     // of output (less, if the plugin has run for less) as a 24-bit WAV at the
@@ -172,7 +180,7 @@ private:
         template <typename T> using PerBrain = std::array<T, numBrains>;
         PerBrain<std::atomic<float>*> blockSize {}, overlap {}, chaos {}, memory {}, cepstralGlide {},
                                       matchTimbre {}, matchPitch {}, envTransplant {}, searchMode {},
-                                      novelty {}, boredom {}, stickyness {};
+                                      novelty {}, boredom {}, stickyness {}, listen {};
         std::atomic<float>* captureSeconds = nullptr;
 
         std::atomic<float>* oscWave = nullptr;      // instrument only
@@ -208,6 +216,12 @@ private:
     std::array<std::array<std::vector<float>, maxChannels>, cortex::dsp::numSources> history;
     std::array<std::vector<float>, maxChannels> historyDry;
     int historyPos = 0;
+
+    // The previous sample of each brain and of the output (mono), for a brain
+    // that listens to the other brain or to Cortex's output: one sample behind,
+    // so the order the brains run in never matters and a loop is harmless.
+    std::array<float, numBrains> lastBrainOut {};
+    float lastOutMono = 0.0f;
 
     juce::dsp::Limiter<float> limiter;
 

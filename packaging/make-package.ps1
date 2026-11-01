@@ -1,14 +1,29 @@
-# Builds the Windows tester package from an existing Release build:
-#   dist\Cortex-<version>-Windows.zip
-# containing both plugins (VST3 + Standalone), the tester docs, the licence
-# files and a source archive of the tagged version (AGPL-3.0).
+# Builds a tester package from an existing Release build:
+#   dist\Cortex-<version>-Windows.zip   from this machine's build\ folder
+#   dist\Cortex-<version>-macOS.zip     from a CI artefact folder (-MacArtefacts)
+# Each holds both plugins (VST3 + Standalone, plus AU on macOS), the tester
+# docs for that platform, the licence files and a source archive of the
+# tagged version (AGPL-3.0).
 #
 # Usage (from the repo root, after building Release at the tag):
 #   powershell -ExecutionPolicy Bypass -File packaging\make-package.ps1
+#   powershell -ExecutionPolicy Bypass -File packaging\make-package.ps1 -Platform macOS -MacArtefacts dist\mac-ci\Cortex-macOS
+#
+# The macOS artefact folder is the "Cortex-macOS" download from the build
+# workflow: it holds Cortex_artefacts\Release\{VST3,AU,Standalone} and the
+# same for CortexInstrument_artefacts. GitHub's artefact zips carry no Unix
+# permissions, so the .app executables arrive without their execute bit;
+# INSTALL-macOS.txt has the chmod line that restores it. The plug-in bundles
+# are loaded with dlopen and do not need it.
+param(
+    [ValidateSet('Windows', 'macOS')] [string] $Platform = 'Windows',
+    [string] $MacArtefacts
+)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+$tar = Join-Path $env:SystemRoot 'System32\tar.exe'
 
 # Version and commit come from the build, so the package matches what was built.
 $versionHeader = Get-Content (Join-Path $root 'build\generated\Version.h') -Raw
@@ -21,25 +36,46 @@ $tagHash = (git rev-parse --short "$tag^{commit}" 2>$null)
 if ($LASTEXITCODE -ne 0) { throw "Tag $tag does not exist." }
 if ($tagHash -ne $hash) { throw "The build is commit $hash but $tag is $tagHash. Check out $tag and rebuild." }
 
-$name = "Cortex-$version-Windows"
+$name = "Cortex-$version-$Platform"
 $dist = Join-Path $root 'dist'
 $stage = Join-Path $dist $name
 if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
-New-Item -ItemType Directory -Force (Join-Path $stage 'VST3'), (Join-Path $stage 'Standalone'), (Join-Path $stage 'Source') | Out-Null
+$formats = if ($Platform -eq 'macOS') { 'VST3', 'AU', 'Standalone' } else { 'VST3', 'Standalone' }
+New-Item -ItemType Directory -Force (($formats | ForEach-Object { Join-Path $stage $_ }) + (Join-Path $stage 'Source')) | Out-Null
 
 # Plugins.
-$artefacts = @{ 'Cortex' = 'build\Cortex_artefacts\Release'; 'Cortex Instrument' = 'build\CortexInstrument_artefacts\Release' }
-foreach ($plugin in $artefacts.Keys) {
-    $dir = Join-Path $root $artefacts[$plugin]
-    Copy-Item -Recurse (Join-Path $dir "VST3\$plugin.vst3") (Join-Path $stage 'VST3')
-    Copy-Item (Join-Path $dir "Standalone\$plugin.exe") (Join-Path $stage 'Standalone')
+$plugins = @{ 'Cortex' = 'Cortex_artefacts'; 'Cortex Instrument' = 'CortexInstrument_artefacts' }
+if ($Platform -eq 'Windows') {
+    foreach ($plugin in $plugins.Keys) {
+        $dir = Join-Path $root "build\$($plugins[$plugin])\Release"
+        Copy-Item -Recurse (Join-Path $dir "VST3\$plugin.vst3") (Join-Path $stage 'VST3')
+        Copy-Item (Join-Path $dir "Standalone\$plugin.exe") (Join-Path $stage 'Standalone')
+    }
+} else {
+    if (-not $MacArtefacts -or -not (Test-Path $MacArtefacts)) { throw 'Pass -MacArtefacts <folder>: the unzipped Cortex-macOS artefact from CI.' }
+    $MacArtefacts = (Resolve-Path $MacArtefacts).Path
+    $bundles = @{ 'VST3' = '.vst3'; 'AU' = '.component'; 'Standalone' = '.app' }
+    foreach ($plugin in $plugins.Keys) {
+        foreach ($format in $bundles.Keys) {
+            $bundle = Join-Path $MacArtefacts "$($plugins[$plugin])\Release\$format\$plugin$($bundles[$format])"
+            if (-not (Test-Path $bundle)) { throw "Missing in the macOS artefact: $bundle" }
+            Copy-Item -Recurse $bundle (Join-Path $stage $format)
+        }
+    }
 }
 
-# Tester docs, with the version filled in and Windows line endings.
+# Tester docs, with the version filled in. Files named *-Windows.txt or
+# *-macOS.txt are for one platform and lose the suffix; the rest are shared.
 foreach ($doc in Get-ChildItem (Join-Path $PSScriptRoot 'docs') -Filter *.txt) {
+    $base = $doc.BaseName
+    if ($base -match '-(Windows|macOS)$') {
+        if ($Matches[1] -ne $Platform) { continue }
+        $base = $base -replace '-(Windows|macOS)$', ''
+    }
     $text = (Get-Content $doc.FullName -Raw) -replace '\{\{VERSION\}\}', $version -replace '\{\{HASH\}\}', $hash
-    $text = $text -replace "`r?`n", "`r`n"
-    [IO.File]::WriteAllText((Join-Path $stage $doc.Name), $text, (New-Object Text.UTF8Encoding $false))
+    $newline = if ($Platform -eq 'Windows') { "`r`n" } else { "`n" }
+    $text = $text -replace "`r?`n", $newline
+    [IO.File]::WriteAllText((Join-Path $stage "$base.txt"), $text, (New-Object Text.UTF8Encoding $false))
 }
 
 # Licence and project notes.
@@ -57,6 +93,6 @@ if ($LASTEXITCODE -ne 0) { throw 'git archive failed.' }
 $zip = Join-Path $dist "$name.zip"
 if (Test-Path $zip) { Remove-Item -Force $zip }
 Push-Location $dist
-try { & (Join-Path $env:SystemRoot 'System32\tar.exe') -a -c -f "$name.zip" $name } finally { Pop-Location }
+try { & $tar -a -c -f "$name.zip" $name } finally { Pop-Location }
 if ($LASTEXITCODE -ne 0) { throw 'tar failed to create the zip.' }
 Write-Output "Package: $zip"

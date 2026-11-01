@@ -2,6 +2,8 @@
 #include "Parameters.h"
 #include "state/Settings.h"
 
+#include <juce_audio_formats/juce_audio_formats.h>
+
 class ProcessorScaffoldTests final : public juce::UnitTest
 {
 public:
@@ -14,10 +16,14 @@ public:
         beginTest ("All brief parameters exist");
         for (auto* id : { "envX", "envY", "detailX", "detailY", "linkTriangles", "cutoffIn", "cutoffB1", "cutoffB2",
                           "formantIn", "formantB1", "formantB2", "phaseMode", "fftSize", "inputSource",
-                          "matchTimbre", "matchPitch", "envTransplant", "blockSize", "overlap",
-                          "novelty", "boredom", "stickyness", "searchMode",
-                          "dryWet", "outGain", "limiter", "gateOn", "gateThresh", "autoMute", "autoMuteMs" })
+                          "dryWet", "outGain", "limiter", "gateOn", "gateThresh", "autoMute", "autoMuteMs", "captureSeconds" })
             expect (proc.apvts.getParameter (id) != nullptr, juce::String ("missing ") + id);
+        for (const auto& ids : cortex::ParamIDs::brainIds)
+            for (auto p : ids.all())
+            {
+                expect (proc.apvts.getParameter (p.id) != nullptr, juce::String ("missing ") + p.id);
+                expect (proc.apvts.getParameter (p.legacy) == nullptr, juce::String ("the shared ") + p.legacy + " is gone");
+            }
 
         beginTest ("Cutoff defaults to 25 bins");
         expectEquals ((int) proc.apvts.getRawParameterValue (cortex::ParamIDs::cutoffIn)->load(), 25);
@@ -64,6 +70,136 @@ public:
             auto* restored = third.apvts.getParameter (cortex::ParamIDs::theme);
             expectEquals (juce::roundToInt (restored->convertFrom0to1 (restored->getValue())), chosen);
             theme->setValueNotifyingHost (theme->convertTo0to1 ((float) chosen));
+        }
+
+        beginTest ("A pre-1.2 session with shared slicing and search settings sets both brains");
+        {
+            auto state = proc.apvts.copyState();
+            for (const auto& ids : cortex::ParamIDs::brainIds)
+                for (auto p : ids.all())
+                    state.removeChild (state.getChildWithProperty ("id", p.id), nullptr);
+            state.appendChild (juce::ValueTree ("PARAM", { { "id", "blockSize" }, { "value", 2048 } }), nullptr);
+            state.appendChild (juce::ValueTree ("PARAM", { { "id", "overlap" }, { "value", 0.5 } }), nullptr);
+            state.appendChild (juce::ValueTree ("PARAM", { { "id", "chaos" }, { "value", 0.7 } }), nullptr);
+            state.appendChild (juce::ValueTree ("PARAM", { { "id", "searchMode" }, { "value", 2 } }), nullptr);
+            juce::MemoryBlock legacy;
+            proc.copyXmlToBinary (*state.createXml(), legacy);
+
+            CortexAudioProcessor old;
+            old.setStateInformation (legacy.getData(), (int) legacy.getSize());
+            for (const auto& ids : cortex::ParamIDs::brainIds)
+            {
+                expectEquals ((int) old.apvts.getRawParameterValue (ids.blockSize.id)->load(), 2048, ids.blockSize.id);
+                expectWithinAbsoluteError (old.apvts.getRawParameterValue (ids.overlap.id)->load(), 0.5f, 1e-4f, ids.overlap.id);
+                expectWithinAbsoluteError (old.apvts.getRawParameterValue (ids.chaos.id)->load(), 0.7f, 1e-4f, ids.chaos.id);
+                expectEquals ((int) old.apvts.getRawParameterValue (ids.searchMode.id)->load(), 2, ids.searchMode.id);
+                expectWithinAbsoluteError (old.apvts.getRawParameterValue (ids.novelty.id)->load(), 0.3f, 1e-4f, "untouched: default");
+            }
+            expect (! old.apvts.state.getChildWithProperty ("id", "blockSize").isValid(), "the legacy entry is dropped");
+            expect (! old.apvts.state.getChildWithProperty ("id", "chaos").isValid(), "the legacy entry is dropped");
+        }
+
+        beginTest ("Linked controls move together; links are saved with the session");
+        {
+            using namespace cortex::ParamIDs;
+            CortexAudioProcessor fx;
+            auto set = [&] (const char* id, float v) { auto* p = fx.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+            auto get = [&] (const char* id) { return fx.apvts.getRawParameterValue (id)->load(); };
+            int chaosIndex = -1;
+            const auto all = brainIds[0].all();
+            for (size_t i = 0; i < all.size(); ++i)
+                if (juce::String (all[i].id) == chaosB1)
+                    chaosIndex = (int) i;
+            expect (chaosIndex >= 0);
+
+            set (chaosB1, 0.8f);
+            set (chaosB2, 0.2f);
+            expect (! fx.isLinked (chaosIndex));
+            set (chaosB1, 0.6f);
+            expectWithinAbsoluteError (get (chaosB2), 0.2f, 1e-5f, "unlinked: Brain 2 stays");
+
+            fx.setLinked (chaosIndex, true, 0);   // linking from Brain 1 copies its value over
+            expectWithinAbsoluteError (get (chaosB2), 0.6f, 1e-5f);
+            set (chaosB1, 0.3f);
+            expectWithinAbsoluteError (get (chaosB2), 0.3f, 1e-5f, "Brain 2 follows Brain 1");
+            set (chaosB2, 0.9f);
+            expectWithinAbsoluteError (get (chaosB1), 0.9f, 1e-5f, "Brain 1 follows Brain 2");
+            expectWithinAbsoluteError (get (memoryB1), 0.0f, 1e-5f, "other controls untouched");
+
+            fx.setLinked (chaosIndex, false);
+            set (chaosB1, 0.1f);
+            expectWithinAbsoluteError (get (chaosB2), 0.9f, 1e-5f, "unlinked again");
+
+            // Link all, from Brain 2 this time, then save and reload.
+            set (blockSizeB2, 512.0f);
+            fx.setAllLinked (true, 1);
+            expect (fx.allLinked());
+            expectEquals ((int) get (blockSizeB1), 512);
+            juce::MemoryBlock saved;
+            fx.getStateInformation (saved);
+            CortexAudioProcessor reloaded;
+            expect (! reloaded.allLinked());
+            reloaded.setStateInformation (saved.getData(), (int) saved.getSize());
+            expect (reloaded.allLinked(), "links come back with the session");
+            auto setR = [&] (const char* id, float v) { auto* p = reloaded.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+            setR (noveltyB1, 0.77f);
+            expectWithinAbsoluteError (reloaded.apvts.getRawParameterValue (noveltyB2)->load(), 0.77f, 1e-5f);
+            fx.setAllLinked (false);
+            expect (! fx.allLinked() && ! fx.isLinked (chaosIndex));
+        }
+
+        beginTest ("Capture saves the most recent output");
+        {
+            CortexAudioProcessor fx;
+            auto set = [&] (const char* id, float v) { auto* p = fx.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+            set ("dryWet", 0.0f);
+            set ("limiter", 0.0f);
+            set ("autoMute", 0.0f);
+            set ("captureSeconds", 5.0f);
+            const double rate = 48000.0;
+            fx.prepareToPlay (rate, 480);
+
+            juce::String error;
+            juce::File none;
+            expectEquals (fx.saveCapture (none, error), 0.0);
+            expect (error.isNotEmpty(), "nothing to capture before any audio");
+
+            // 7 s of noise through; keep what came out so the last 5 s can be compared.
+            juce::Random random (7);
+            std::vector<float> played;
+            juce::AudioBuffer<float> buf (2, 480);
+            juce::MidiBuffer midi;
+            for (int block = 0; block < 700; ++block)
+            {
+                for (int ch = 0; ch < 2; ++ch)
+                    for (int i = 0; i < 480; ++i)
+                        buf.setSample (ch, i, ch == 0 ? random.nextFloat() * 0.5f - 0.25f : 0.0f);
+                fx.processBlock (buf, midi);
+                played.insert (played.end(), buf.getReadPointer (0), buf.getReadPointer (0) + 480);
+            }
+
+            const auto wav = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("cortex-capture-test.wav");
+            const double seconds = fx.saveCapture (wav, error);
+            expectWithinAbsoluteError (seconds, 5.0, 1e-6);
+            expect (wav.existsAsFile(), error);
+
+            juce::WavAudioFormat format;
+            std::unique_ptr<juce::AudioFormatReader> reader (format.createReaderFor (wav.createInputStream().release(), true));
+            expect (reader != nullptr);
+            if (reader != nullptr)
+            {
+                expectEquals ((int) reader->lengthInSamples, (int) (5 * rate));
+                expectEquals ((int) reader->numChannels, 2);
+                expectEquals ((int) reader->sampleRate, (int) rate);
+                juce::AudioBuffer<float> back (2, (int) reader->lengthInSamples);
+                reader->read (&back, 0, back.getNumSamples(), 0, true, true);
+                const auto offset = played.size() - (size_t) back.getNumSamples();
+                float worst = 0.0f;
+                for (int i = 0; i < back.getNumSamples(); ++i)
+                    worst = juce::jmax (worst, std::abs (back.getSample (0, i) - played[offset + (size_t) i]));
+                expect (worst < 2e-4f, "24-bit WAV matches the output to within quantisation (worst " + juce::String (worst) + ")");
+            }
+            wav.deleteFile();
         }
 
         beginTest ("Silence in, silence out, no NaN");

@@ -316,7 +316,11 @@ public:
         g.fillRect (area.getX(), area.getBottom() - 1, area.getWidth(), 1);
         if (front)
         {
-            g.setColour (colours::neutralAccent);
+            // A brain's own tab ("Brain 1 search") takes its colour in the rule.
+            // (The tab background colour can't carry it: TabbedComponent paints
+            // the content area with it.)
+            const auto text = button.getButtonText();
+            g.setColour (text.startsWith ("Brain 1") ? colours::brain1 : text.startsWith ("Brain 2") ? colours::brain2 : colours::neutralAccent);
             g.fillRect (area.getX(), area.getY(), area.getWidth(), 2);
         }
         g.setFont (fonts::title (11.0f));

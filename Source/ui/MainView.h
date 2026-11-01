@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "ui/BrainColumn.h"
+#include "ui/CaptureStrip.h"
 #include "ui/CepstrumView.h"
 #include "ui/EnvelopeView.h"
 #include "ui/MeterStrip.h"
@@ -15,8 +16,8 @@ namespace cortex::ui
 // editor makes a fresh one when the theme changes.
 //
 // Layout:
-//   header       title, in/out meters + gate light, Rebuild, version
-//   left/right   Brain 1 / Brain 2 columns (status, load, map, sounds, their settings)
+//   header       title, in/out meters + gate light, Capture, version
+//   left/right   Brain 1 / Brain 2 columns (status, load, rebuild, map, sounds, their settings and slicing)
 //   centre       Envelope and Detail triangles (+ Link), live envelopes, cepstrum
 //   bottom       Input panel (synth or track/sidechain + its settings), tabs
 class MainView final : public juce::Component
@@ -33,9 +34,14 @@ public:
 private:
     CortexAudioProcessor& processor;
 
+public:
+    // For tests: the capture strip (what the Capture button does).
+    CaptureStrip& getCaptureStrip() { return capture; }
+
+private:
     juce::Label title, versionLabel, credits;
-    juce::TextButton rebuildButton { "Rebuild brains" };
     MeterStrip meters;
+    CaptureStrip capture;
 
     BrainColumn brain1Column, brain2Column;
     TrianglePad envelopeTriangle, detailTriangle;
@@ -47,6 +53,8 @@ private:
     juce::Label inputTitle;
     ParamPanel inputPanel;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
+    std::array<ParamPanel*, CortexAudioProcessor::numBrains> searchPanels {};   // owned by `tabs`
+    juce::TextButton linkAllButton { "Link all" };   // every brain control moves on both brains
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainView)
 };

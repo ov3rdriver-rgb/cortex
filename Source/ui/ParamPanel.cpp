@@ -1,4 +1,6 @@
 #include "ParamPanel.h"
+#include "Parameters.h"
+#include "PluginProcessor.h"
 #include "Tooltips.h"
 
 namespace cortex::ui
@@ -7,11 +9,36 @@ namespace
 {
     constexpr int labelHeight = 16;
     constexpr int maxKnobHeight = 92;
+    constexpr int linkSize = 14;
+
+    int brainControlIndex (int brain, const juce::String& id)
+    {
+        if (brain < 0)
+            return -1;
+        const auto all = cortex::ParamIDs::brainIds[brain].all();
+        for (size_t i = 0; i < all.size(); ++i)
+            if (id == all[i].id)
+                return (int) i;
+        return -1;
+    }
+}
+
+void LinkToggle::paint (juce::Graphics& g)
+{
+    // Two rings, interlocked when linked, apart when not.
+    const auto colour = linked ? accent : isMouseOver() ? colours::text.withAlpha (0.7f) : colours::dim.withAlpha (0.6f);
+    const float d = (float) getHeight() - 4.0f;
+    const float gapX = linked ? d * 0.45f : d * 0.8f;
+    const float x0 = ((float) getWidth() - (d + gapX)) * 0.5f;
+    g.setColour (colour);
+    g.drawEllipse (x0, 2.0f, d, d, 1.4f);
+    g.drawEllipse (x0 + gapX, 2.0f, d, d, 1.4f);
 }
 
 ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::StringArray& ids,
-                        const juce::String& stripPrefix, int width, juce::Colour accent)
-    : cellWidth (width)
+                        const juce::String& stripPrefix, int width, juce::Colour accent,
+                        CortexAudioProcessor* host, int brainIndex)
+    : cellWidth (width), linkHost (host), brain (brainIndex)
 {
     for (const auto& id : ids)
     {
@@ -23,6 +50,20 @@ ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::S
         auto name = param->getName (40);
         if (stripPrefix.isNotEmpty() && name.startsWith (stripPrefix))
             name = name.substring (stripPrefix.length());
+
+        if (linkHost != nullptr)
+        {
+            c->linkControl = brainControlIndex (brain, id);
+            if (c->linkControl >= 0)
+            {
+                c->link = std::make_unique<LinkToggle>();
+                c->link->setAccent (accent);
+                c->link->setTooltip (tips::linkToggle (name, brain));
+                const int control = c->linkControl;
+                c->link->onChange = [this, control] (bool on) { linkHost->setLinked (control, on, brain); refresh(); };
+                addAndMakeVisible (*c->link);
+            }
+        }
         c->label.setText (fonts::titleCase (name), juce::dontSendNotification);
         c->label.setJustificationType (juce::Justification::centred);
         c->label.setFont (fonts::label (9.5f));
@@ -84,6 +125,16 @@ ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::S
 
         controls.push_back (std::move (c));
     }
+    refresh();
+}
+
+void ParamPanel::refresh()
+{
+    if (linkHost == nullptr)
+        return;
+    for (auto& c : controls)
+        if (c->link != nullptr)
+            c->link->setLinked (linkHost->isLinked (c->linkControl));
 }
 
 void ParamPanel::resized()
@@ -107,6 +158,15 @@ void ParamPanel::resized()
             c.combo->setBounds (cell.withSizeKeepingCentre (cell.getWidth(), 24));
         else if (c.toggle != nullptr)
             c.toggle->setBounds (cell.withSizeKeepingCentre (juce::jmin (cell.getWidth(), cellWidth - 4), 26));
+
+        // The link rings sit in a free corner: beside a knob's value (short,
+        // centred text), or just under the label for a menu.
+        if (c.link != nullptr)
+        {
+            const int y = c.slider != nullptr ? c.slider->getBottom() - linkSize - 1 : cell.getY() + 1;
+            c.link->setBounds (cell.getRight() - linkSize, y, linkSize, linkSize);
+            c.link->toFront (false);   // over the value box's edge
+        }
     }
 }
 } // namespace cortex::ui

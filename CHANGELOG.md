@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Each brain is fully independent.** Block Size and Block Overlap sit in its column under its other settings, and the search controls (Chaos, Memory, Cepstral Glide, Match Timbre, Match Pitch, Transplant, Search Mode, Novelty, Boredom, Stickyness) are on a Search tab per brain, in that brain's colour. One brain can chop drums fine and wander while the other plays long, faithful slices of a pad. Changing a brain's slicing rebuilds only that brain. Sessions saved before this apply their shared settings to both brains.
+- **Link controls across the brains** when you do want them to move together: the small rings in a control's corner link that one control (turn it on either brain and the other follows), and **Link all** at the right of the tabs links everything. Links are saved with the session.
+- **Rebuild is per brain,** a button in each column, instead of one for both in the header.
+- **Capture:** Cortex always keeps the last two minutes of its output. The Capture button in the header saves the most recent Capture Length seconds (Output tab, 5-120 s, default 60) as a 24-bit WAV in Music / Cortex Captures, and the chip that appears can be dragged straight into the DAW or clicked to show the file.
+
 ## 1.1.0 (2026-10-29)
 
 - **Two themes:** Dark (near-black, Inter) and Light (paper and ink, Barlow, with blue / red / violet for Input / Brain 1 / Brain 2 and a black result curve). Choose under Output → Theme. It is a per-user setting: every instance uses it, and projects and presets never change it.

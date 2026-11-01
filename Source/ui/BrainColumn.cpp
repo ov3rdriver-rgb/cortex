@@ -10,16 +10,19 @@ namespace
     juce::StringArray settingsFor (int brain)
     {
         using namespace cortex::ParamIDs;
+        // Two rows of three: the morph settings, then how this brain is sliced.
         if (brain == 0)
-            return { cutoffB1, formantB1, freezeEnvB1, freezeDetB1 };
-        return { cutoffB2, formantB2, freezeEnvB2, freezeDetB2 };
+            return { cutoffB1, formantB1, freezeEnvB1, freezeDetB1, blockSizeB1, overlapB1 };
+        return { cutoffB2, formantB2, freezeEnvB2, freezeDetB2, blockSizeB2, overlapB2 };
     }
+
+    constexpr int settingsHeight = 178;   // two rows of knobs
 }
 
 BrainColumn::BrainColumn (CortexAudioProcessor& p, int brainIndex)
     : processor (p), brain (brainIndex), source (cortex::dsp::brain1 + brainIndex),
       settings (p.apvts, settingsFor (brainIndex), juce::String (colours::sourceName (cortex::dsp::brain1 + brainIndex)) + " ", 66,
-                colours::forSource (cortex::dsp::brain1 + brainIndex))
+                colours::forSource (cortex::dsp::brain1 + brainIndex), &p, brainIndex)
 {
     map.setAccent (colours::forSource (source));
     sounds.setAccent (colours::forSource (source));
@@ -38,8 +41,10 @@ BrainColumn::BrainColumn (CortexAudioProcessor& p, int brainIndex)
 
     loadButton.onClick = [this] { chooseFiles(); };
     clearButton.onClick = [this] { processor.clearBrain (brain); };
+    rebuildButton.onClick = [this] { processor.rebuildBrain (brain); };
     addAndMakeVisible (loadButton);
     addAndMakeVisible (clearButton);
+    addAndMakeVisible (rebuildButton);
 
     addAndMakeVisible (map);
     addAndMakeVisible (sounds);
@@ -48,6 +53,7 @@ BrainColumn::BrainColumn (CortexAudioProcessor& p, int brainIndex)
     status.setTooltip (tips::status);
     loadButton.setTooltip (tips::loadButton);
     clearButton.setTooltip (tips::clearButton);
+    rebuildButton.setTooltip (tips::rebuildButton);
     map.setTooltip (tips::brainMap);
     sounds.setTooltip (tips::soundList);
     refresh();
@@ -91,6 +97,9 @@ void BrainColumn::refresh()
     progress = s.building ? (double) s.progress : 0.0;
     progressBar.setVisible (s.building);
     clearButton.setEnabled (s.numBlocks > 0 || s.building);
+    rebuildButton.setEnabled (! processor.getBrainFiles (brain).isEmpty() && ! s.building);
+
+    settings.refresh();
 
     const auto b = processor.getBrain (brain);
     map.setBrain (b);
@@ -129,8 +138,9 @@ void BrainColumn::resized()
     auto area = getLocalBounds().reduced (10);
 
     auto header = area.removeFromTop (28);
-    clearButton.setBounds (header.removeFromRight (64).reduced (2, 2));
-    loadButton.setBounds (header.removeFromRight (74).reduced (2, 2));
+    clearButton.setBounds (header.removeFromRight (58).reduced (2, 2));
+    rebuildButton.setBounds (header.removeFromRight (70).reduced (2, 2));
+    loadButton.setBounds (header.removeFromRight (68).reduced (2, 2));
     title.setBounds (header);
 
     auto statusRow = area.removeFromTop (22);
@@ -138,7 +148,7 @@ void BrainColumn::resized()
     status.setBounds (statusRow);
     area.removeFromTop (4);
 
-    settings.setBounds (area.removeFromBottom (110));
+    settings.setBounds (area.removeFromBottom (settingsHeight));
     area.removeFromBottom (6);
     sounds.setBounds (area.removeFromBottom (juce::jlimit (60, 110, area.getHeight() / 4)));
     area.removeFromBottom (6);

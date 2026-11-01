@@ -87,6 +87,24 @@ public:
     std::shared_ptr<const cortex::brain::Brain> getBrain (int brain = 0) const;
     juce::Array<juce::File> getBrainFiles (int brain = 0) const { return slots[(size_t) brain].files; }
 
+    // Links between the brains' controls (message thread). A linked control
+    // (index into ParamIDs::BrainIds::all()) moves on both brains together:
+    // whichever brain's knob you turn, the other follows to the same value.
+    // Saved with the session. Switching a link on copies `fromBrain`'s value
+    // to the other brain.
+    static constexpr int numBrainControls = 12;
+    bool isLinked (int control) const { return linked[(size_t) control].load (std::memory_order_relaxed); }
+    void setLinked (int control, bool shouldLink, int fromBrain = 0);
+    bool allLinked() const;
+    void setAllLinked (bool shouldLink, int fromBrain = 0);
+
+    // Output capture (message thread). Writes the last `getCaptureSeconds()`
+    // of output (less, if the plugin has run for less) as a 24-bit WAV at the
+    // host rate. Returns the number of seconds written, or 0 with `error` set.
+    double saveCapture (const juce::File& wav, juce::String& error) const;
+    int getCaptureSeconds() const { return (int) params.captureSeconds->load(); }
+    double getCaptureSampleRate() const { return currentSampleRate; }
+
     // Latest morph frame (left channel) for the editor's displays.
     bool readMorphSnapshot (cortex::dsp::MorphSnapshot& out) const { return morphSnapshots.read (out); }
 
@@ -111,7 +129,7 @@ private:
     void parameterChanged (const juce::String& parameterID, float newValue) override;
     void timerCallback() override;
     void onBrainBuilt (int brain, std::shared_ptr<const cortex::brain::Brain>, const juce::String& message);
-    cortex::brain::BrainSettings currentBrainSettings() const;
+    cortex::brain::BrainSettings currentBrainSettings (int brain) const;
     cortex::brain::SearchParams readSearchParams (int brain) const;
     void updateLatency();
     cortex::dsp::MorphParams readMorphParams() const;
@@ -143,9 +161,6 @@ private:
         std::atomic<float>* autoMute = nullptr;
         std::atomic<float>* autoMuteMs = nullptr;
 
-        std::atomic<float>* chaos = nullptr;
-        std::atomic<float>* cepstralGlide = nullptr;
-        std::atomic<float>* memory = nullptr;
         std::atomic<float>* lfoRate = nullptr;
         std::atomic<float>* lfoDepth = nullptr;
         std::atomic<float>* lfoShape = nullptr;
@@ -153,15 +168,12 @@ private:
         std::atomic<float>* envDepth = nullptr;
         std::atomic<float>* envAttack = nullptr;
         std::atomic<float>* envRelease = nullptr;
-        std::atomic<float>* matchTimbre = nullptr;
-        std::atomic<float>* matchPitch = nullptr;
-        std::atomic<float>* envTransplant = nullptr;
-        std::atomic<float>* blockSize = nullptr;
-        std::atomic<float>* overlap = nullptr;
-        std::atomic<float>* novelty = nullptr;
-        std::atomic<float>* boredom = nullptr;
-        std::atomic<float>* stickyness = nullptr;
-        std::atomic<float>* searchMode = nullptr;
+        // Per brain: slicing and search.
+        template <typename T> using PerBrain = std::array<T, numBrains>;
+        PerBrain<std::atomic<float>*> blockSize {}, overlap {}, chaos {}, memory {}, cepstralGlide {},
+                                      matchTimbre {}, matchPitch {}, envTransplant {}, searchMode {},
+                                      novelty {}, boredom {}, stickyness {};
+        std::atomic<float>* captureSeconds = nullptr;
 
         std::atomic<float>* oscWave = nullptr;      // instrument only
         std::atomic<float>* oscGlide = nullptr;
@@ -223,8 +235,25 @@ private:
     juce::AudioFormatManager formatManager;
     std::array<BrainSlot, numBrains> slots;
     cortex::SnapshotExchange<cortex::dsp::MorphSnapshot> morphSnapshots;
-    std::atomic<bool> rebuildRequested { false };
-    juce::uint32 rebuildDueMs = 0;
+    std::array<std::atomic<bool>, numBrains> rebuildRequested {};
+    std::array<juce::uint32, numBrains> rebuildDueMs {};
+
+    // Links live in a "Links" child of the state tree (so they save with the
+    // session) and in this atomic mirror for the parameter listener, which a
+    // host may call from the audio thread.
+    std::array<std::atomic<bool>, numBrainControls> linked {};
+    void readLinksFromState();
+    void mirrorLinked (const juce::String& changedId);
+    std::atomic<int> mirrorPending { -1 };   // a control to mirror from the timer (change came off the message thread)
+
+    // Output capture: a ring of the last maxCaptureSeconds of output (after
+    // gain and limiter), written by the audio thread. saveCapture() copies the
+    // most recent captureSeconds out of it on the message thread; the write
+    // head only reaches that region again after a full lap, seconds later.
+    std::array<std::vector<float>, maxChannels> captureRing;
+    int captureCapacity = 0;
+    std::atomic<int> capturePos { 0 };
+    std::atomic<std::int64_t> captureWritten { 0 };
     mutable std::mutex brainLock;   // never taken on the audio thread
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CortexAudioProcessor)

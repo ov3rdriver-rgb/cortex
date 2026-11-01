@@ -69,14 +69,32 @@ LINK                 When "Link" is on, the Detail triangle follows
 CUTOFF LINES         Drag a line in the cepstrum to change where the
                      envelope of that source stops and the detail
                      starts.
-SEARCH, CHAOS        Increase Chaos to make the brains change blocks
+BRAIN 1 SEARCH,      Each brain has its own Search tab. The settings
+BRAIN 2 SEARCH       in a tab apply to that brain only.
+  CHAOS              Increase Chaos to make the brain change blocks
                      more frequently.
-SEARCH, MEMORY       Increase Memory to make the brains play blocks
-                     in the order of their samples.
-SEARCH, MATCH TIMBRE Increase to make the brains match the colour of
+  MEMORY             Increase Memory to make the brain play blocks
+                     in the order of its samples.
+  MATCH TIMBRE       Increase to make the brain match the colour of
                      the Input.
-SEARCH, MATCH PITCH  Increase to make the brains match the notes of
+  MATCH PITCH        Increase to make the brain match the notes of
                      the Input.
+LINK RINGS           The two small rings in the corner of a brain
+                     control. Click them to link that control between
+                     the brains: when you turn it on one brain, the
+                     other brain follows. "Link all" at the right of
+                     the tabs links every brain control.
+BLOCK SIZE, OVERLAP  In each brain column. The length of the blocks
+                     of that brain, and how much they overlap. Each
+                     brain has its own. When you change them, Cortex
+                     analyses that brain again.
+CAPTURE              Cortex always keeps the last 2 minutes of its
+                     output. Click "Capture 60 s" in the header to
+                     save the last 60 seconds as a WAV file in your
+                     Music folder, in "Cortex Captures". Then drag the
+                     file name that appears into your DAW. Set the
+                     number of seconds with "Capture Length" in the
+                     Output tab.
 OUTPUT, LOW LATENCY  Set to "on" when you play live. The delay
                      decreases from approximately 85 ms to
                      approximately 11 ms.

@@ -24,6 +24,7 @@ namespace
 
 MainView::MainView (CortexAudioProcessor& p)
     : processor (p),
+      capture (p),
       brain1Column (p, 0), brain2Column (p, 1),
       envelopeTriangle (p.apvts, cortex::ParamIDs::envX, cortex::ParamIDs::envY, "Envelope (timbre)"),
       detailTriangle (p.apvts, cortex::ParamIDs::detailX, cortex::ParamIDs::detailY, "Detail (pitch, texture)"),
@@ -43,14 +44,8 @@ MainView::MainView (CortexAudioProcessor& p)
     versionLabel.setColour (juce::Label::textColourId, colours::dim);
     addAndMakeVisible (versionLabel);
 
-    rebuildButton.onClick = [this]
-    {
-        for (int b = 0; b < CortexAudioProcessor::numBrains; ++b)
-            if (! processor.getBrainFiles (b).isEmpty())
-                processor.rebuildBrain (b);
-    };
-    addAndMakeVisible (rebuildButton);
     addAndMakeVisible (meters);
+    addAndMakeVisible (capture);
 
     addAndMakeVisible (brain1Column);
     addAndMakeVisible (brain2Column);
@@ -67,14 +62,33 @@ MainView::MainView (CortexAudioProcessor& p)
     addAndMakeVisible (inputTitle);
     addAndMakeVisible (inputPanel);
 
+    // Each brain searches its samples on its own terms: a Search tab per
+    // brain, in that brain's colour. (Block size and overlap are in its column.)
     const auto tabColour = colours::panel;
-    tabs.addTab ("Search", tabColour, new ParamPanel (p.apvts, { chaos, memory, cepstralGlide, matchTimbre, matchPitch,
-                                                                 envTransplant, searchMode, novelty, boredom, stickyness,
-                                                                 blockSize, overlap }), true);
+    for (int b = 0; b < CortexAudioProcessor::numBrains; ++b)
+    {
+        const auto& ids = brainIds[b];
+        const auto source = cortex::dsp::brain1 + b;
+        searchPanels[(size_t) b] = new ParamPanel (p.apvts, { ids.chaos.id, ids.memory.id, ids.cepstralGlide.id, ids.matchTimbre.id, ids.matchPitch.id,
+                                                               ids.envTransplant.id, ids.searchMode.id, ids.novelty.id, ids.boredom.id, ids.stickyness.id },
+                                                    juce::String (colours::sourceName (source)) + " ", 84, colours::forSource (source), &p, b);
+        tabs.addTab (juce::String (colours::sourceName (source)) + " search", tabColour, searchPanels[(size_t) b], true);
+    }
+
+    // Link all: every per-brain control (slicing and search) follows across the brains.
+    linkAllButton.setClickingTogglesState (false);
+    linkAllButton.setColour (juce::TextButton::buttonOnColourId, colours::neutralAccent.withAlpha (0.28f));
+    linkAllButton.setColour (juce::TextButton::textColourOnId, colours::neutralAccent);
+    linkAllButton.onClick = [this]
+    {
+        processor.setAllLinked (! processor.allLinked());
+        refresh();
+    };
+    addAndMakeVisible (linkAllButton);
     tabs.addTab ("Mod", tabColour, new ParamPanel (p.apvts, { lfoRate, lfoDepth, lfoShape, lfoTarget,
                                                               envDepth, envAttack, envRelease }), true);
     tabs.addTab ("Output", tabColour, new ParamPanel (p.apvts, { phaseMode, fftSize, lowLatency, dryWet, outGain,
-                                                                 limiter, autoMute, autoMuteMs, theme }), true);
+                                                                 limiter, autoMute, autoMuteMs, captureSeconds, theme }), true);
     tabs.setTabBarDepth (26);
     tabs.setOutline (0);
     addAndMakeVisible (tabs);
@@ -86,7 +100,6 @@ MainView::MainView (CortexAudioProcessor& p)
     addAndMakeVisible (credits);
 
     versionLabel.setTooltip (tips::version);
-    rebuildButton.setTooltip (tips::rebuildButton);
     meters.setTooltip (tips::meters);
     envelopeTriangle.setTooltip (tips::envelopeTriangle);
     detailTriangle.setTooltip (tips::detailTriangle);
@@ -94,9 +107,11 @@ MainView::MainView (CortexAudioProcessor& p)
     envelopes.setTooltip (tips::envelopeView);
     cepstrum.setTooltip (tips::cepstrumView);
     auto& bar = tabs.getTabbedButtonBar();
-    bar.getTabButton (0)->setTooltip (tips::searchTab);
-    bar.getTabButton (1)->setTooltip (tips::modTab);
-    bar.getTabButton (2)->setTooltip (tips::outputTab);
+    bar.getTabButton (0)->setTooltip (tips::searchTab (0));
+    bar.getTabButton (1)->setTooltip (tips::searchTab (1));
+    bar.getTabButton (2)->setTooltip (tips::modTab);
+    bar.getTabButton (3)->setTooltip (tips::outputTab);
+    linkAllButton.setTooltip (tips::linkAll);
 
     refresh();
 }
@@ -125,9 +140,9 @@ void MainView::resized()
     auto header = area.removeFromTop (headerHeight - gap);
     title.setBounds (header.removeFromLeft (260));
     versionLabel.setBounds (header.removeFromRight (150));
-    rebuildButton.setBounds (header.removeFromRight (130).reduced (2, 3));
-    header.removeFromRight (gap);
     meters.setBounds (header.removeFromRight (juce::jmin (260, header.getWidth())));
+    header.removeFromRight (gap);
+    capture.setBounds (header);   // the button sits at the right, the file chip grows leftwards
     area.removeFromTop (gap);
 
     credits.setBounds (area.removeFromBottom (footerHeight));
@@ -141,6 +156,7 @@ void MainView::resized()
     inputPanel.setBounds (inputArea);
     bottom.removeFromLeft (gap);
     tabs.setBounds (bottom);
+    linkAllButton.setBounds (bottom.removeFromTop (tabs.getTabBarDepth()).removeFromRight (86).reduced (2, 3));   // at the right end of the tab bar
 
     // Brain columns either side, the morph in the middle.
     brain1Column.setBounds (area.removeFromLeft (columnWidth));
@@ -168,6 +184,10 @@ void MainView::refresh()
 {
     brain1Column.refresh();
     brain2Column.refresh();
+    capture.refresh();
+    for (auto* panel : searchPanels)
+        panel->refresh();
+    linkAllButton.setToggleState (processor.allLinked(), juce::dontSendNotification);
 
     detailTriangle.setFollowing (processor.apvts.getRawParameterValue (cortex::ParamIDs::linkTriangles)->load() > 0.5f);
 

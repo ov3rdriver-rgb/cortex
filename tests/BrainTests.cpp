@@ -552,11 +552,11 @@ public:
 
             CortexAudioProcessor proc;
             auto set = [&] (const char* id, float v) { auto* p = proc.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
-            set ("blockSize", 1024.0f);
-            set ("overlap", 0.5f);
+            set ("blockSizeB1", 1024.0f);
+            set ("overlapB1", 0.5f);
             cortex::test::setPureSource (proc.apvts, c.source);
             set ("phaseMode", (float) c.source + 1.0f);
-            set ("novelty", 0.0f);
+            set ("noveltyB1", 0.0f);
             set ("dryWet", 1.0f);
             set ("limiter", 0.0f);
             set ("autoMute", 0.0f);

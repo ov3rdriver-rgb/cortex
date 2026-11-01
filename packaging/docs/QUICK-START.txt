@@ -79,6 +79,11 @@ BRAIN 2 SEARCH       in a tab apply to that brain only.
                      the Input.
   MATCH PITCH        Increase to make the brain match the notes of
                      the Input.
+LINK RINGS           The two small rings in the corner of a brain
+                     control. Click them to link that control between
+                     the brains: when you turn it on one brain, the
+                     other brain follows. "Link all" at the right of
+                     the tabs links every brain control.
 BLOCK SIZE, OVERLAP  In each brain column. The length of the blocks
                      of that brain, and how much they overlap. Each
                      brain has its own. When you change them, Cortex

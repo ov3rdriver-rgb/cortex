@@ -53,6 +53,8 @@ private:
     juce::Label inputTitle;
     ParamPanel inputPanel;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
+    std::array<ParamPanel*, CortexAudioProcessor::numBrains> searchPanels {};   // owned by `tabs`
+    juce::TextButton linkAllButton { "Link all" };   // every brain control moves on both brains
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainView)
 };

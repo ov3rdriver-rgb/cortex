@@ -87,6 +87,17 @@ public:
     std::shared_ptr<const cortex::brain::Brain> getBrain (int brain = 0) const;
     juce::Array<juce::File> getBrainFiles (int brain = 0) const { return slots[(size_t) brain].files; }
 
+    // Links between the brains' controls (message thread). A linked control
+    // (index into ParamIDs::BrainIds::all()) moves on both brains together:
+    // whichever brain's knob you turn, the other follows to the same value.
+    // Saved with the session. Switching a link on copies `fromBrain`'s value
+    // to the other brain.
+    static constexpr int numBrainControls = 12;
+    bool isLinked (int control) const { return linked[(size_t) control].load (std::memory_order_relaxed); }
+    void setLinked (int control, bool shouldLink, int fromBrain = 0);
+    bool allLinked() const;
+    void setAllLinked (bool shouldLink, int fromBrain = 0);
+
     // Output capture (message thread). Writes the last `getCaptureSeconds()`
     // of output (less, if the plugin has run for less) as a 24-bit WAV at the
     // host rate. Returns the number of seconds written, or 0 with `error` set.
@@ -226,6 +237,14 @@ private:
     cortex::SnapshotExchange<cortex::dsp::MorphSnapshot> morphSnapshots;
     std::array<std::atomic<bool>, numBrains> rebuildRequested {};
     std::array<juce::uint32, numBrains> rebuildDueMs {};
+
+    // Links live in a "Links" child of the state tree (so they save with the
+    // session) and in this atomic mirror for the parameter listener, which a
+    // host may call from the audio thread.
+    std::array<std::atomic<bool>, numBrainControls> linked {};
+    void readLinksFromState();
+    void mirrorLinked (const juce::String& changedId);
+    std::atomic<int> mirrorPending { -1 };   // a control to mirror from the timer (change came off the message thread)
 
     // Output capture: a ring of the last maxCaptureSeconds of output (after
     // gain and limiter), written by the audio thread. saveCapture() copies the

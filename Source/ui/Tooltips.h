@@ -107,6 +107,13 @@ inline const char* captureChip = "The capture you just made. Drag it into your D
 inline const char* meters = "Input and output peak levels, and the gate light (on when the gate is open, dim when closed, off when the gate is off).";
 inline const char* status = "Blocks: the slices this brain holds. Building shows progress; large folders take a while the first time and are cached after that.";
 inline const char* version = "Version and commit of this build.";
+inline juce::String linkToggle (const juce::String& control, int brain)
+{
+    const juce::String other = brain == 0 ? "Brain 2" : "Brain 1";
+    return "Link " + control + " between the brains: turn it on either brain and the other follows to the same value. "
+           "Switching the link on copies this brain's " + control + " to " + other + ". Saved with the session.";
+}
+inline const char* linkAll = "Link every brain control (block size, overlap and all the search settings) so the two brains move together, or unlink them all. Switching on copies Brain 1's settings to Brain 2. The small rings in each control's corner link one control at a time.";
 inline juce::String searchTab (int brain)
 {
     const juce::String name = brain == 0 ? "Brain 1" : "Brain 2";

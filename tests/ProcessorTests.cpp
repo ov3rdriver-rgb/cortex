@@ -99,6 +99,55 @@ public:
             expect (! old.apvts.state.getChildWithProperty ("id", "chaos").isValid(), "the legacy entry is dropped");
         }
 
+        beginTest ("Linked controls move together; links are saved with the session");
+        {
+            using namespace cortex::ParamIDs;
+            CortexAudioProcessor fx;
+            auto set = [&] (const char* id, float v) { auto* p = fx.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+            auto get = [&] (const char* id) { return fx.apvts.getRawParameterValue (id)->load(); };
+            int chaosIndex = -1;
+            const auto all = brainIds[0].all();
+            for (size_t i = 0; i < all.size(); ++i)
+                if (juce::String (all[i].id) == chaosB1)
+                    chaosIndex = (int) i;
+            expect (chaosIndex >= 0);
+
+            set (chaosB1, 0.8f);
+            set (chaosB2, 0.2f);
+            expect (! fx.isLinked (chaosIndex));
+            set (chaosB1, 0.6f);
+            expectWithinAbsoluteError (get (chaosB2), 0.2f, 1e-5f, "unlinked: Brain 2 stays");
+
+            fx.setLinked (chaosIndex, true, 0);   // linking from Brain 1 copies its value over
+            expectWithinAbsoluteError (get (chaosB2), 0.6f, 1e-5f);
+            set (chaosB1, 0.3f);
+            expectWithinAbsoluteError (get (chaosB2), 0.3f, 1e-5f, "Brain 2 follows Brain 1");
+            set (chaosB2, 0.9f);
+            expectWithinAbsoluteError (get (chaosB1), 0.9f, 1e-5f, "Brain 1 follows Brain 2");
+            expectWithinAbsoluteError (get (memoryB1), 0.0f, 1e-5f, "other controls untouched");
+
+            fx.setLinked (chaosIndex, false);
+            set (chaosB1, 0.1f);
+            expectWithinAbsoluteError (get (chaosB2), 0.9f, 1e-5f, "unlinked again");
+
+            // Link all, from Brain 2 this time, then save and reload.
+            set (blockSizeB2, 512.0f);
+            fx.setAllLinked (true, 1);
+            expect (fx.allLinked());
+            expectEquals ((int) get (blockSizeB1), 512);
+            juce::MemoryBlock saved;
+            fx.getStateInformation (saved);
+            CortexAudioProcessor reloaded;
+            expect (! reloaded.allLinked());
+            reloaded.setStateInformation (saved.getData(), (int) saved.getSize());
+            expect (reloaded.allLinked(), "links come back with the session");
+            auto setR = [&] (const char* id, float v) { auto* p = reloaded.apvts.getParameter (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+            setR (noveltyB1, 0.77f);
+            expectWithinAbsoluteError (reloaded.apvts.getRawParameterValue (noveltyB2)->load(), 0.77f, 1e-5f);
+            fx.setAllLinked (false);
+            expect (! fx.allLinked() && ! fx.isLinked (chaosIndex));
+        }
+
         beginTest ("Capture saves the most recent output");
         {
             CortexAudioProcessor fx;

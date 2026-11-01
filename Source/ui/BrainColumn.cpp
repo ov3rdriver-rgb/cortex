@@ -22,7 +22,7 @@ namespace
 BrainColumn::BrainColumn (CortexAudioProcessor& p, int brainIndex)
     : processor (p), brain (brainIndex), source (cortex::dsp::brain1 + brainIndex),
       settings (p.apvts, settingsFor (brainIndex), juce::String (colours::sourceName (cortex::dsp::brain1 + brainIndex)) + " ", 66,
-                colours::forSource (cortex::dsp::brain1 + brainIndex))
+                colours::forSource (cortex::dsp::brain1 + brainIndex), &p, brainIndex)
 {
     map.setAccent (colours::forSource (source));
     sounds.setAccent (colours::forSource (source));
@@ -98,6 +98,8 @@ void BrainColumn::refresh()
     progressBar.setVisible (s.building);
     clearButton.setEnabled (s.numBlocks > 0 || s.building);
     rebuildButton.setEnabled (! processor.getBrainFiles (brain).isEmpty() && ! s.building);
+
+    settings.refresh();
 
     const auto b = processor.getBrain (brain);
     map.setBrain (b);

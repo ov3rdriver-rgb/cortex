@@ -107,8 +107,12 @@ CortexAudioProcessor::CortexAudioProcessor (bool isInstrument)
         params.ampRelease = get (id::ampRelease);
     }
 
-    for (auto* param : { id::fftSize, id::lowLatency, id::blockSizeB1, id::overlapB1, id::blockSizeB2, id::overlapB2 })
+    for (auto* param : { id::fftSize, id::lowLatency })
         apvts.addParameterListener (param, this);
+    for (const auto& ids : id::brainIds)
+        for (auto p : ids.all())
+            apvts.addParameterListener (p.id, this);
+    readLinksFromState();
     updateLatency();
     startTimerHz (10);
 }
@@ -118,8 +122,11 @@ CortexAudioProcessor::~CortexAudioProcessor()
     stopTimer();
     for (auto& s : slots)
         s.builder->cancel();
-    for (auto* param : { id::fftSize, id::lowLatency, id::blockSizeB1, id::overlapB1, id::blockSizeB2, id::overlapB2 })
+    for (auto* param : { id::fftSize, id::lowLatency })
         apvts.removeParameterListener (param, this);
+    for (const auto& ids : id::brainIds)
+        for (auto p : ids.all())
+            apvts.removeParameterListener (p.id, this);
 }
 
 int CortexAudioProcessor::currentFftSize() const
@@ -138,11 +145,87 @@ void CortexAudioProcessor::updateLatency()
 void CortexAudioProcessor::parameterChanged (const juce::String& parameterID, float)
 {
     if (parameterID == id::fftSize || parameterID == id::lowLatency)
+    {
         updateLatency();
-    else if (parameterID == id::blockSizeB1 || parameterID == id::overlapB1)
+        return;
+    }
+    if (parameterID == id::blockSizeB1 || parameterID == id::overlapB1)
         rebuildRequested[0] = true;   // slicing: that brain is rebuilt (debounced) by the timer
-    else
+    else if (parameterID == id::blockSizeB2 || parameterID == id::overlapB2)
         rebuildRequested[1] = true;
+    mirrorLinked (parameterID);
+}
+
+//==============================================================================
+// Links between the brains' controls
+
+namespace
+{
+    // Which brain and which control (index into all()) an id belongs to; -1 if none.
+    std::pair<int, int> locateBrainParam (const juce::String& paramId)
+    {
+        for (int b = 0; b < 2; ++b)
+        {
+            const auto all = id::brainIds[b].all();
+            for (size_t i = 0; i < all.size(); ++i)
+                if (paramId == all[i].id)
+                    return { b, (int) i };
+        }
+        return { -1, -1 };
+    }
+
+    const juce::Identifier linksType { "Links" };
+}
+
+void CortexAudioProcessor::mirrorLinked (const juce::String& changedId)
+{
+    const auto [b, control] = locateBrainParam (changedId);
+    if (control < 0 || ! isLinked (control))
+        return;
+
+    // Hosts may automate from the audio thread; moving the partner is a
+    // message-thread job, so hand it to the timer from anywhere else.
+    if (! juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        mirrorPending.store (control, std::memory_order_relaxed);
+        return;
+    }
+
+    auto* from = apvts.getParameter (id::brainIds[b].all()[(size_t) control].id);
+    auto* to = apvts.getParameter (id::brainIds[1 - b].all()[(size_t) control].id);
+    if (std::abs (to->getValue() - from->getValue()) > 1.0e-6f)
+        to->setValueNotifyingHost (from->getValue());   // its own change finds the values equal and stops here
+}
+
+void CortexAudioProcessor::readLinksFromState()
+{
+    const auto links = apvts.state.getChildWithName (linksType);
+    for (int i = 0; i < numBrainControls; ++i)
+        linked[(size_t) i] = links.isValid() && (bool) links.getProperty (id::brainIds[0].all()[(size_t) i].legacy, false);
+}
+
+void CortexAudioProcessor::setLinked (int control, bool shouldLink, int fromBrain)
+{
+    jassert (juce::MessageManager::getInstance()->isThisTheMessageThread());
+    auto links = apvts.state.getOrCreateChildWithName (linksType, nullptr);
+    links.setProperty (id::brainIds[0].all()[(size_t) control].legacy, shouldLink, nullptr);
+    linked[(size_t) control] = shouldLink;
+    if (shouldLink)
+        mirrorLinked (id::brainIds[fromBrain].all()[(size_t) control].id);
+}
+
+bool CortexAudioProcessor::allLinked() const
+{
+    for (const auto& l : linked)
+        if (! l.load (std::memory_order_relaxed))
+            return false;
+    return true;
+}
+
+void CortexAudioProcessor::setAllLinked (bool shouldLink, int fromBrain)
+{
+    for (int i = 0; i < numBrainControls; ++i)
+        setLinked (i, shouldLink, fromBrain);
 }
 
 cortex::dsp::MorphParams CortexAudioProcessor::readMorphParams() const
@@ -645,6 +728,7 @@ void CortexAudioProcessor::setStateInformation (const void* data, int sizeInByte
             }
 
             apvts.replaceState (state);
+            readLinksFromState();
             syncThemeFromSettings();   // ignores a theme saved by older versions
 
             // Hosts never call this on the audio thread. The builds themselves
@@ -740,6 +824,16 @@ void CortexAudioProcessor::timerCallback()
 
     if (getLatencySamples() != getAlignedLatencySamples())
         updateLatency();
+
+    // A linked control that was automated off the message thread: bring the
+    // partner up to date now (whichever brain moved last wins).
+    if (const int control = mirrorPending.exchange (-1); control >= 0 && isLinked (control))
+    {
+        auto* b1 = apvts.getParameter (id::brainIds[0].all()[(size_t) control].id);
+        auto* b2 = apvts.getParameter (id::brainIds[1].all()[(size_t) control].id);
+        if (std::abs (b1->getValue() - b2->getValue()) > 1.0e-6f)
+            b2->setValueNotifyingHost (b1->getValue());
+    }
 
     // Debounce block size / overlap / sample-rate changes so dragging a knob
     // doesn't restart the build on every step. Each brain on its own clock.

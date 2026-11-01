@@ -69,12 +69,22 @@ MainView::MainView (CortexAudioProcessor& p)
     {
         const auto& ids = brainIds[b];
         const auto source = cortex::dsp::brain1 + b;
-        tabs.addTab (juce::String (colours::sourceName (source)) + " search", tabColour,
-                     new ParamPanel (p.apvts, { ids.chaos.id, ids.memory.id, ids.cepstralGlide.id, ids.matchTimbre.id, ids.matchPitch.id,
-                                                ids.envTransplant.id, ids.searchMode.id, ids.novelty.id, ids.boredom.id, ids.stickyness.id },
-                                     juce::String (colours::sourceName (source)) + " ", 84, colours::forSource (source)),
-                     true);
+        searchPanels[(size_t) b] = new ParamPanel (p.apvts, { ids.chaos.id, ids.memory.id, ids.cepstralGlide.id, ids.matchTimbre.id, ids.matchPitch.id,
+                                                               ids.envTransplant.id, ids.searchMode.id, ids.novelty.id, ids.boredom.id, ids.stickyness.id },
+                                                    juce::String (colours::sourceName (source)) + " ", 84, colours::forSource (source), &p, b);
+        tabs.addTab (juce::String (colours::sourceName (source)) + " search", tabColour, searchPanels[(size_t) b], true);
     }
+
+    // Link all: every per-brain control (slicing and search) follows across the brains.
+    linkAllButton.setClickingTogglesState (false);
+    linkAllButton.setColour (juce::TextButton::buttonOnColourId, colours::neutralAccent.withAlpha (0.28f));
+    linkAllButton.setColour (juce::TextButton::textColourOnId, colours::neutralAccent);
+    linkAllButton.onClick = [this]
+    {
+        processor.setAllLinked (! processor.allLinked());
+        refresh();
+    };
+    addAndMakeVisible (linkAllButton);
     tabs.addTab ("Mod", tabColour, new ParamPanel (p.apvts, { lfoRate, lfoDepth, lfoShape, lfoTarget,
                                                               envDepth, envAttack, envRelease }), true);
     tabs.addTab ("Output", tabColour, new ParamPanel (p.apvts, { phaseMode, fftSize, lowLatency, dryWet, outGain,
@@ -101,6 +111,7 @@ MainView::MainView (CortexAudioProcessor& p)
     bar.getTabButton (1)->setTooltip (tips::searchTab (1));
     bar.getTabButton (2)->setTooltip (tips::modTab);
     bar.getTabButton (3)->setTooltip (tips::outputTab);
+    linkAllButton.setTooltip (tips::linkAll);
 
     refresh();
 }
@@ -145,6 +156,7 @@ void MainView::resized()
     inputPanel.setBounds (inputArea);
     bottom.removeFromLeft (gap);
     tabs.setBounds (bottom);
+    linkAllButton.setBounds (bottom.removeFromTop (tabs.getTabBarDepth()).removeFromRight (86).reduced (2, 3));   // at the right end of the tab bar
 
     // Brain columns either side, the morph in the middle.
     brain1Column.setBounds (area.removeFromLeft (columnWidth));
@@ -173,6 +185,9 @@ void MainView::refresh()
     brain1Column.refresh();
     brain2Column.refresh();
     capture.refresh();
+    for (auto* panel : searchPanels)
+        panel->refresh();
+    linkAllButton.setToggleState (processor.allLinked(), juce::dontSendNotification);
 
     detailTriangle.setFollowing (processor.apvts.getRawParameterValue (cortex::ParamIDs::linkTriangles)->load() > 0.5f);
 

@@ -25,7 +25,7 @@ jobs:
       matrix:
         include:
           - name: macOS
-            os: macos-14
+            os: macos-15   # macos-14 images were retired on 2026-11-02
             cmake_args: -G Ninja -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
             pluginval_zip: pluginval_macOS.zip
             pluginval_bin: pluginval.app/Contents/MacOS/pluginval

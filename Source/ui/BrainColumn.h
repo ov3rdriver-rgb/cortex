@@ -43,6 +43,7 @@ private:
     std::unique_ptr<juce::FileChooser> chooser;
     BrainMap map;
     SoundList sounds;
+    ParamPanel listen;     // what this brain listens to
     ParamPanel settings;   // cutoff, formant, freezes, and this brain's slicing (block size, overlap)
     bool dropHighlight = false;
 };

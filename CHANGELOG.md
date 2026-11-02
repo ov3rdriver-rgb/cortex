@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Each brain chooses what it listens to.** A Listen menu at the top of each brain column: Input (the default, whatever the Input panel says), Track or Sidechain regardless of the Input setting, the other brain, or Cortex's own output. One brain can follow a sidechained drum bus while the other follows the track; Brain 2 can re-interpret what Brain 1 plays (its latency stacks on top, and the alignment accounts for it); a brain fed its own output loops. Listen links like the other brain controls. The instrument offers Input, the other brain and Output.
+
 ## 1.2.0 (2026-11-01)
 
 - **Each brain is fully independent.** Block Size and Block Overlap sit in its column under its other settings, and the search controls (Chaos, Memory, Cepstral Glide, Match Timbre, Match Pitch, Transplant, Search Mode, Novelty, Boredom, Stickyness) are on a Search tab per brain, in that brain's colour. One brain can chop drums fine and wander while the other plays long, faithful slices of a pad. Changing a brain's slicing rebuilds only that brain. Sessions saved before this apply their shared settings to both brains.

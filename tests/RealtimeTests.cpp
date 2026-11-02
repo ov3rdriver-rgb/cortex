@@ -137,6 +137,7 @@ public:
             if (block % 150 == 75)  set ("inputSource", (block / 150) % 2 == 0 ? 0.0f : 1.0f);
             if (block % 90 == 45)   set ("envX", (float) (block % 7) / 7.0f);
             if (block % 120 == 60)  set ("searchModeB1", (float) ((block / 120) % 4));
+            if (block % 110 == 55)  set ("listenB1", (float) ((block / 110) % 5));   // Input, Track, Sidechain, Brain 2, Output
             if (block == 300)       set ("phaseMode", 2.0f);
 
             for (int i = 0; i < 512; ++i)

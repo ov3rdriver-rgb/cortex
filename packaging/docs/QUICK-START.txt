@@ -84,6 +84,14 @@ LINK RINGS           The two small rings in the corner of a brain
                      the brains: when you turn it on one brain, the
                      other brain follows. "Link all" at the right of
                      the tabs links every brain control.
+LISTEN               At the top of each brain column. What that brain
+                     listens to when it chooses its blocks:
+                     "Input" (the default, the same as the Input
+                     panel), "Track" or "Sidechain" (that signal, no
+                     matter what the Input is), the other brain (this
+                     brain answers what the other brain plays), or
+                     "Output" (this brain listens to the result of
+                     Cortex, a loop: keep the limiter on).
 BLOCK SIZE, OVERLAP  In each brain column. The length of the blocks
                      of that brain, and how much they overlap. Each
                      brain has its own. When you change them, Cortex

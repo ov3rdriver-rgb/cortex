@@ -43,6 +43,7 @@ The two layers are mixed *separately*, with one triangle each. So you can take t
 | Where | Control | What it does |
 |---|---|---|
 | Brain columns / Input | Cutoff, Formant, Freeze Env / Detail | Per source: where envelope ends and detail begins; shift its formants without changing pitch; hold its envelope or detail still |
+| Brain columns | Listen | What that brain matches: the Input, the track or sidechain regardless of the Input setting, the other brain, or Cortex's output |
 | Brain columns | Block Size, Block Overlap, Rebuild | How that brain slices its samples (each brain has its own); re-analyse it from its files |
 | Any brain control | Link rings, Link all | Link one control (or all of them) so turning it on either brain moves both |
 | Header | Capture | Save the last *n* seconds of output (Output → Capture Length, default 60) as a WAV and drag it into the DAW; Cortex always keeps the last two minutes |

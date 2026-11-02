@@ -35,6 +35,12 @@ inline juce::String forParam (const juce::String& id)
             add (ids.novelty, "{B} Novelty (0-1): penalises slices {B} used recently, so it does not repeat itself. Its Chaos adds to this.");
             add (ids.boredom, "{B} Boredom (0-1): how long {B} remembers what it played. Higher: recently used slices stay penalised for longer. Its Memory adds to this.");
             add (ids.stickyness, "{B} Stickyness (0-1): prefer the slice that comes next in the source sound over the closest match, so {B} plays through its samples in order. Its Memory adds to this; its Chaos takes from it.");
+            const juce::String other = b == 0 ? "Brain 2" : "Brain 1";
+            t[ids.listen.id] = juce::String ("What {B} listens to when it picks its slices. Input: whatever the Input panel says (the default, so both brains follow the same thing). "
+                                             "Track / Sidechain: that signal whatever the Input is set to, so one brain can follow a sidechained drum bus while the other follows the track. "
+                                             "{O}: {B} re-interprets what {O} plays, a sample behind, and its latency stacks on top. "
+                                             "Output: {B} feeds on Cortex's own result, a loop; keep the limiter on and use the triangles to hold it in check.")
+                                   .replace ("{B}", name).replace ("{O}", other);
         }
         return t;
     }();
@@ -48,7 +54,7 @@ inline juce::String forParam (const juce::String& id)
         { phaseMode, "Where the output takes its phase from. Follow Detail: whichever sources supply the detail (the natural choice). Input / Brain 1 / Brain 2: pin it to one source. Pinning to the source that carries the pitch gives the most solid result." },
         { fftSize, "Size of the analysis window in samples. Bigger: finer frequency resolution, smoother morphs, more latency and more smearing of fast material. Smaller: tighter transients, coarser tone. 2048 is the all-rounder; 4096 for pads and drones, 1024 for drums." },
         { lowLatency, "Low latency: 512-sample window and no brain alignment, about 11 ms instead of about 85 ms. For playing live. Your input comes straight through; the brains' timbre follows a slice behind." },
-        { inputSource, "What the Input is: the track Cortex sits on, or the sidechain input (route another track into Cortex's sidechain in your DAW)." },
+        { inputSource, "What the Input is: the track Cortex sits on, or the sidechain input (route another track into Cortex's sidechain in your DAW). The Input is the morph's third source and, unless a brain's Listen says otherwise, what both brains match." },
 
         { cutoffIn, "Input cutoff: where the Input's envelope ends and its detail begins, in cepstral bins (4-200). Low values (10-30): only the broad tone colour counts as envelope. High values: more of the harmonic structure is treated as envelope. Also draggable in the cepstrum view." },
         { cutoffB1, "Brain 1 cutoff: where Brain 1's envelope ends and its detail begins, in cepstral bins (4-200). Lower keeps only the broad colour; higher includes more harmonic structure. Also draggable in the cepstrum view." },
@@ -113,7 +119,7 @@ inline juce::String linkToggle (const juce::String& control, int brain)
     return "Link " + control + " between the brains: turn it on either brain and the other follows to the same value. "
            "Switching the link on copies this brain's " + control + " to " + other + ". Saved with the session.";
 }
-inline const char* linkAll = "Link every brain control (block size, overlap and all the search settings) so the two brains move together, or unlink them all. Switching on copies Brain 1's settings to Brain 2. The small rings in each control's corner link one control at a time.";
+inline const char* linkAll = "Link every brain control (block size, overlap, Listen and all the search settings) so the two brains move together, or unlink them all. Switching on copies Brain 1's settings to Brain 2. The small rings in each control's corner link one control at a time.";
 inline juce::String searchTab (int brain)
 {
     const juce::String name = brain == 0 ? "Brain 1" : "Brain 2";

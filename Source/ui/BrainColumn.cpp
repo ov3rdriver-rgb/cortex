@@ -17,10 +17,13 @@ namespace
     }
 
     constexpr int settingsHeight = 178;   // two rows of knobs
+    constexpr int listenHeight = 50;      // a label and a menu
 }
 
 BrainColumn::BrainColumn (CortexAudioProcessor& p, int brainIndex)
     : processor (p), brain (brainIndex), source (cortex::dsp::brain1 + brainIndex),
+      listen (p.apvts, { cortex::ParamIDs::brainIds[brainIndex].listen.id }, juce::String (colours::sourceName (cortex::dsp::brain1 + brainIndex)) + " ", 400,
+              colours::forSource (cortex::dsp::brain1 + brainIndex), &p, brainIndex),
       settings (p.apvts, settingsFor (brainIndex), juce::String (colours::sourceName (cortex::dsp::brain1 + brainIndex)) + " ", 66,
                 colours::forSource (cortex::dsp::brain1 + brainIndex), &p, brainIndex)
 {
@@ -48,6 +51,7 @@ BrainColumn::BrainColumn (CortexAudioProcessor& p, int brainIndex)
 
     addAndMakeVisible (map);
     addAndMakeVisible (sounds);
+    addAndMakeVisible (listen);
     addAndMakeVisible (settings);
 
     status.setTooltip (tips::status);
@@ -100,6 +104,7 @@ void BrainColumn::refresh()
     rebuildButton.setEnabled (! processor.getBrainFiles (brain).isEmpty() && ! s.building);
 
     settings.refresh();
+    listen.refresh();
 
     const auto b = processor.getBrain (brain);
     map.setBrain (b);
@@ -147,6 +152,8 @@ void BrainColumn::resized()
     progressBar.setBounds (statusRow.removeFromBottom (5));
     status.setBounds (statusRow);
     area.removeFromTop (4);
+    listen.setBounds (area.removeFromTop (listenHeight));
+    area.removeFromTop (2);
 
     settings.setBounds (area.removeFromBottom (settingsHeight));
     area.removeFromBottom (6);

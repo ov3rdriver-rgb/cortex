@@ -155,16 +155,19 @@ void ParamPanel::resized()
         if (c.slider != nullptr)
             c.slider->setBounds (cell.withSizeKeepingCentre (cell.getWidth(), juce::jmin (cell.getHeight(), maxKnobHeight)));
         else if (c.combo != nullptr)
-            c.combo->setBounds (cell.withSizeKeepingCentre (cell.getWidth(), 24));
+        {
+            auto row = cell.withSizeKeepingCentre (cell.getWidth(), 24);
+            if (c.link != nullptr)   // the rings take the end of the menu's row
+                c.link->setBounds (row.removeFromRight (linkSize + 2).withSizeKeepingCentre (linkSize, linkSize));
+            c.combo->setBounds (row);
+        }
         else if (c.toggle != nullptr)
             c.toggle->setBounds (cell.withSizeKeepingCentre (juce::jmin (cell.getWidth(), cellWidth - 4), 26));
 
-        // The link rings sit in a free corner: beside a knob's value (short,
-        // centred text), or just under the label for a menu.
-        if (c.link != nullptr)
+        // A knob's link rings sit beside its value (short, centred text).
+        if (c.link != nullptr && c.slider != nullptr)
         {
-            const int y = c.slider != nullptr ? c.slider->getBottom() - linkSize - 1 : cell.getY() + 1;
-            c.link->setBounds (cell.getRight() - linkSize, y, linkSize, linkSize);
+            c.link->setBounds (cell.getRight() - linkSize, c.slider->getBottom() - linkSize - 1, linkSize, linkSize);
             c.link->toFront (false);   // over the value box's edge
         }
     }

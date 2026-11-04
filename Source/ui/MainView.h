@@ -5,6 +5,7 @@
 #include "ui/CaptureStrip.h"
 #include "ui/CepstrumView.h"
 #include "ui/EnvelopeView.h"
+#include "ui/HelpOverlay.h"
 #include "ui/MeterStrip.h"
 #include "ui/ParamPanel.h"
 #include "ui/Theme.h"
@@ -16,7 +17,7 @@ namespace cortex::ui
 // editor makes a fresh one when the theme changes.
 //
 // Layout:
-//   header       title, in/out meters + gate light, Capture, version
+//   header       title and the "?" explainer, in/out meters + gate light, Capture, version
 //   left/right   Brain 1 / Brain 2 columns (status, load, rebuild, map, sounds, their settings and slicing)
 //   centre       Envelope and Detail triangles (+ Link), live envelopes, cepstrum
 //   bottom       Input panel (synth or track/sidechain + its settings), tabs
@@ -35,11 +36,13 @@ private:
     CortexAudioProcessor& processor;
 
 public:
-    // For tests: the capture strip (what the Capture button does).
+    // For tests: the capture strip (what the Capture button does), and the explainer.
     CaptureStrip& getCaptureStrip() { return capture; }
+    HelpOverlay& getHelp() { return help; }
 
 private:
     juce::Label title, versionLabel, credits;
+    juce::TextButton helpButton { "?" };
     MeterStrip meters;
     CaptureStrip capture;
 
@@ -55,6 +58,7 @@ private:
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     std::array<ParamPanel*, CortexAudioProcessor::numBrains> searchPanels {};   // owned by `tabs`
     juce::TextButton linkAllButton { "Link all" };   // every brain control moves on both brains
+    HelpOverlay help;   // over everything, hidden until the "?" is clicked
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainView)
 };

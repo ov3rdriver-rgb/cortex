@@ -27,6 +27,9 @@ public:
     // hovering does this on its own).
     void showTooltip (juce::Point<int> position, const juce::String& text);
 
+    // The view, for tests.
+    cortex::ui::MainView& getView() { return *view; }
+
 private:
     void timerCallback() override;
     void buildView();

@@ -7,7 +7,7 @@ Two "brains" of samples answer whatever you play, and a cepstral morph blends th
 
 ## What it does
 
-You load sample folders into two **brains**. Whatever you feed Cortex, both brains listen, and each one keeps finding the short slices (about 20 ms) of *its own* samples that sound closest to it, like two improvisers who can only reply with bits of their own record collection. They don't listen to each other; they both follow your Input.
+You load sample folders into two **brains**. Whatever you feed Cortex, both brains listen, and each one keeps finding the short slices (about 20 ms) of *its own* samples that sound closest to it, like two improvisers who can only reply with bits of their own record collection. By default both follow your Input; each brain's Listen menu can point it at the track, the sidechain, the other brain or Cortex's own output instead. The "?" next to the title in the window explains all this in place.
 
 Cortex then blends the three sources (your **Input**, **Brain 1** and **Brain 2**) with a **cepstral morph**, which splits every sound into two layers:
 

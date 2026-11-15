@@ -143,6 +143,35 @@ public:
             expect (editor->getNumChildComponents() >= 2, "the tooltip window should be a child of the editor");
         }
 
+        beginTest ("The ? button opens the explainer over the view; Close and Escape put it away");
+        {
+            CortexAudioProcessor proc;
+            proc.prepareToPlay (48000.0, 512);
+            std::unique_ptr<juce::AudioProcessorEditor> editor (proc.createEditor());
+            auto* cortexEditor = dynamic_cast<CortexAudioProcessorEditor*> (editor.get());
+            editor->setSize (1280, 820);
+            auto& help = cortexEditor->getView().getHelp();
+            expect (! help.isVisible(), "hidden until asked for");
+
+            const auto text = cortex::ui::HelpOverlay::plainText (false);
+            for (auto* phrase : { "cepstral morph", "Envelope", "Detail", "spectrum of a spectrum", "Brain 1", "sidechain", "Listen" })
+                expect (text.contains (phrase), juce::String ("the explainer mentions ") + phrase);
+            expect (cortex::ui::HelpOverlay::plainText (true).contains ("MIDI"), "the instrument's explainer talks about MIDI");
+
+            help.show();
+            expect (help.isVisible());
+            expect (help.getBounds() == editor->getLocalBounds(), "covers the whole view");
+            const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
+            const auto file = outDir.getChildFile ("ui_help.png");
+            file.deleteFile();
+            juce::FileOutputStream out (file);
+            juce::PNGImageFormat().writeImageToStream (image, out);
+            logMessage ("  wrote " + file.getFullPathName());
+
+            expect (help.keyPressed (juce::KeyPress (juce::KeyPress::escapeKey)));
+            expect (! help.isVisible(), "Escape closes it");
+        }
+
         beginTest ("Changing the Theme parameter restyles the open editor");
         {
             cortex::settings::saveTheme (0);

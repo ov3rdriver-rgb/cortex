@@ -113,6 +113,7 @@ inline const char* captureChip = "The capture you just made. Drag it into your D
 inline const char* meters = "Input and output peak levels, and the gate light (on when the gate is open, dim when closed, off when the gate is off).";
 inline const char* status = "Blocks: the slices this brain holds. Building shows progress; large folders take a while the first time and are cached after that.";
 inline const char* version = "Version and commit of this build.";
+inline const char* helpButton = "What Cortex does, what the cepstral morph is doing, and how to get a first sound.";
 inline juce::String linkToggle (const juce::String& control, int brain)
 {
     const juce::String other = brain == 0 ? "Brain 2" : "Brain 1";

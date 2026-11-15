@@ -29,7 +29,8 @@ MainView::MainView (CortexAudioProcessor& p)
       envelopeTriangle (p.apvts, cortex::ParamIDs::envX, cortex::ParamIDs::envY, "Envelope (timbre)"),
       detailTriangle (p.apvts, cortex::ParamIDs::detailX, cortex::ParamIDs::detailY, "Detail (pitch, texture)"),
       cepstrum (p.apvts),
-      inputPanel (p.apvts, inputIds (p.isInstrument()), "Input ", 74, colours::input)
+      inputPanel (p.apvts, inputIds (p.isInstrument()), "Input ", 74, colours::input),
+      help (p.isInstrument())
 {
     using namespace cortex::ParamIDs;
 
@@ -37,6 +38,9 @@ MainView::MainView (CortexAudioProcessor& p)
     title.setFont (fonts::title (22.0f).withExtraKerningFactor (0.12f));
     title.setColour (juce::Label::textColourId, colours::text);
     addAndMakeVisible (title);
+
+    helpButton.onClick = [this] { help.show(); };
+    addAndMakeVisible (helpButton);
 
     versionLabel.setText ("v" CORTEX_VERSION_STRING " (" CORTEX_GIT_HASH ")", juce::dontSendNotification);
     versionLabel.setFont (fonts::mono (10.5f));
@@ -99,6 +103,9 @@ MainView::MainView (CortexAudioProcessor& p)
     credits.setColour (juce::Label::textColourId, colours::dim);
     addAndMakeVisible (credits);
 
+    addChildComponent (help);   // last, so it sits over everything
+
+    helpButton.setTooltip (tips::helpButton);
     versionLabel.setTooltip (tips::version);
     meters.setTooltip (tips::meters);
     envelopeTriangle.setTooltip (tips::envelopeTriangle);
@@ -137,8 +144,18 @@ void MainView::resized()
 {
     auto area = getLocalBounds().reduced (gap);
 
+    help.setBounds (getLocalBounds());
+
     auto header = area.removeFromTop (headerHeight - gap);
-    title.setBounds (header.removeFromLeft (260));
+    {
+        // The title takes what its text needs; the "?" sits right after it.
+        juce::GlyphArrangement glyphs;
+        glyphs.addLineOfText (title.getFont(), title.getText(), 0.0f, 0.0f);
+        const int titleWidth = (int) std::ceil (glyphs.getBoundingBox (0, -1, true).getWidth()) + 12;
+        title.setBounds (header.removeFromLeft (juce::jmin (titleWidth, 300)));
+        helpButton.setBounds (header.removeFromLeft (26).withSizeKeepingCentre (22, 22));
+        header.removeFromLeft (gap);
+    }
     versionLabel.setBounds (header.removeFromRight (150));
     meters.setBounds (header.removeFromRight (juce::jmin (260, header.getWidth())));
     header.removeFromRight (gap);

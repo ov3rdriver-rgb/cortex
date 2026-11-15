@@ -11,6 +11,9 @@ CENTRE, BOTTOM   The cepstrum and the cutoff lines.
 BOTTOM, LEFT     The Input panel (turquoise).
 BOTTOM, RIGHT    Tabs: "Search", "Mod" and "Output".
 
+The "?" next to the title opens an explanation of what Cortex does
+and what the cepstral morph is. Hover any control for a tooltip.
+
 Each triangle has one source at each corner:
  - Brain 1 is at the top.
  - Brain 2 is at the bottom left.

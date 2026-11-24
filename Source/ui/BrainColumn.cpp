@@ -34,13 +34,13 @@ BrainColumn::BrainColumn (CortexAudioProcessor& p, int brainIndex)
     title.setColour (juce::Label::textColourId, colours::forSource (source));
     addAndMakeVisible (title);
 
-    status.setFont (fonts::ui (11.5f));
-    status.setColour (juce::Label::textColourId, colours::dim);
+    status.setFont (fonts::mono (11.0f));
+    status.setColour (juce::Label::textColourId, colours::text);
     status.setJustificationType (juce::Justification::topLeft);
     addAndMakeVisible (status);
 
     addChildComponent (progressBar);
-    progressBar.setColour (juce::ProgressBar::foregroundColourId, colours::forSource (source));
+    progressBar.setColour (juce::ProgressBar::foregroundColourId, colours::now);
 
     loadButton.onClick = [this] { chooseFiles(); };
     clearButton.onClick = [this] { processor.clearBrain (brain); };
@@ -95,7 +95,7 @@ void BrainColumn::refresh()
     else if (s.numBlocks > 0)
         text = juce::String (s.numBlocks) + " blocks from " + juce::String (s.numSounds) + (s.numSounds == 1 ? " sound" : " sounds");
     else
-        text = "Empty: drop a folder of samples here";
+        text = "empty: drop a folder of samples here";
     status.setText (text, juce::dontSendNotification);
 
     progress = s.building ? (double) s.progress : 0.0;
@@ -115,7 +115,8 @@ void BrainColumn::refresh()
 void BrainColumn::paint (juce::Graphics& g)
 {
     // A flat region with a hairline edge and the source's colour as a rule
-    // along the top.
+    // along the top; inside, the track sheet's numbered rows: a rule above
+    // each row and its number typed in the margin.
     auto r = getLocalBounds().toFloat();
     g.setColour (colours::background);
     g.fillRect (r);
@@ -123,6 +124,18 @@ void BrainColumn::paint (juce::Graphics& g)
     g.drawRect (r, 1.0f);
     g.setColour (colours::forSource (source));
     g.fillRect (r.removeFromTop (3.0f));
+
+    g.setFont (fonts::mono (9.0f));
+    int n = 1;
+    const juce::Component* rows[] { &listen, &map, &sounds, &settings };
+    for (const juce::Component* row : rows)
+    {
+        const int y = row->getY() - 3;
+        g.setColour (colours::rule);
+        g.fillRect (10, y, getWidth() - 20, 1);
+        g.setColour (colours::dim);
+        g.drawText (juce::String (n++), 10, y + 2, 12, 12, juce::Justification::centredLeft);
+    }
 }
 
 void BrainColumn::paintOverChildren (juce::Graphics& g)
@@ -151,14 +164,15 @@ void BrainColumn::resized()
     auto statusRow = area.removeFromTop (22);
     progressBar.setBounds (statusRow.removeFromBottom (5));
     status.setBounds (statusRow);
-    area.removeFromTop (4);
+    area.removeFromTop (6);
+    area.removeFromLeft (12);   // the margin the row numbers are typed in
     listen.setBounds (area.removeFromTop (listenHeight));
-    area.removeFromTop (2);
+    area.removeFromTop (6);
 
     settings.setBounds (area.removeFromBottom (settingsHeight));
-    area.removeFromBottom (6);
+    area.removeFromBottom (8);
     sounds.setBounds (area.removeFromBottom (juce::jlimit (60, 110, area.getHeight() / 4)));
-    area.removeFromBottom (6);
+    area.removeFromBottom (8);
     map.setBounds (area);
 }
 } // namespace cortex::ui

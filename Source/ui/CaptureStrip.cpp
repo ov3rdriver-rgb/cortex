@@ -76,17 +76,10 @@ void CaptureStrip::Chip::setFile (const juce::File& f, double seconds)
 
 void CaptureStrip::Chip::paint (juce::Graphics& g)
 {
-    auto r = getLocalBounds().toFloat();
-    g.setColour (colours::result.withAlpha (dragging ? 0.35f : 0.18f));
-    g.fillRect (r);
-    g.setColour (colours::result);
-    g.drawRect (r, 1.0f);
-    g.fillRect (r.removeFromLeft (3.0f));
-    g.setFont (fonts::mono (10.5f));
-    g.setColour (colours::text);
-    g.drawText (text, getLocalBounds().reduced (8, 0), juce::Justification::centredLeft, true);
-    g.setColour (colours::dim);
-    g.setFont (fonts::label (9.0f));
+    // The file as a cream tag ruled in grease pencil (ink while it is being dragged).
+    drawTag (g, getLocalBounds().toFloat(), text, 10.5f, dragging ? colours::ink : colours::now, juce::Justification::centredLeft);
+    g.setColour (colours::ink.withAlpha (0.6f));
+    g.setFont (fonts::label (8.5f));
     g.drawText (fonts::titleCase ("drag to DAW"), getLocalBounds().reduced (8, 0), juce::Justification::centredRight, true);
 }
 

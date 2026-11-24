@@ -32,16 +32,15 @@ void MeterStrip::setLevels (float inputPeak, float outputPeak, bool open, bool e
 
 void MeterStrip::drawMeter (juce::Graphics& g, juce::Rectangle<float> r, const char* name, float level, float hold, juce::Colour colour)
 {
-    g.setFont (fonts::title (9.5f, false));
+    g.setFont (fonts::title (9.0f));
     g.setColour (colours::dim);
     g.drawText (fonts::titleCase (name), r.removeFromLeft (28.0f).toNearestInt(), juce::Justification::centredLeft);
 
+    // A ruled level scale: a well with the level inked in, grease pencil above -3 dB.
     auto bar = r.reduced (0.0f, 6.0f);
-    g.setColour (colours::rule);
+    g.setColour (colours::well);
     g.fillRect (bar);
-
-    // Green up to -12 dB, amber to -3 dB, red above (positions in the 0..1 range).
-    const float amber = 1.0f - 12.0f / -floorDb, red = 1.0f - 3.0f / -floorDb;
+    const float red = 1.0f - 3.0f / -floorDb;
     auto segment = [&] (float from, float to, juce::Colour c)
     {
         const float a = juce::jlimit (0.0f, level, from), b = juce::jlimit (0.0f, level, to);
@@ -51,14 +50,17 @@ void MeterStrip::drawMeter (juce::Graphics& g, juce::Rectangle<float> r, const c
             g.fillRect (bar.getX() + a * bar.getWidth(), bar.getY(), (b - a) * bar.getWidth(), bar.getHeight());
         }
     };
-    segment (0.0f, amber, colour);
-    segment (amber, red, juce::Colour (0xfff6c744));
-    segment (red, 1.0f, juce::Colour (0xffff5c5c));
+    segment (0.0f, red, colour);
+    segment (red, 1.0f, colours::now);
+    g.setColour (colours::outline);
+    g.drawRect (bar, 1.0f);
+    for (float db : { -48.0f, -36.0f, -24.0f, -12.0f })   // scale marks
+        g.fillRect (bar.getX() + (1.0f + db / -floorDb) * bar.getWidth(), bar.getBottom() - 2.0f, 1.0f, 2.0f);
 
     if (hold > 0.0f)
     {
-        g.setColour (colours::text.withAlpha (0.8f));
-        g.fillRect (bar.getX() + hold * bar.getWidth() - 1.0f, bar.getY(), 2.0f, bar.getHeight());
+        g.setColour (colours::text.withAlpha (0.85f));
+        g.fillRect (bar.getX() + hold * bar.getWidth() - 1.0f, bar.getY(), 1.5f, bar.getHeight());
     }
 }
 
@@ -69,17 +71,15 @@ void MeterStrip::paint (juce::Graphics& g)
 
     // Gate light on the right, then two meter rows.
     auto gate = r.removeFromRight (50.0f);
-    g.setFont (fonts::title (9.5f, false));
+    g.setFont (fonts::title (9.0f));
     g.setColour (gateEnabled ? colours::text : colours::dim);
     g.drawText (fonts::titleCase ("gate"), gate.removeFromLeft (30.0f).toNearestInt(), juce::Justification::centredLeft);
-    const auto light = juce::Rectangle<float> (10.0f, 10.0f).withCentre (gate.getCentre());
-    g.setColour (! gateEnabled ? colours::rule : gateOpen ? colours::input : colours::input.withAlpha (0.2f));
+    // The gate light: a grease-pencil mark when the gate is open.
+    const auto light = juce::Rectangle<float> (9.0f, 9.0f).withCentre (gate.getCentre());
+    g.setColour (! gateEnabled ? colours::rule : gateOpen ? colours::now : colours::now.withAlpha (0.2f));
     g.fillEllipse (light);
-    if (gateEnabled && gateOpen)
-    {
-        g.setColour (colours::input.withAlpha (0.25f));
-        g.fillEllipse (light.expanded (3.0f));
-    }
+    g.setColour (colours::outline);
+    g.drawEllipse (light, 1.0f);
     r.removeFromRight (8.0f);
 
     drawMeter (g, r.removeFromTop (rowHeight), "in", inLevel, inHold, colours::input);

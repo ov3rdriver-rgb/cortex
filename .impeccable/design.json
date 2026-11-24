@@ -1,0 +1,726 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-24T00:00:00Z",
+  "title": "Design System: Cortex",
+  "extensions": {
+    "colorMeta": {
+      "dark-background": {
+        "role": "neutral",
+        "displayName": "Box Card",
+        "canonical": "oklch(31% 0.020 257)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#22252a",
+          "#3d424a",
+          "#5b626c",
+          "#7b838e",
+          "#9fa6af",
+          "#c5c9cf",
+          "#edeef1"
+        ]
+      },
+      "dark-panel": {
+        "role": "neutral",
+        "displayName": "Box Panel",
+        "canonical": "oklch(29% 0.019 258)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#222529",
+          "#3e4249",
+          "#5b626b",
+          "#7c838d",
+          "#a0a5ae",
+          "#c6c9cf",
+          "#edeef0"
+        ]
+      },
+      "dark-well": {
+        "role": "neutral",
+        "displayName": "Box Well",
+        "canonical": "oklch(26% 0.017 256)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#222529",
+          "#3e4249",
+          "#5b626a",
+          "#7c838c",
+          "#a0a6ad",
+          "#c6c9ce",
+          "#edeef0"
+        ]
+      },
+      "dark-rule": {
+        "role": "neutral",
+        "displayName": "Box Rule",
+        "canonical": "oklch(38% 0.023 258)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#22252a",
+          "#3d424b",
+          "#5a626d",
+          "#7b838f",
+          "#9fa6b0",
+          "#c5c9d0",
+          "#edeef1"
+        ]
+      },
+      "dark-outline": {
+        "role": "neutral",
+        "displayName": "Box Outline",
+        "canonical": "oklch(41% 0.024 260)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#22252b",
+          "#3d424c",
+          "#5a626e",
+          "#7b8390",
+          "#9fa5b0",
+          "#c5c9d1",
+          "#edeef1"
+        ]
+      },
+      "dark-dim": {
+        "role": "neutral",
+        "displayName": "Faded Chalk",
+        "canonical": "oklch(70% 0.020 86)",
+        "tonalRamp": [
+          "#0c0b0a",
+          "#272520",
+          "#454239",
+          "#666156",
+          "#878276",
+          "#a9a59b",
+          "#ccc9c2",
+          "#efeeec"
+        ]
+      },
+      "dark-text": {
+        "role": "neutral",
+        "displayName": "Chalk",
+        "canonical": "oklch(91% 0.020 88)",
+        "tonalRamp": [
+          "#0c0b0a",
+          "#272520",
+          "#454239",
+          "#656156",
+          "#878276",
+          "#a9a59b",
+          "#ccc9c2",
+          "#efeeec"
+        ]
+      },
+      "dark-neutral-accent": {
+        "role": "neutral",
+        "displayName": "Chalk Ink",
+        "canonical": "oklch(83% 0.023 87)",
+        "tonalRamp": [
+          "#0c0b09",
+          "#27251f",
+          "#464238",
+          "#666154",
+          "#888274",
+          "#a9a599",
+          "#ccc9c1",
+          "#efeeec"
+        ]
+      },
+      "dark-label": {
+        "role": "neutral",
+        "displayName": "Label Stock",
+        "canonical": "oklch(93% 0.028 87)",
+        "tonalRamp": [
+          "#0c0b09",
+          "#28251e",
+          "#474136",
+          "#686151",
+          "#898271",
+          "#aba497",
+          "#cdc9c0",
+          "#f0eeeb"
+        ]
+      },
+      "dark-ink": {
+        "role": "neutral",
+        "displayName": "Navy Ink",
+        "canonical": "oklch(29% 0.051 263)",
+        "tonalRamp": [
+          "#090b0f",
+          "#1f2531",
+          "#384256",
+          "#53617c",
+          "#74839f",
+          "#99a5bd",
+          "#c1c9d9",
+          "#eceff4"
+        ]
+      },
+      "dark-input": {
+        "role": "primary",
+        "displayName": "Leader-Tape Green",
+        "canonical": "oklch(73% 0.121 173)",
+        "tonalRamp": [
+          "#040e0a",
+          "#002e22",
+          "#00503d",
+          "#00755b",
+          "#1e977c",
+          "#66b79f",
+          "#a4d6c5",
+          "#e3f3ed"
+        ]
+      },
+      "dark-brain1": {
+        "role": "primary",
+        "displayName": "Grease-Pencil Orange",
+        "canonical": "oklch(73% 0.152 54)",
+        "tonalRamp": [
+          "#130803",
+          "#3e1900",
+          "#6d2c00",
+          "#9a4500",
+          "#c06820",
+          "#db9160",
+          "#efbd9e",
+          "#fcebe0"
+        ]
+      },
+      "dark-brain2": {
+        "role": "primary",
+        "displayName": "Carbon-Copy Purple",
+        "canonical": "oklch(66% 0.137 299)",
+        "tonalRamp": [
+          "#0c0913",
+          "#2a1d3f",
+          "#4a346f",
+          "#6c4e9d",
+          "#8d70c2",
+          "#ae97db",
+          "#cfc1ee",
+          "#f0ecfb"
+        ]
+      },
+      "dark-result": {
+        "role": "secondary",
+        "displayName": "Grease-Pencil Red",
+        "canonical": "oklch(63% 0.186 36)",
+        "tonalRamp": [
+          "#150704",
+          "#460f01",
+          "#791900",
+          "#ac2e00",
+          "#d35430",
+          "#ec8467",
+          "#fcb5a2",
+          "#ffe8e1"
+        ]
+      },
+      "dark-now": {
+        "role": "secondary",
+        "displayName": "Grease Pencil",
+        "canonical": "oklch(63% 0.186 36)",
+        "tonalRamp": [
+          "#150704",
+          "#460f01",
+          "#791900",
+          "#ac2e00",
+          "#d35430",
+          "#ec8467",
+          "#fcb5a2",
+          "#ffe8e1"
+        ]
+      },
+      "light-background": {
+        "role": "neutral",
+        "displayName": "Track Sheet",
+        "canonical": "oklch(91% 0.030 88)",
+        "tonalRamp": [
+          "#0c0b09",
+          "#28251d",
+          "#474135",
+          "#686150",
+          "#898270",
+          "#aba596",
+          "#cdc9bf",
+          "#f0eeeb"
+        ]
+      },
+      "light-panel": {
+        "role": "neutral",
+        "displayName": "Sheet Panel",
+        "canonical": "oklch(94% 0.024 88)",
+        "tonalRamp": [
+          "#0c0b09",
+          "#27251f",
+          "#464238",
+          "#666154",
+          "#888274",
+          "#a9a599",
+          "#ccc9c1",
+          "#efeeec"
+        ]
+      },
+      "light-well": {
+        "role": "neutral",
+        "displayName": "Sheet Well",
+        "canonical": "oklch(98% 0.013 87)",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#262522",
+          "#44423d",
+          "#64615a",
+          "#85827b",
+          "#a7a59f",
+          "#cbc9c5",
+          "#efeeed"
+        ]
+      },
+      "light-rule": {
+        "role": "neutral",
+        "displayName": "Sheet Rule",
+        "canonical": "oklch(80% 0.035 88)",
+        "tonalRamp": [
+          "#0c0b09",
+          "#28251c",
+          "#484133",
+          "#69614d",
+          "#8a826d",
+          "#aca494",
+          "#cdc9bd",
+          "#f0eeea"
+        ]
+      },
+      "light-outline": {
+        "role": "neutral",
+        "displayName": "Sheet Outline",
+        "canonical": "oklch(62% 0.035 91)",
+        "tonalRamp": [
+          "#0c0b09",
+          "#28251c",
+          "#474233",
+          "#68614d",
+          "#89826d",
+          "#aba594",
+          "#cdc9be",
+          "#f0eeea"
+        ]
+      },
+      "light-dim": {
+        "role": "neutral",
+        "displayName": "Faded Ink",
+        "canonical": "oklch(51% 0.026 90)",
+        "tonalRamp": [
+          "#0c0b09",
+          "#27251f",
+          "#464237",
+          "#666152",
+          "#888273",
+          "#a9a598",
+          "#ccc9c1",
+          "#efeeeb"
+        ]
+      },
+      "light-text": {
+        "role": "neutral",
+        "displayName": "Navy Ink",
+        "canonical": "oklch(29% 0.051 263)",
+        "tonalRamp": [
+          "#090b0f",
+          "#1f2531",
+          "#384256",
+          "#53617c",
+          "#74839f",
+          "#99a5bd",
+          "#c1c9d9",
+          "#eceff4"
+        ]
+      },
+      "light-neutral-accent": {
+        "role": "neutral",
+        "displayName": "Navy Ink",
+        "canonical": "oklch(29% 0.051 263)",
+        "tonalRamp": [
+          "#090b0f",
+          "#1f2531",
+          "#384256",
+          "#53617c",
+          "#74839f",
+          "#99a5bd",
+          "#c1c9d9",
+          "#eceff4"
+        ]
+      },
+      "light-label": {
+        "role": "neutral",
+        "displayName": "Label Stock",
+        "canonical": "oklch(98% 0.013 87)",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#262522",
+          "#44423d",
+          "#64615a",
+          "#85827b",
+          "#a7a59f",
+          "#cbc9c5",
+          "#efeeed"
+        ]
+      },
+      "light-ink": {
+        "role": "neutral",
+        "displayName": "Navy Ink",
+        "canonical": "oklch(29% 0.051 263)",
+        "tonalRamp": [
+          "#090b0f",
+          "#1f2531",
+          "#384256",
+          "#53617c",
+          "#74839f",
+          "#99a5bd",
+          "#c1c9d9",
+          "#eceff4"
+        ]
+      },
+      "light-input": {
+        "role": "primary",
+        "displayName": "Leader-Tape Green, deeper",
+        "canonical": "oklch(58% 0.102 175)",
+        "tonalRamp": [
+          "#050d0b",
+          "#022c24",
+          "#004e40",
+          "#01725e",
+          "#39947f",
+          "#71b5a2",
+          "#a9d4c7",
+          "#e4f2ee"
+        ]
+      },
+      "light-brain1": {
+        "role": "primary",
+        "displayName": "Grease-Pencil Orange, deeper",
+        "canonical": "oklch(64% 0.165 46)",
+        "tonalRamp": [
+          "#140803",
+          "#421500",
+          "#722600",
+          "#a23d00",
+          "#c86025",
+          "#e38c62",
+          "#f5ba9f",
+          "#feeae0"
+        ]
+      },
+      "light-brain2": {
+        "role": "primary",
+        "displayName": "Carbon-Copy Purple, deeper",
+        "canonical": "oklch(51% 0.159 292)",
+        "tonalRamp": [
+          "#0b0915",
+          "#271c46",
+          "#453279",
+          "#654dab",
+          "#866fd0",
+          "#a797e7",
+          "#cac1f6",
+          "#eeecfe"
+        ]
+      },
+      "light-result": {
+        "role": "secondary",
+        "displayName": "Grease-Pencil Red, deeper",
+        "canonical": "oklch(59% 0.192 34)",
+        "tonalRamp": [
+          "#160704",
+          "#470d02",
+          "#7b1600",
+          "#ae2903",
+          "#d65132",
+          "#ef8268",
+          "#feb4a2",
+          "#ffe8e2"
+        ]
+      },
+      "light-now": {
+        "role": "secondary",
+        "displayName": "Grease Pencil, deeper",
+        "canonical": "oklch(59% 0.192 34)",
+        "tonalRamp": [
+          "#160704",
+          "#470d02",
+          "#7b1600",
+          "#ae2903",
+          "#d65132",
+          "#ef8268",
+          "#feb4a2",
+          "#ffe8e2"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The window title only, in chalk, uppercase, extra kerning 0.22."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "A brain column's name in its ink, the Input panel title, the help heading; 16px for the drop-to-build overlay."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Region captions, tab names, 'linked'; 9px for corner names, legend and meter names; 11.5px for help section headings."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "A control's name above its knob or menu, in dim; 8.5px at 60% ink on the capture chip."
+      },
+      "button": {
+        "displayName": "Button",
+        "purpose": "Printed caps on label stock; 11px when the button is 30px or taller."
+      },
+      "value": {
+        "displayName": "Value",
+        "purpose": "Value cells, status lines, sound-list rows, the empty message; tick-box text at 11.5px."
+      },
+      "menu": {
+        "displayName": "Menu",
+        "purpose": "The choice in a menu cell; 12px in the popup and the slider popup."
+      },
+      "share": {
+        "displayName": "Share (leading)",
+        "purpose": "The leading source's share on a triangle, the largest figure on the sheet."
+      },
+      "share-trailing": {
+        "displayName": "Share (trailing)",
+        "purpose": "The other two corner shares, at 85% alpha."
+      },
+      "tag": {
+        "displayName": "Tag",
+        "purpose": "Version tag and capture chip; 10px cepstrum tags and credits; 9px row numbers; 9.5px axis figures."
+      },
+      "fine": {
+        "displayName": "Fine",
+        "purpose": "Axis figures on plots and the quefrency range note."
+      },
+      "tooltip": {
+        "displayName": "Tooltip",
+        "purpose": "Tooltip prose on label stock, wrapped at 340px."
+      },
+      "prose": {
+        "displayName": "Prose",
+        "purpose": "The help sheet's body in navy ink, 3px line spacing."
+      }
+    },
+    "shadows": [
+      {
+        "name": "label-edge",
+        "value": "0 1px 0 0 rgba(0,0,0,0.35)",
+        "purpose": "The 1px shadow line directly beneath label stock (buttons, front tabs' stock is drawn without it); the only shadow a control carries."
+      },
+      {
+        "name": "tag-edge",
+        "value": "0 1px 0 0 rgba(0,0,0,0.30)",
+        "purpose": "The same line beneath a drawTag tag."
+      },
+      {
+        "name": "help-sheet",
+        "value": "0 3px 10px rgba(0,0,0,0.40)",
+        "purpose": "The help sheet pulled out of the box; the one soft shadow in the system."
+      }
+    ],
+    "motion": [
+      {
+        "name": "none",
+        "value": "0ms",
+        "purpose": "Nothing animates: values, rings and dots update instantly, like a typed entry. Meters fall at 0.04 per 30 Hz tick (hold 0.008) as ballistics, not as styling."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "minimum-window",
+        "value": "1120x760"
+      },
+      {
+        "name": "default-window",
+        "value": "1280x820"
+      },
+      {
+        "name": "maximum-window",
+        "value": "2600x1800"
+      }
+    ],
+    "themes": {
+      "dark": {
+        "name": "The tape box",
+        "plotLineWidth": 1.2,
+        "titleKerning": 0.14,
+        "face": "Barlow",
+        "monoFontName": "Courier New"
+      },
+      "light": {
+        "name": "The track sheet",
+        "plotLineWidth": 1.3,
+        "titleKerning": 0.14,
+        "face": "Barlow",
+        "monoFontName": "Courier New"
+      }
+    },
+    "states": {
+      "idle": "Label stock with an 18% ink hairline; knob arc at 78%, pointer 1.6px.",
+      "lifted": "Hover: stock brighter(0.06); knob arc 100%, pointer 2px; value cell ruled 1px ink with a 2px accent along the bottom.",
+      "on": "Same stock and ink, edged 1px in the on-ink with the on-ink 3px along the top; tick box filled in now.",
+      "disabled": "No stock: a 1px outline rectangle with caps in dim; tick-box text at 50%.",
+      "empty": "'empty: drop a folder of samples here' / 'drop samples or a folder here' typed in dim on the well; Clear and Rebuild disabled.",
+      "building": "Status shows the engine's message; a 5px progress bar in now on well under the status row.",
+      "linked": "Link rings interlocked in the brain's ink; a following triangle at 45% ink with its well at 50% and a dim dot."
+    }
+  },
+  "components": [
+    {
+      "name": "Label button",
+      "kind": "button",
+      "refersTo": "button-label",
+      "description": "A cream label stuck on the box, printed in navy caps; lifts a shade on hover.",
+      "html": "<button class=\"ds-label\">LOAD...</button>",
+      "css": ".ds-label { background: #efe6d2; color: #1d2a44; font-family: Barlow, sans-serif; font-weight: 600; font-size: 9.5px; letter-spacing: 0.07em; text-transform: uppercase; height: 26px; padding: 0 12px; border: 1px solid rgba(29,42,68,0.18); border-radius: 0; box-shadow: 0 1px 0 0 rgba(0,0,0,0.35); cursor: default; } .ds-label:hover { background: #f4ecda; } .ds-label:focus-visible { outline: 1px solid #1d2a44; outline-offset: 1px; } .ds-label:disabled { background: transparent; color: #a39d90; border-color: #434b58; box-shadow: none; }"
+    },
+    {
+      "name": "Label button, on",
+      "kind": "button",
+      "refersTo": "button-label-on",
+      "description": "A switch that is on: the same stock, ruled round in its source's ink with the ink 3px thick along the top.",
+      "html": "<button class=\"ds-label-on\">FREEZE ENV</button>",
+      "css": ".ds-label-on { background: #efe6d2; color: #1d2a44; font-family: Barlow, sans-serif; font-weight: 600; font-size: 9.5px; letter-spacing: 0.07em; text-transform: uppercase; height: 26px; padding: 0 12px; border: 1px solid #f08a3e; border-top-width: 3px; border-radius: 0; box-shadow: 0 1px 0 0 rgba(0,0,0,0.35); } .ds-label-on:hover { background: #f4ecda; }"
+    },
+    {
+      "name": "Knob with value cell",
+      "kind": "input",
+      "refersTo": "value-cell",
+      "description": "A thin ring inked to its value with a pencil pointer, its label printed above and its value typed on a cream cell below; hover lifts arc, pointer and cell to full ink.",
+      "html": "<div class=\"ds-knob\"><div class=\"ds-knob-label\">CUTOFF</div><svg class=\"ds-knob-ring\" viewBox=\"0 0 64 64\" width=\"64\" height=\"64\"><path d=\"M 14.8 49.2 A 24 24 0 1 1 49.2 49.2\" fill=\"none\" stroke=\"#434b58\" stroke-width=\"2.2\"/><path class=\"ds-knob-arc\" d=\"M 14.8 49.2 A 24 24 0 0 1 10 24\" fill=\"none\" stroke=\"#f08a3e\" stroke-width=\"2.2\"/><line x1=\"12\" y1=\"52\" x2=\"16\" y2=\"48\" stroke=\"rgba(163,157,144,0.7)\" stroke-width=\"1\"/><line x1=\"32\" y1=\"3\" x2=\"32\" y2=\"9\" stroke=\"rgba(163,157,144,0.7)\" stroke-width=\"1\"/><line x1=\"52\" y1=\"52\" x2=\"48\" y2=\"48\" stroke=\"rgba(163,157,144,0.7)\" stroke-width=\"1\"/><line class=\"ds-knob-pointer\" x1=\"29\" y1=\"32\" x2=\"14\" y2=\"27\" stroke=\"#e8e2d4\" stroke-width=\"1.6\"/></svg><div class=\"ds-knob-cell\">40</div></div>",
+      "css": ".ds-knob { display: inline-flex; flex-direction: column; align-items: center; width: 66px; background: #262c35; padding: 4px 0 6px; } .ds-knob-label { font-family: Barlow, sans-serif; font-size: 9.5px; letter-spacing: 0.035em; text-transform: uppercase; color: #a39d90; height: 16px; line-height: 16px; } .ds-knob-arc, .ds-knob-pointer { opacity: 0.78; } .ds-knob:hover .ds-knob-arc, .ds-knob:hover .ds-knob-pointer { opacity: 1; } .ds-knob:hover .ds-knob-pointer { stroke-width: 2; } .ds-knob-cell { background: #efe6d2; color: #1d2a44; font-family: 'Courier New', monospace; font-size: 11px; width: 56px; height: 16px; line-height: 16px; text-align: center; border: 1px solid transparent; } .ds-knob:hover .ds-knob-cell { border-color: #1d2a44; box-shadow: inset 0 -2px 0 0 #f08a3e; }"
+    },
+    {
+      "name": "Tag",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "A typed value on a cream tag, optionally ruled in a source's ink (the cepstrum cutoff tags, the version, the capture chip).",
+      "html": "<span class=\"ds-tag ds-tag-input\">Input 25</span> <span class=\"ds-tag\">v1.3.0 (ffd0927)</span>",
+      "css": ".ds-tag { display: inline-block; background: #efe6d2; color: #1d2a44; font-family: 'Courier New', monospace; font-size: 10.5px; height: 15px; line-height: 15px; padding: 0 5px; border: 1px solid rgba(29,42,68,0.18); border-radius: 0; box-shadow: 0 1px 0 0 rgba(0,0,0,0.30); } .ds-tag-input { border-color: #3fbf9f; }"
+    },
+    {
+      "name": "Menu cell",
+      "kind": "input",
+      "refersTo": "menu-cell",
+      "description": "A ruled cell on the panel with the choice typed in it and a drawn chevron; its popup is label stock.",
+      "html": "<div class=\"ds-menu\"><span>Input</span><svg width=\"7\" height=\"4\" viewBox=\"0 0 7 4\"><path d=\"M0 0 L3.5 4 L7 0\" fill=\"none\" stroke=\"#a39d90\" stroke-width=\"1.2\"/></svg></div><div class=\"ds-menu-popup\"><div class=\"ds-menu-item ds-menu-item-hl\">Input</div><div class=\"ds-menu-item\">Track</div><div class=\"ds-menu-item\">Brain 2</div></div>",
+      "css": ".ds-menu { display: flex; align-items: center; justify-content: space-between; width: 200px; height: 24px; padding: 0 9px 0 8px; background: #262c35; color: #e8e2d4; font-family: 'Courier New', monospace; font-size: 11.5px; border: 1px solid #434b58; border-radius: 0; } .ds-menu-popup { width: 200px; margin-top: 2px; background: #efe6d2; border: 1px solid rgba(29,42,68,0.18); } .ds-menu-item { font-family: 'Courier New', monospace; font-size: 12px; color: #1d2a44; padding: 3px 8px; } .ds-menu-item:hover, .ds-menu-item-hl { background: rgba(29,42,68,0.14); }"
+    },
+    {
+      "name": "Label tabs",
+      "kind": "nav",
+      "refersTo": "tab-front",
+      "description": "The front tab is cream stock with its source's ink 2px along the top; the rest print on the box above a hairline.",
+      "html": "<div class=\"ds-tabs\"><div class=\"ds-tab ds-tab-front\" style=\"--ink:#f08a3e\">BRAIN 1 SEARCH</div><div class=\"ds-tab\">BRAIN 2 SEARCH</div><div class=\"ds-tab\">MOD</div><div class=\"ds-tab\">OUTPUT</div></div>",
+      "css": ".ds-tabs { display: flex; height: 26px; background: #2b323c; } .ds-tab { font-family: Barlow, sans-serif; font-weight: 600; font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #a39d90; line-height: 26px; padding: 0 15px; border-bottom: 1px solid #434b58; } .ds-tab:hover { color: #e8e2d4; } .ds-tab-front { background: #efe6d2; color: #1d2a44; border: 1px solid rgba(29,42,68,0.18); border-top: 2px solid var(--ink, #cfc8b8); line-height: 23px; } .ds-tab-front:hover { color: #1d2a44; }"
+    },
+    {
+      "name": "Region with well",
+      "kind": "card",
+      "refersTo": "region",
+      "description": "A flat panel with a hairline edge and a printed caption; a map or plot is drawn on a darker well cut into it. Brain columns carry a 3px source rule along the top.",
+      "html": "<div class=\"ds-region\"><div class=\"ds-caption\">MAP: BLOCKS BY TIMBRE</div><div class=\"ds-well\"></div></div>",
+      "css": ".ds-region { width: 280px; background: #262c35; border: 1px solid #434b58; border-top: 3px solid #f08a3e; padding: 7px 12px 12px; border-radius: 0; } .ds-caption { font-family: Barlow, sans-serif; font-weight: 600; font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #a39d90; height: 12px; line-height: 12px; margin-bottom: 8px; } .ds-well { height: 110px; background: #1f252d; border: 1px solid #434b58; }"
+    },
+    {
+      "name": "Tick box",
+      "kind": "input",
+      "refersTo": "well",
+      "description": "A 13px square cut into the well, ticked in grease pencil, its text typed.",
+      "html": "<label class=\"ds-tick\"><span class=\"ds-tick-box ds-tick-on\"></span>Link: detail follows envelope</label>",
+      "css": ".ds-tick { display: inline-flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 11.5px; color: #e8e2d4; } .ds-tick-box { width: 13px; height: 13px; background: #1f252d; border: 1px solid #434b58; box-sizing: border-box; } .ds-tick:hover .ds-tick-box { background: #2a3038; } .ds-tick-on { border-color: #e3542b; box-shadow: inset 0 0 0 2px #1f252d; background: #e3542b; }"
+    },
+    {
+      "name": "Tooltip",
+      "kind": "custom",
+      "refersTo": "tooltip",
+      "description": "A note on label stock, prose in navy, wrapped at 340px.",
+      "html": "<div class=\"ds-tooltip\">Brain 1 Chaos (0-1): makes Brain 1 wander. Raises its novelty, lowers its stickyness, and adds random jumps (up to 30% of searches at full).</div>",
+      "css": ".ds-tooltip { max-width: 340px; background: #efe6d2; color: #1d2a44; font-family: Barlow, sans-serif; font-size: 12.5px; line-height: 1.25; padding: 7px 10px; border: 1px solid rgba(29,42,68,0.4); border-radius: 0; }"
+    },
+    {
+      "name": "Sound list",
+      "kind": "custom",
+      "refersTo": "sound-list",
+      "description": "A ruled cream list stuck on the box: a swatch in the sound's shade of its brain's ink, the filename and block count typed.",
+      "html": "<div class=\"ds-sounds\"><div class=\"ds-sound\"><i style=\"background:#f08a3e\"></i><span>sound0.wav</span><b>72</b></div><div class=\"ds-sound\"><i style=\"background:#e07a40\"></i><span>sound1.wav</span><b>72</b></div><div class=\"ds-sound\"><i style=\"background:#d9823a\"></i><span>sound2.wav</span><b>72</b></div></div>",
+      "css": ".ds-sounds { width: 270px; background: #efe6d2; border: 1px solid #434b58; } .ds-sound { display: flex; align-items: center; height: 18px; font-family: 'Courier New', monospace; font-size: 11px; color: #1d2a44; border-bottom: 1px solid rgba(29,42,68,0.22); } .ds-sound i { width: 7px; height: 7px; margin: 0 8px 0 8px; } .ds-sound span { flex: 1; } .ds-sound b { font-weight: normal; width: 62px; text-align: right; padding-right: 8px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Tape Box and the Track Sheet",
+    "overview": "The plugin window is a studio's session box. The dark theme is the box itself: a matte blue-grey card, chalk-white print, and a cream label stuck on wherever a value is typed. The light theme is the track sheet that lives inside the box: cream stock, navy ink, the same inks a shade deeper. Both themes are one world with one grammar; the Theme parameter swaps the palette and nothing else. Three sources (the Input, Brain 1, Brain 2) each own one ink and keep it everywhere they appear: region rules, tab rules, knob arcs, map dots, plot curves, cutoff lines, cepstrum tags. Anything happening right now (the triangle dot, the slice playing, the gate light, the meter above -3 dB, the capture just made) is marked in grease pencil.\n\nThe surface is dense and flat. Hierarchy comes from scale and ink weight, never from decoration: the triangle shares are the largest figures on the sheet, the leading source is inked fully while the others sit a step back, and the control under the hand lifts to full ink while its siblings stay put. Everything is drawn in code with hairlines and square corners; there are no image assets and no rounded forms except the dots, rings and knobs that are circles by nature. Nothing animates: values, rings and dots update instantly, like a typed entry.",
+    "keyCharacteristics": [
+      "Two themes, one world: box (dark) and sheet (light) share every rule and differ only in palette.",
+      "Three source inks, fixed, used for every mark that belongs to a source.",
+      "Grease pencil for \"now\" and for the result; nothing else is red-orange.",
+      "Cream label stock only for small typed fields: value cells, buttons, tags, menus' popups, the sound list, the version, the tooltip, the help sheet.",
+      "Barlow for print (captions, labels, titles, prose); Courier New for everything typed (values, menus, status, tags, credits).",
+      "Hairline rules, square corners, no fills under knobs, no shadows beyond a 1px shadow line under label stock.",
+      "Focus lift: hover brings a knob and its cell to full ink; no other hover treatment exists."
+    ],
+    "rules": [
+      {
+        "name": "The One Ink Per Source Rule",
+        "body": "A source has one colour and every mark that belongs to it uses that colour: rules, tabs, arcs, rings, dots, curves, lines, tags, titles. Sounds inside a brain are shades of that brain's ink (`forSound`: hue rotated within ±0.05, brightness 55% to 100%, saturation 70% to 100%), so a map never borrows another source's colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The Grease Pencil Rule",
+        "body": "The `now` colour marks only what is happening at this moment or has just happened, plus the result the engine is producing. It is never a brand accent, a border on a resting control, or a hover colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The Label Stock Rule",
+        "body": "Cream stock is for small typed fields and sheets of print; regions, wells and grounds are never cream in the dark theme. On the sheet (light) the same rule holds with the stock a lighter cream than its ground.",
+        "section": "colors"
+      },
+      {
+        "name": "The Typed Value Rule",
+        "body": "Every number, menu choice, status line, filename, tag and the credits line is typed in Courier New. Barlow carries print only: titles, captions, labels, button caps and prose.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tracked Caps Rule",
+        "body": "Printed text is uppercase (`uppercaseTitles`) and tracked: titles and captions by 0.14, buttons by half that, control labels by a quarter, so long names still fit a 66px cell.",
+        "section": "typography"
+      },
+      {
+        "name": "The Stuck-On Rule",
+        "body": "The only shadow a control may carry is the 1px shadow line under label stock. Regions, wells, knobs, menus and tabs cast nothing.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Focus Lift Rule",
+        "body": "The control under the hand goes to full ink: a knob's arc from 78% to 100% alpha and its pointer from 1.6px to 2px; its value cell is ruled 1px in navy ink with its source's ink 2px thick along the bottom. Siblings stay a step back. No glow, no scale, no colour change elsewhere.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do give every mark that belongs to a source that source's ink, and every \"now\" mark the grease pencil.",
+      "Do type every value, menu, status and tag in Courier New on label stock or in chalk; print captions and labels in Barlow caps, tracked 0.14 (titles, captions) / 0.07 (buttons) / 0.035 (labels).",
+      "Do draw regions, wells and cells as flat rectangles with a 1px `outline` edge; use 3px only for a source rule along a top edge (2px on a front tab).",
+      "Do lift the control under the hand to full ink (arc 100%, pointer 2px, cell ruled in ink with a 2px accent) and leave its siblings a step back.",
+      "Do keep both themes on the same roles: a new colour is a new role in both `darkStyle()` and `lightStyle()`.",
+      "Do rank by scale and ink, not decoration: the leading figure is larger (19px vs 15px) and fully inked.",
+      "Do build a well one step darker than its panel; plots and maps are drawn on wells, never directly on a panel."
+    ],
+    "donts": [
+      "Don't fill a knob, round a corner, or add a glow; a knob is a thin ring with a pencil pointer on an `outline` track.",
+      "Don't cast shadows: the only shadow on a control is the 1px shadow line beneath label stock; the help sheet's soft shadow is the one exception and stays there.",
+      "Don't use `now` as an accent, a border on a resting control, or a hover colour; hover is a brightness step on stock or an alpha step on ink.",
+      "Don't use cream stock for a region or ground; it is for small typed fields and sheets of print.",
+      "Don't animate; values, rings and dots update instantly.",
+      "Don't introduce glyph icons or image assets; the chevron, link rings, dots and rings are drawn paths.",
+      "Don't set anything in Inter or in a system sans; the two faces in use are Barlow (print) and Courier New (typed)."
+    ]
+  }
+}

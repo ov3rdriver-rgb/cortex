@@ -39,6 +39,7 @@ public:
     // For tests: the capture strip (what the Capture button does), and the explainer.
     CaptureStrip& getCaptureStrip() { return capture; }
     HelpOverlay& getHelp() { return help; }
+    ParamPanel& getInputPanel() { return inputPanel; }
 
 private:
     juce::Label title, versionLabel, credits;

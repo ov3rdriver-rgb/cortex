@@ -55,6 +55,7 @@ void CepstrumView::paint (juce::Graphics& g)
     g.setColour (colours::dim);
     g.drawText ("quefrency 0-200", getLocalBounds().reduced (12, 3).removeFromBottom (12), juce::Justification::centredRight);
 
+    drawWell (g, area.expanded (4.0f, 3.0f));
     g.setColour (colours::rule);
     g.drawHorizontalLine ((int) area.getCentreY(), area.getX(), area.getRight());
 
@@ -85,6 +86,7 @@ void CepstrumView::paint (juce::Graphics& g)
         }
     }
 
+    // All three lines first, then their tags, so no line is drawn through a tag.
     for (int s = 0; s < numSources; ++s)
     {
         const float q = cutoffs[(size_t) s].value;
@@ -92,10 +94,6 @@ void CepstrumView::paint (juce::Graphics& g)
         const auto colour = colours::forSource (s);
         g.setColour (colour);
         g.drawLine (px, area.getY(), px, area.getBottom(), 1.5f);
-        g.setFont (fonts::title (10.0f, false));
-        const auto label = fonts::titleCase (colours::sourceName (s)) + " " + juce::String (juce::roundToInt (q));
-        g.drawText (label, juce::Rectangle<float> (px + 4.0f, area.getY() + (float) s * 14.0f, 90.0f, 14.0f).toNearestInt(),
-                    juce::Justification::centredLeft);
 
         // Where the cutoff actually is right now (it moves under modulation).
         if (snapshot.valid && std::abs (snapshot.cutoff[(size_t) s] - q) > 0.5f)
@@ -105,6 +103,13 @@ void CepstrumView::paint (juce::Graphics& g)
             const float dashes[] { 4.0f, 3.0f };
             g.drawDashedLine ({ live, area.getY(), live, area.getBottom() }, dashes, 2, 1.5f);
         }
+    }
+    for (int s = 0; s < numSources; ++s)
+    {
+        const float q = cutoffs[(size_t) s].value;
+        const auto label = colours::sourceName (s) + juce::String (" ") + juce::String (juce::roundToInt (q));
+        drawTag (g, { xForQuefrency (q) + 3.0f, area.getY() + 2.0f + (float) s * 18.0f, 78.0f, 15.0f }, label, 10.0f,
+                 colours::forSource (s), juce::Justification::centredLeft, true);
     }
 }
 

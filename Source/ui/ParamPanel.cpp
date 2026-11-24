@@ -83,22 +83,25 @@ ParamPanel::ParamPanel (juce::AudioProcessorValueTreeState& state, const juce::S
             // (its label row is left empty).
             c->label.setText ({}, juce::dontSendNotification);
             // "Freeze Detail" doesn't fit a brain column's cell; the host still sees the full name.
-            c->toggle = std::make_unique<juce::TextButton> (fonts::titleCase (name.replace ("Detail", "Det")));
+            // On, the label is inked in its source's colour.
+            c->toggle = std::make_unique<juce::TextButton> (name.replace ("Detail", "Det"));
             c->toggle->setClickingTogglesState (true);
-            c->toggle->setColour (juce::TextButton::buttonOnColourId, accent.withAlpha (0.28f));
-            c->toggle->setColour (juce::TextButton::textColourOnId, accent);
-            c->toggle->setColour (juce::TextButton::textColourOffId, colours::dim);
+            c->toggle->setColour (juce::TextButton::buttonOnColourId, accent);
+            c->toggle->setColour (juce::TextButton::textColourOnId, colours::ink);
             c->buttonAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (state, id, *c->toggle);
             addAndMakeVisible (*c->toggle);
         }
         else
         {
             c->slider = std::make_unique<juce::Slider> (juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow);
-            c->slider->setTextBoxStyle (juce::Slider::TextBoxBelow, false, cellWidth - 8, 16);
+            // The value cell leaves room beside it for the link rings on a brain control.
+            c->slider->setTextBoxStyle (juce::Slider::TextBoxBelow, false, cellWidth - (c->link != nullptr ? 28 : 10), 16);
             c->slider->setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-            c->slider->setColour (juce::Slider::textBoxTextColourId, colours::text);   // the box is made before the look-and-feel applies
-            c->slider->setColour (juce::Slider::textBoxHighlightColourId, accent.withAlpha (0.4f));
+            c->slider->setColour (juce::Slider::textBoxTextColourId, colours::ink);   // the box is made before the look-and-feel applies
+            c->slider->setColour (juce::Slider::textBoxBackgroundColourId, colours::label);
+            c->slider->setColour (juce::Slider::textBoxHighlightColourId, colours::now.withAlpha (0.35f));
             c->slider->setColour (juce::Slider::rotarySliderFillColourId, accent);
+            c->slider->addMouseListener (this, false);   // so the panel can lift the cell under the hand
             c->sliderAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (state, id, *c->slider);
 
             // The attachment shows the parameter's own text (full precision for
@@ -135,6 +138,28 @@ void ParamPanel::refresh()
     for (auto& c : controls)
         if (c->link != nullptr)
             c->link->setLinked (linkHost->isLinked (c->linkControl));
+}
+
+void ParamPanel::paint (juce::Graphics& g)
+{
+    // Focus lift: the value cell of the knob under the hand is ruled in full
+    // ink, with its accent thick along the bottom, like the entry being typed.
+    for (size_t i = 0; i < controls.size(); ++i)
+    {
+        const auto& c = *controls[i];
+        if (c.slider == nullptr || ! (c.slider->isMouseOverOrDragging() || (int) i == previewLift))
+            continue;
+        for (auto* child : c.slider->getChildren())
+        {
+            if (dynamic_cast<juce::Label*> (child) == nullptr)
+                continue;
+            const auto cell = child->getBounds().translated (c.slider->getX(), c.slider->getY()).toFloat().expanded (1.0f);
+            g.setColour (colours::ink);
+            g.drawRect (cell, 1.0f);
+            g.setColour (c.slider->findColour (juce::Slider::rotarySliderFillColourId));
+            g.fillRect (cell.withTrimmedTop (cell.getHeight() - 2.0f));
+        }
+    }
 }
 
 void ParamPanel::resized()

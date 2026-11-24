@@ -38,8 +38,9 @@ void TrianglePad::setFollowing (bool shouldFollow)
 
 juce::Rectangle<float> TrianglePad::triangleBounds() const
 {
-    // Equilateral-ish: width = height * 1.15, centred, with room for labels.
-    auto area = getLocalBounds().toFloat().reduced (14.0f).withTrimmedTop (22.0f).withTrimmedBottom (20.0f);
+    // Equilateral-ish: width = height * 1.15, centred, with room for the
+    // corner names and their typed shares.
+    auto area = getLocalBounds().toFloat().reduced (14.0f).withTrimmedTop (36.0f).withTrimmedBottom (30.0f);
     const float h = juce::jmin (area.getHeight(), area.getWidth() / 1.15f);
     return area.withSizeKeepingCentre (h * 1.15f, h);
 }
@@ -75,46 +76,49 @@ void TrianglePad::paint (juce::Graphics& g)
 
     const auto corner = [this] (int c) { return toScreen (triangleCorner[c]); };
 
-    // Fill: a soft gradient from each corner's colour.
+    // The triangle: a flat well with a hairline, like a diagram printed on the box.
     juce::Path tri;
     tri.addTriangle (corner (0), corner (1), corner (2));
-    for (int c = 0; c < 3; ++c)
-    {
-        const auto mid = (corner ((c + 1) % 3) + corner ((c + 2) % 3)) * 0.5f;
-        juce::ColourGradient grad (colours::forSource (cornerSource[c]).withAlpha (following ? 0.08f : 0.22f), corner (c),
-                                   colours::forSource (cornerSource[c]).withAlpha (0.0f), mid, false);
-        g.setGradientFill (grad);
-        g.fillPath (tri);
-    }
-    g.setColour (colours::rule);
+    g.setColour (colours::well.withAlpha (following ? 0.5f : 1.0f));
+    g.fillPath (tri);
+    g.setColour (colours::outline);
     g.strokePath (tri, juce::PathStrokeType (1.0f));
 
-    // Corner labels with the live weight.
-    g.setFont (fonts::title (10.0f, false));
+    // Each corner: its name printed small, its share typed large. The source
+    // with the biggest share is inked fully; the others sit a step back.
+    int leading = 0;
+    for (int s = 1; s < numSources; ++s)
+        if (liveWeights[(size_t) s] > liveWeights[(size_t) leading])
+            leading = s;
     for (int c = 0; c < 3; ++c)
     {
         const int s = cornerSource[c];
         const auto p = corner (c);
-        const auto text = fonts::titleCase (colours::sourceName (s)) + "  " + juce::String (juce::roundToInt (liveWeights[(size_t) s] * 100.0f)) + "%";
-        juce::Rectangle<float> box (110.0f, 14.0f);
-        if (c == 0)      box = box.withCentre ({ p.x, p.y - 10.0f });
-        else if (c == 1) box = box.withPosition (p.x - 4.0f, p.y + 4.0f);
-        else             box = box.withPosition (p.x - 106.0f, p.y + 4.0f);
-        g.setColour (colours::forSource (s).withAlpha (following ? 0.5f : 1.0f));
-        g.drawText (text, box.toNearestInt(), c == 0 ? juce::Justification::centred
-                                                     : c == 1 ? juce::Justification::centredLeft : juce::Justification::centredRight);
+        const auto share = juce::String (juce::roundToInt (liveWeights[(size_t) s] * 100.0f)) + "%";
+        const float alpha = following ? 0.45f : s == leading ? 1.0f : 0.85f;
+        juce::Rectangle<float> box (120.0f, 30.0f);
+        juce::Justification just = juce::Justification::centred;
+        if (c == 0)      box = box.withCentre ({ p.x, p.y - 20.0f });
+        else if (c == 1) { box = box.withPosition (p.x - 6.0f, p.y + 4.0f); just = juce::Justification::centredLeft; }
+        else             { box = box.withPosition (p.x - 114.0f, p.y + 4.0f); just = juce::Justification::centredRight; }
+
+        g.setColour (colours::forSource (s).withAlpha (alpha));
+        g.setFont (fonts::title (9.0f));
+        g.drawText (fonts::titleCase (colours::sourceName (s)), box.removeFromTop (12.0f).toNearestInt(), just);
+        g.setFont (fonts::mono (s == leading && ! following ? 19.0f : 15.0f));
+        g.drawText (share, box.toNearestInt(), just);
     }
 
-    // The dot.
+    // The dot: a flat grease-pencil mark with a chalk ring.
     const auto dot = toScreen (fromScreen (toScreen ({ x, y })));
-    g.setColour (colours::result.withAlpha (following ? 0.15f : 0.3f));
-    g.fillEllipse (juce::Rectangle<float> (26.0f, 26.0f).withCentre (dot));
-    g.setColour (following ? colours::dim : colours::text);
-    g.fillEllipse (juce::Rectangle<float> (12.0f, 12.0f).withCentre (dot));
+    g.setColour (following ? colours::dim : colours::now);
+    g.fillEllipse (juce::Rectangle<float> (11.0f, 11.0f).withCentre (dot));
+    g.setColour (colours::text.withAlpha (following ? 0.4f : 1.0f));
+    g.drawEllipse (juce::Rectangle<float> (11.0f, 11.0f).withCentre (dot), 1.2f);
 
     if (following)
     {
-        g.setFont (fonts::title (10.0f, false));
+        g.setFont (fonts::title (9.5f));
         g.setColour (colours::dim);
         g.drawText (fonts::titleCase ("linked"), getLocalBounds().reduced (12, 7).removeFromTop (12), juce::Justification::centredRight);
     }

@@ -34,18 +34,21 @@ MainView::MainView (CortexAudioProcessor& p)
 {
     using namespace cortex::ParamIDs;
 
+    // The title in chalk, tracked wide like a stencil on the box.
     title.setText (p.isInstrument() ? "CORTEX INSTRUMENT" : "CORTEX", juce::dontSendNotification);
-    title.setFont (fonts::title (22.0f).withExtraKerningFactor (0.12f));
+    title.setFont (fonts::title (20.0f).withExtraKerningFactor (0.22f));
     title.setColour (juce::Label::textColourId, colours::text);
     addAndMakeVisible (title);
 
     helpButton.onClick = [this] { help.show(); };
     addAndMakeVisible (helpButton);
 
+    // The version typed on a tag.
     versionLabel.setText ("v" CORTEX_VERSION_STRING " (" CORTEX_GIT_HASH ")", juce::dontSendNotification);
     versionLabel.setFont (fonts::mono (10.5f));
-    versionLabel.setJustificationType (juce::Justification::centredRight);
-    versionLabel.setColour (juce::Label::textColourId, colours::dim);
+    versionLabel.setJustificationType (juce::Justification::centred);
+    versionLabel.setColour (juce::Label::textColourId, colours::ink);
+    versionLabel.setColour (juce::Label::backgroundColourId, colours::label);
     addAndMakeVisible (versionLabel);
 
     addAndMakeVisible (meters);
@@ -81,8 +84,6 @@ MainView::MainView (CortexAudioProcessor& p)
 
     // Link all: every per-brain control (slicing and search) follows across the brains.
     linkAllButton.setClickingTogglesState (false);
-    linkAllButton.setColour (juce::TextButton::buttonOnColourId, colours::neutralAccent.withAlpha (0.28f));
-    linkAllButton.setColour (juce::TextButton::textColourOnId, colours::neutralAccent);
     linkAllButton.onClick = [this]
     {
         processor.setAllLinked (! processor.allLinked());
@@ -99,7 +100,7 @@ MainView::MainView (CortexAudioProcessor& p)
 
     credits.setText ("AGPL-3.0. Brain engine from Samplebrain (Then Try This / Aphex Twin). Cepstral morph concept: Alexander Panos.",
                      juce::dontSendNotification);
-    credits.setFont (fonts::ui (10.5f));
+    credits.setFont (fonts::mono (10.0f));
     credits.setColour (juce::Label::textColourId, colours::dim);
     addAndMakeVisible (credits);
 
@@ -156,7 +157,7 @@ void MainView::resized()
         helpButton.setBounds (header.removeFromLeft (26).withSizeKeepingCentre (22, 22));
         header.removeFromLeft (gap);
     }
-    versionLabel.setBounds (header.removeFromRight (150));
+    versionLabel.setBounds (header.removeFromRight (150).withSizeKeepingCentre (130, 18));
     meters.setBounds (header.removeFromRight (juce::jmin (260, header.getWidth())));
     header.removeFromRight (gap);
     capture.setBounds (header);   // the button sits at the right, the file chip grows leftwards

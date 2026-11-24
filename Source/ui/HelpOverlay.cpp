@@ -19,7 +19,7 @@ namespace
         const juce::String input = instrument ? "the oscillator you play with MIDI" : "the track Cortex sits on, or a sidechain";
         std::vector<Section> s;
 
-        s.push_back ({ "What Cortex does", colours::neutralAccent,
+        s.push_back ({ "What Cortex does", colours::ink,
             "Cortex is a sampler that plays itself. You load folders of samples into two brains. Each brain chops its "
             "samples into short slices (about 20 ms at the default block size) and analyses every slice: its tone colour, "
             "its pitch, how noisy it is.\n\n"
@@ -73,7 +73,7 @@ namespace
                                 "3. Play the track. Drag the dot in the Envelope triangle and listen to the colour change.\n"
                                 "4. Drop a different folder on Brain 2 and move both dots.") });
 
-        s.push_back ({ "Everything else", colours::dim,
+        s.push_back ({ "Everything else", colours::ink.withAlpha (0.6f),
             "Hover any control for a few sentences on what it does. Capture, in the header, saves the last minute of output "
             "as a WAV you can drag into your DAW. Low Latency (Output tab) is for playing live." });
         return s;
@@ -84,10 +84,11 @@ HelpOverlay::Page::Page (bool instrument)
 {
     for (const auto& s : sections (instrument))
     {
-        text.append (fonts::titleCase (s.title) + "\n", fonts::title (12.0f), s.colour);
-        text.append ("\n", fonts::ui (6.0f), colours::text);
-        text.append (s.body + "\n", fonts::ui (13.5f), colours::text);
-        text.append ("\n", fonts::ui (14.0f), colours::text);
+        // A sheet pulled out of the box: printed headings, the body in ink.
+        text.append (fonts::titleCase (s.title) + "\n", fonts::title (11.5f), s.colour);
+        text.append ("\n", fonts::ui (6.0f), colours::ink);
+        text.append (s.body + "\n", fonts::ui (13.5f), colours::ink);
+        text.append ("\n", fonts::ui (14.0f), colours::ink);
     }
     text.setLineSpacing (3.0f);
     setInterceptsMouseClicks (false, false);
@@ -115,8 +116,8 @@ juce::String HelpOverlay::plainText (bool instrument)
 HelpOverlay::HelpOverlay (bool instrument) : page (instrument)
 {
     heading.setText (fonts::titleCase (instrument ? "Cortex Instrument: how it works" : "Cortex: how it works"), juce::dontSendNotification);
-    heading.setFont (fonts::title (14.0f));
-    heading.setColour (juce::Label::textColourId, colours::text);
+    heading.setFont (fonts::title (13.0f));
+    heading.setColour (juce::Label::textColourId, colours::ink);
     addAndMakeVisible (heading);
 
     closeButton.onClick = [this] { hide(); };
@@ -147,11 +148,12 @@ void HelpOverlay::hide()
 void HelpOverlay::paint (juce::Graphics& g)
 {
     g.fillAll (colours::background.withAlpha (0.82f));
-    g.setColour (colours::panel);
+    juce::DropShadow (juce::Colours::black.withAlpha (0.4f), 10, { 0, 3 }).drawForRectangle (g, panel);
+    g.setColour (colours::label);
     g.fillRect (panel);
-    g.setColour (colours::outline);
+    g.setColour (colours::ink.withAlpha (0.3f));
     g.drawRect (panel, 1);
-    g.setColour (colours::neutralAccent);
+    g.setColour (colours::now);
     g.fillRect (panel.withHeight (3));
 }
 

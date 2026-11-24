@@ -16,11 +16,11 @@ void EnvelopeView::paint (juce::Graphics& g)
     drawPanel (g, getLocalBounds().toFloat());
 
     auto area = getLocalBounds().toFloat().reduced (12.0f, 8.0f);
-    auto header = area.removeFromTop (14.0f);
+    auto header = area.removeFromTop (16.0f);
     drawCaption (g, getLocalBounds(), "Envelopes");
 
     // Legend.
-    g.setFont (fonts::title (10.0f, false));
+    g.setFont (fonts::title (9.0f));
     auto legend = header.removeFromRight (260.0f).toNearestInt();
     for (int s : { (int) input, (int) brain1, (int) brain2, -1 })
     {
@@ -30,6 +30,8 @@ void EnvelopeView::paint (juce::Graphics& g)
         g.setColour (colours::dim);
         g.drawText (fonts::titleCase (s < 0 ? "result" : colours::sourceName (s)), key.withTrimmedLeft (4), juce::Justification::centredLeft);
     }
+
+    drawWell (g, area.expanded (4.0f, 3.0f));
 
     // Grid at 100 Hz, 1 kHz, 10 kHz.
     auto xFor = [&] (double hz) { return area.getX() + area.getWidth() * (float) (std::log (hz / minHz) / std::log (maxHz / minHz)); };

@@ -146,7 +146,7 @@ void BrainMap::computeLayout()
 
 juce::Rectangle<float> BrainMap::mapArea() const
 {
-    return getLocalBounds().toFloat().reduced (14.0f).withTrimmedTop (10.0f);
+    return getLocalBounds().toFloat().reduced (16.0f).withTrimmedTop (14.0f);
 }
 
 juce::Point<float> BrainMap::toScreen (juce::Point<float> p) const
@@ -178,19 +178,20 @@ void BrainMap::paint (juce::Graphics& g)
 {
     drawPanel (g, getLocalBounds().toFloat());
     drawCaption (g, getLocalBounds(), "Map: blocks by timbre");
+    drawWell (g, mapArea().expanded (6.0f));
 
     if (positions.empty())
     {
-        g.setFont (fonts::ui (12.0f));
+        g.setFont (fonts::mono (11.0f));
         g.setColour (colours::dim);
-        g.drawText ("Drop samples or a folder here", getLocalBounds(), juce::Justification::centred);
+        g.drawText ("drop samples or a folder here", getLocalBounds(), juce::Justification::centred);
         return;
     }
 
     g.drawImageAt (dots, 0, 0);
 
-    // The search's path: a line through the last blocks, fading back, with
-    // the one playing now ringed in white so it reads over the dots.
+    // The search's path: a chalk line through the last blocks, fading back,
+    // with the one playing now ringed in grease pencil.
     auto screenOf = [this] (int i) { return toScreen (positions[(size_t) trail[(size_t) i]]); };
     auto valid = [this] (int i) { const int b = trail[(size_t) i]; return b >= 0 && b < (int) positions.size(); };
     for (int i = trailLength - 1; i > 0; --i)
@@ -198,19 +199,19 @@ void BrainMap::paint (juce::Graphics& g)
         if (! valid (i) || ! valid (i - 1))
             continue;
         const float fade = 1.0f - (float) i / (float) trail.size();
-        g.setColour (colours::text.withAlpha (0.6f * fade));
-        g.drawLine (juce::Line<float> (screenOf (i), screenOf (i - 1)), 1.5f);
-        g.fillEllipse (juce::Rectangle<float> (4.0f, 4.0f).withCentre (screenOf (i)));
+        g.setColour (colours::text.withAlpha (0.55f * fade));
+        g.drawLine (juce::Line<float> (screenOf (i), screenOf (i - 1)), 1.2f);
+        g.fillEllipse (juce::Rectangle<float> (3.0f, 3.0f).withCentre (screenOf (i)));
     }
     if (trailLength > 0 && valid (0))
     {
         const auto p = screenOf (0);
-        g.setColour (colours::background.withAlpha (0.7f));
-        g.fillEllipse (juce::Rectangle<float> (20.0f, 20.0f).withCentre (p));
-        g.setColour (colours::text);
-        g.drawEllipse (juce::Rectangle<float> (18.0f, 18.0f).withCentre (p), 2.5f);
+        g.setColour (colours::well.withAlpha (0.75f));
+        g.fillEllipse (juce::Rectangle<float> (18.0f, 18.0f).withCentre (p));
+        g.setColour (colours::now);
+        g.drawEllipse (juce::Rectangle<float> (15.0f, 15.0f).withCentre (p), 2.2f);
         g.setColour (accent);
-        g.fillEllipse (juce::Rectangle<float> (7.0f, 7.0f).withCentre (p));
+        g.fillEllipse (juce::Rectangle<float> (6.0f, 6.0f).withCentre (p));
     }
 }
 
@@ -218,7 +219,7 @@ SoundList::SoundList()
 {
     list.setModel (this);
     list.setRowHeight (18);
-    list.setColour (juce::ListBox::backgroundColourId, colours::panel);
+    list.setColour (juce::ListBox::backgroundColourId, colours::label);   // a ruled cream list stuck on the box
     addAndMakeVisible (list);
 }
 
@@ -242,14 +243,15 @@ void SoundList::paintListBoxItem (int row, juce::Graphics& g, int width, int hei
         return;
     const auto& s = brain->sounds[(size_t) row];
 
+    // Ruled lines, the sound's swatch (which names the brain), its name and block count typed in ink.
+    g.setColour (colours::ink.withAlpha (0.22f));
+    g.fillRect (0, height - 1, width, 1);
     g.setColour (colours::forSound (accent, row));
-    g.fillEllipse (juce::Rectangle<float> (8.0f, 8.0f).withCentre ({ 10.0f, height * 0.5f }));
+    g.fillRect (juce::Rectangle<float> (7.0f, 7.0f).withCentre ({ 11.0f, height * 0.5f }));
 
-    g.setFont (fonts::ui (11.5f));
-    g.setColour (colours::text);
+    g.setFont (fonts::mono (11.0f));
+    g.setColour (colours::ink);
     g.drawText (juce::File (s.path).getFileName(), 22, 0, width - 92, height, juce::Justification::centredLeft, true);
-    g.setFont (fonts::mono (10.5f));
-    g.setColour (colours::dim);
-    g.drawText (juce::String ((int) s.numBlocks), width - 70, 0, 64, height, juce::Justification::centredRight);
+    g.drawText (juce::String ((int) s.numBlocks), width - 70, 0, 62, height, juce::Justification::centredRight);
 }
 } // namespace cortex::ui

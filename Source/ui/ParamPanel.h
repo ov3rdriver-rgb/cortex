@@ -55,7 +55,15 @@ public:
     // Pulls the link states from the processor (editor timer).
     void refresh();
 
+    void paint (juce::Graphics&) override;
     void resized() override;
+
+    // The knob under the hand lifts: its value cell goes to full ink.
+    void mouseEnter (const juce::MouseEvent&) override { repaint(); }
+    void mouseExit (const juce::MouseEvent&) override { repaint(); }
+
+    // For a screenshot: lift this control (index into the ids given) as if the mouse were over it; -1 clears.
+    void liftForPreview (int control) { previewLift = control; repaint(); }
 
 private:
     struct Control
@@ -73,6 +81,7 @@ private:
 
     std::vector<std::unique_ptr<Control>> controls;
     int cellWidth = 84;
+    int previewLift = -1;
     CortexAudioProcessor* linkHost = nullptr;
     int brain = -1;
 };

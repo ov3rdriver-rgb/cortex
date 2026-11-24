@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **A new look: the tape box and its track sheet.** The window is the session's tape box: Dark is the blue-grey box with chalk text, Light is the cream sheet with navy ink. Every value is typed (Courier New) into a cream cell; captions are printed small caps; each brain column is a numbered, ruled track sheet; buttons and tabs are stuck-on labels, lit in their source's ink when on. Anything happening right now (the slice playing, the triangle dots, the gate light, levels above -3 dB, the result curve) is marked in grease-pencil red. The three source inks are leader-tape green (Input), grease-pencil orange (Brain 1) and carbon-copy purple (Brain 2). Each triangle corner's share is typed large, with the leading source inked brightest; maps and plots sit in darker wells; the knob under the hand lifts to full ink.
+
 ## 1.3.0 (2026-11-16)
 
 - **A "?" next to the title** opens an explainer over the window: what Cortex does, what the cepstral morph is doing (envelope and detail, the cutoff lines, the two triangles), how a brain chooses its slices, and a first sound. Click outside it, Close, or press Escape to put it away.

@@ -135,6 +135,10 @@ public:
             auto* cortexEditor = dynamic_cast<CortexAudioProcessorEditor*> (editor.get());
             editor->setSize (1280, 820);
             cortexEditor->showTooltip ({ 700, 660 }, cortex::ui::tips::forParam (cortex::ParamIDs::chaosB1));
+            // Also show the states a hover can't be scripted for: a toggle on and a lifted knob.
+            auto* gate = proc.apvts.getParameter (cortex::ParamIDs::gateOn);
+            gate->setValueNotifyingHost (1.0f);
+            cortexEditor->getView().getInputPanel().liftForPreview (1);   // the Input cutoff knob
             const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
             const auto file = outDir.getChildFile ("ui_tooltip.png");
             file.deleteFile();

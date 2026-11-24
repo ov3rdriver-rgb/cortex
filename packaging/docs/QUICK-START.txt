@@ -4,11 +4,15 @@ CORTEX {{VERSION}} - QUICK START
 1. THE CORTEX WINDOW
 --------------------
 LEFT COLUMN      Brain 1 (orange).
-RIGHT COLUMN     Brain 2 (violet).
+RIGHT COLUMN     Brain 2 (purple).
 CENTRE, TOP      Two triangles: "Envelope" and "Detail".
 CENTRE, MIDDLE   The spectral envelopes of the sources.
 CENTRE, BOTTOM   The cepstrum and the cutoff lines.
-BOTTOM, LEFT     The Input panel (turquoise).
+BOTTOM, LEFT     The Input panel (green).
+
+The window looks like a studio tape box: the values are typed on
+cream labels, and anything that happens right now (the block that
+plays, the dots in the triangles, the gate light) is marked in red.
 BOTTOM, RIGHT    Tabs: "Search", "Mod" and "Output".
 
 The "?" next to the title opens an explanation of what Cortex does
